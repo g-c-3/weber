@@ -102,6 +102,7 @@ private class UpdateRows(
             return
         }
         setBusy(true)
+        action.text = "Downloading…"
         progress.indeterminate = false
         progress.value = 0f
         progress.visibility = View.VISIBLE
@@ -118,17 +119,20 @@ private class UpdateRows(
                 ApkInstaller.install(activity, file)
                 ui {
                     setBusy(false)
+                    action.text = "Download and install"
                     status.text = "Confirm the install in the Android screen."
                 }
             } catch (e: SecurityException) {
                 ui {
                     setBusy(false)
+                    action.text = "Download and install"
                     progress.visibility = View.GONE
                     status.text = "The download did not match its checksum. Nothing was installed."
                 }
             } catch (e: Exception) {
                 ui {
                     setBusy(false)
+                    action.text = "Download and install"
                     progress.visibility = View.GONE
                     status.text = "Update failed. Nothing was installed."
                 }
