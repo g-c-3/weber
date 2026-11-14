@@ -240,3 +240,7 @@ Reason: run 94 failed in the release build and the annotation had nothing to say
 ## 45. DOM storage on
 `domStorageEnabled` is set in the adapter. It is off by default in WebView and many sites do not finish loading without it (0.9.5 showed cricinfo without images and with times in UTC). The data is site storage inside the profile, on the device, removed with the profile.
 Not changed: user-agent string (it still contains the WebView marker; no page-request rewriting, decision 31), third-party cookies (WebView default, off).
+
+## 46. Own error screen
+Main-frame load failures show an Ardour screen over the view instead of the engine's page: offline, certificate, unencrypted (http) and other. "Try again" reloads the failed address; it is not offered for http. Certificate errors are cancelled, never bypassed (Security rule). Sub-frame and image errors are ignored.
+Not yet seen on a device.
