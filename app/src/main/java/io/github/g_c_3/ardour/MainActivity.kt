@@ -5,6 +5,8 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.LinearGradient
 import android.graphics.drawable.GradientDrawable
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
@@ -247,8 +249,18 @@ class MainActivity : Activity() {
         })
     }
 
-    private fun showError(url: String?, kind: PageError) {
+    // True when the phone has a network that reaches the internet (a validated one). Reads local state only.
+    private fun isOnline(): Boolean {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) } ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    private fun showError(url: String?, found: PageError) {
         failedUrl = url
+        // A lookup or connection failure with no working network is "offline", whatever the engine says.
+        val kind = if ((found == PageError.NOT_FOUND || found == PageError.UNREACHABLE) && !isOnline()) PageError.OFFLINE else found
         val (title, body) = when (kind) {
             PageError.OFFLINE -> "No internet connection" to "Check your connection, then try again."
             PageError.NOT_FOUND -> "This site can't be found" to "Check the address for typing mistakes."
