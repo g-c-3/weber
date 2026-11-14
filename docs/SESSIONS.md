@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 29
+- Owner screenshots of 0.9.8: typo domain correct; airplane mode showed the same "can't be found" text (fault).
+- Built (run 99 green, released as 0.9.9): `ACCESS_NETWORK_STATE` and an offline check from the phone's network (decision 48). Not yet seen on a device.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,078,196 bytes (2.94 MiB) at 0.9.9.
+- Next start: owner re-tests airplane mode on 0.9.9; then Phase 4 step 2.
+
 ## 28
 - Owner device pass 0.9.7 (screenshots): back walks history, second back leaves the app; search loads; error screen looks as intended. Fault found: a non-existent domain said "Check your connection".
 - Built (run 98 green, released as 0.9.8): error kinds by cause and "Search instead" (decision 47). Not yet seen on a device.
