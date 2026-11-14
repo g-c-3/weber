@@ -93,7 +93,11 @@ jobs:
           KEYSTORE_PATH: ${{ runner.temp }}/ardour-release.p12
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: ./gradlew --no-daemon :app:assembleSideloadRelease -PardourVersion="$VERSION"
+        shell: bash
+        run: ./gradlew --no-daemon :app:assembleSideloadRelease -PardourVersion="$VERSION" 2>&1 | tee gradle-release.log
+      - name: Annotate release build errors
+        if: failure()
+        run: sh .github/ci/annotate-errors.sh gradle-release.log
       - name: Remove keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/ardour-release.p12"
