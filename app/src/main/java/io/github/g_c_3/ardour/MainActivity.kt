@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.LinearGradient
+import android.graphics.drawable.GradientDrawable
 import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
@@ -25,6 +26,12 @@ class MainActivity : Activity() {
     private lateinit var address: AddressField
     private lateinit var progress: ThinProgress
     private lateinit var startView: View
+    private lateinit var errorView: LinearLayout
+    private lateinit var errorTitle: TextView
+    private lateinit var errorBody: TextView
+    private lateinit var errorHost: TextView
+    private lateinit var errorRetry: View
+    private var failedUrl: String? = null
     private lateinit var bottomBar: View
     private lateinit var backButton: IconButton
     private lateinit var forwardButton: IconButton
@@ -48,12 +55,15 @@ class MainActivity : Activity() {
             refreshBack()
         }
 
+        override fun onError(url: String?, kind: PageError) = showError(url, kind)
+
         override fun onProgress(percent: Int) {
             progress.value = max(percent, 6) / 100f
         }
 
         override fun onLoading(loading: Boolean) {
             this@MainActivity.loading = loading
+            if (loading) errorView.visibility = View.GONE
             reloadButton.kind = if (loading) IconButton.Kind.STOP else IconButton.Kind.RELOAD
             progress.visibility = if (loading) View.VISIBLE else View.INVISIBLE
             if (loading) progress.value = 0.06f
@@ -111,6 +121,8 @@ class MainActivity : Activity() {
         content.addView(EngineAdapter.createView(this, listener) { root.post { recreate() } }, fill)
         startView = startScreen()
         content.addView(startView, fill)
+        errorView = errorScreen().apply { visibility = View.GONE }
+        content.addView(errorView, fill)
         root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         backButton = IconButton(this, IconButton.Kind.BACK).apply {
@@ -168,6 +180,67 @@ class MainActivity : Activity() {
 
     private fun centered() = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         .apply { gravity = Gravity.CENTER_HORIZONTAL }
+
+    // Shown over the engine's own error page: ring, plain words, one action.
+    private fun errorScreen(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        setBackgroundColor(Ui.PAPER)
+        isClickable = true
+        val pad = Ui.dp(context, 32)
+        setPadding(pad, pad, pad, Ui.dp(context, 64))
+        addView(TextView(context).apply {
+            text = "!"
+            textSize = 32f
+            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setTextColor(Ui.EMBER)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Ui.CARD)
+                setStroke(Ui.dp(context, 3), Ui.EMBER)
+            }
+            elevation = Ui.dp(context, 6).toFloat()
+            outlineSpotShadowColor = 0x80E8451D.toInt()
+        }, LinearLayout.LayoutParams(Ui.dp(context, 72), Ui.dp(context, 72)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        errorTitle = Ui.title(context, "").apply {
+            textSize = 24f
+            gravity = Gravity.CENTER
+            setPadding(0, Ui.dp(context, 28), 0, Ui.dp(context, 8))
+        }
+        addView(errorTitle)
+        errorBody = Ui.body(context, "").apply {
+            textSize = 16f
+            gravity = Gravity.CENTER
+        }
+        addView(errorBody)
+        errorHost = Ui.body(context, "").apply {
+            gravity = Gravity.CENTER
+            setPadding(0, Ui.dp(context, 12), 0, Ui.dp(context, 28))
+        }
+        addView(errorHost)
+        errorRetry = Ui.pillButton(context, "Try again").apply {
+            setOnClickListener { failedUrl?.let { EngineAdapter.load(it) } }
+        }
+        addView(errorRetry, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
+    }
+
+    private fun showError(url: String?, kind: PageError) {
+        failedUrl = url
+        val (title, body) = when (kind) {
+            PageError.OFFLINE -> "Can't reach this page" to "Check your connection, then try again."
+            PageError.SECURITY -> "This connection isn't secure" to "Ardour stopped the page because its security certificate can't be trusted."
+            PageError.NOT_SECURE -> "Ardour won't open this page" to "The address uses an unencrypted connection (http)."
+            PageError.OTHER -> "This page didn't load" to "Something went wrong while loading it."
+        }
+        errorTitle.text = title
+        errorBody.text = body
+        errorHost.text = url?.let { UrlInput.display(it) } ?: ""
+        errorRetry.visibility = if (kind == PageError.NOT_SECURE || url == null) View.GONE else View.VISIBLE
+        errorView.alpha = 0f
+        errorView.visibility = View.VISIBLE
+        errorView.animate().alpha(1f).setDuration(220).start()
+    }
 
     private fun submit(text: String) {
         val target = UrlInput.resolve(text) ?: return
