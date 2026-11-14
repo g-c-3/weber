@@ -4,7 +4,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
+import android.net.http.SslError
 import android.webkit.RenderProcessGoneDetail
+import android.webkit.SslErrorHandler
+import android.webkit.WebResourceError
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -14,8 +17,11 @@ import androidx.webkit.Profile
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 
+enum class PageError { OFFLINE, SECURITY, NOT_SECURE, OTHER }
+
 // What the browser screen needs to hear from the engine.
 interface PageListener {
+    fun onError(url: String?, kind: PageError)
     fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean)
     fun onProgress(percent: Int)
     fun onLoading(loading: Boolean)
@@ -23,6 +29,13 @@ interface PageListener {
 
 // The only file that calls android.webkit or androidx.webkit (DECISIONS.md 26). An engine API change is fixed here.
 object EngineAdapter {
+    private val OFFLINE_CODES = setOf(
+        WebViewClient.ERROR_HOST_LOOKUP,
+        WebViewClient.ERROR_CONNECT,
+        WebViewClient.ERROR_TIMEOUT,
+        WebViewClient.ERROR_IO,
+    )
+    private const val ERROR_FAILED_SSL_HANDSHAKE = WebViewClient.ERROR_FAILED_SSL_HANDSHAKE
     private var webView: WebView? = null
 
     // Launch gate (DECISIONS.md 28): null when the engine meets the app's needs, else the text to show.
@@ -73,6 +86,25 @@ object EngineAdapter {
             override fun onPageFinished(view: WebView, url: String?) {
                 listener.onLoading(false)
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
+            }
+
+            // Main-frame failures only; the screen shows its own page instead of the engine's (DECISIONS.md 46).
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                if (!request.isForMainFrame) return
+                val text = error.description?.toString().orEmpty()
+                val kind = when {
+                    "CLEARTEXT" in text -> PageError.NOT_SECURE
+                    error.errorCode in OFFLINE_CODES -> PageError.OFFLINE
+                    error.errorCode == ERROR_FAILED_SSL_HANDSHAKE -> PageError.SECURITY
+                    else -> PageError.OTHER
+                }
+                listener.onError(request.url.toString(), kind)
+            }
+
+            // Certificate problems are never bypassed: the load is cancelled.
+            override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+                handler.cancel()
+                listener.onError(error.url, PageError.SECURITY)
             }
 
             override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) =

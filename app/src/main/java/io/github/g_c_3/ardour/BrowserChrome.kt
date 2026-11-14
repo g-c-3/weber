@@ -12,7 +12,6 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.LinearLayout
-import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -65,17 +64,22 @@ class IconButton(context: Context, kind: Kind) : View(context) {
             }
             Kind.RELOAD -> {
                 arc.set(cx - r, cy - r, cx + r, cy + r)
-                canvas.drawArc(arc, 40f, 280f, false, stroke)
-                val end = Math.toRadians(-40.0)
+                canvas.drawArc(arc, 60f, 250f, false, stroke)
+                val end = Math.toRadians(-50.0)
                 val ex = cx + r * cos(end).toFloat()
                 val ey = cy + r * sin(end).toFloat()
-                val back = atan2(cos(end), -sin(end)) + Math.PI
-                val len = r * 1.05f
+                // Radial and tangent (clockwise) unit vectors at the arc end; the head points along the tangent.
+                val ux = cos(end).toFloat()
+                val uy = sin(end).toFloat()
+                val tx = -uy
+                val ty = ux
+                val h = r * 0.75f
                 path.reset()
-                path.moveTo(ex + len * cos(back + 0.7).toFloat(), ey + len * sin(back + 0.7).toFloat())
-                path.lineTo(ex, ey)
-                path.lineTo(ex + len * cos(back - 0.7).toFloat(), ey + len * sin(back - 0.7).toFloat())
-                canvas.drawPath(path, stroke)
+                path.moveTo(ex + ux * h, ey + uy * h)
+                path.lineTo(ex - ux * h, ey - uy * h)
+                path.lineTo(ex + tx * r * 1.15f, ey + ty * r * 1.15f)
+                path.close()
+                canvas.drawPath(path, dot)
             }
             Kind.STOP -> {
                 val h = r * 0.8f
