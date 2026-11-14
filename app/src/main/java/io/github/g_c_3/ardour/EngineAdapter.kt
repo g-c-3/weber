@@ -17,7 +17,7 @@ import androidx.webkit.Profile
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 
-enum class PageError { OFFLINE, SECURITY, NOT_SECURE, OTHER }
+enum class PageError { OFFLINE, NOT_FOUND, UNREACHABLE, SECURITY, NOT_SECURE, OTHER }
 
 // What the browser screen needs to hear from the engine.
 interface PageListener {
@@ -94,7 +94,9 @@ object EngineAdapter {
                 val text = error.description?.toString().orEmpty()
                 val kind = when {
                     "CLEARTEXT" in text -> PageError.NOT_SECURE
-                    error.errorCode in OFFLINE_CODES -> PageError.OFFLINE
+                    "NAME_NOT_RESOLVED" in text -> PageError.NOT_FOUND
+                    "INTERNET_DISCONNECTED" in text -> PageError.OFFLINE
+                    error.errorCode in OFFLINE_CODES -> PageError.UNREACHABLE
                     error.errorCode == ERROR_FAILED_SSL_HANDSHAKE -> PageError.SECURITY
                     else -> PageError.OTHER
                 }

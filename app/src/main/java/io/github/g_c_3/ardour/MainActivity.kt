@@ -31,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var errorBody: TextView
     private lateinit var errorHost: TextView
     private lateinit var errorRetry: View
+    private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var bottomBar: View
     private lateinit var backButton: IconButton
@@ -223,12 +224,35 @@ class MainActivity : Activity() {
             setOnClickListener { failedUrl?.let { EngineAdapter.load(it) } }
         }
         addView(errorRetry, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        errorSearch = TextView(context).apply {
+            text = "Search instead"
+            textSize = 15f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            setTextColor(Ui.INK)
+            gravity = Gravity.CENTER
+            setPadding(Ui.dp(context, 24), Ui.dp(context, 13), Ui.dp(context, 24), Ui.dp(context, 13))
+            background = GradientDrawable().apply {
+                setColor(Ui.CARD)
+                cornerRadius = Ui.dp(context, 28).toFloat()
+                setStroke(Ui.dp(context, 1), Ui.LINE)
+            }
+            isClickable = true
+            isFocusable = true
+            Ui.springPress(this)
+            setOnClickListener { failedUrl?.let { EngineAdapter.load(UrlInput.searchUrl(UrlInput.display(it))) } }
+        }
+        addView(errorSearch, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            topMargin = Ui.dp(context, 12)
+        })
     }
 
     private fun showError(url: String?, kind: PageError) {
         failedUrl = url
         val (title, body) = when (kind) {
-            PageError.OFFLINE -> "Can't reach this page" to "Check your connection, then try again."
+            PageError.OFFLINE -> "No internet connection" to "Check your connection, then try again."
+            PageError.NOT_FOUND -> "This site can't be found" to "Check the address for typing mistakes."
+            PageError.UNREACHABLE -> "Can't reach this page" to "The site may be down, or your connection may be weak."
             PageError.SECURITY -> "This connection isn't secure" to "Ardour stopped the page because its security certificate can't be trusted."
             PageError.NOT_SECURE -> "Ardour won't open this page" to "The address uses an unencrypted connection (http)."
             PageError.OTHER -> "This page didn't load" to "Something went wrong while loading it."
@@ -237,6 +261,7 @@ class MainActivity : Activity() {
         errorBody.text = body
         errorHost.text = url?.let { UrlInput.display(it) } ?: ""
         errorRetry.visibility = if (kind == PageError.NOT_SECURE || url == null) View.GONE else View.VISIBLE
+        errorSearch.visibility = if (kind == PageError.NOT_FOUND && url != null) View.VISIBLE else View.GONE
         errorView.alpha = 0f
         errorView.visibility = View.VISIBLE
         errorView.animate().alpha(1f).setDuration(220).start()
