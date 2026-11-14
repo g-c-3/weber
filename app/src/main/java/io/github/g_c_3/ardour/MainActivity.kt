@@ -160,11 +160,14 @@ class MainActivity : Activity() {
             letterSpacing = -0.03f
             setTextColor(Ui.EMBER)
             paint.shader = LinearGradient(0f, 0f, paint.measureText("Ardour"), 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
-        })
+        }, centered())
         addView(Ui.body(context, "Search or enter an address above").apply {
             setPadding(0, Ui.dp(context, 10), 0, Ui.dp(context, 64))
-        })
+        }, centered())
     }
+
+    private fun centered() = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        .apply { gravity = Gravity.CENTER_HORIZONTAL }
 
     private fun submit(text: String) {
         val target = UrlInput.resolve(text) ?: return

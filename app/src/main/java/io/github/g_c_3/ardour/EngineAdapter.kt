@@ -46,6 +46,8 @@ object EngineAdapter {
         WebViewCompat.setProfile(view, Profile.DEFAULT_PROFILE_NAME)
         view.settings.apply {
             javaScriptEnabled = true
+            // Off by default in WebView; most sites need it to run (DECISIONS.md 45).
+            domStorageEnabled = true
             allowFileAccess = false
             allowContentAccess = false
             allowFileAccessFromFileURLs = false
