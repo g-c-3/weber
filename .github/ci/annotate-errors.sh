@@ -6,7 +6,8 @@ if [ ! -f "$log" ]; then
   exit 0
 fi
 ws="${GITHUB_WORKSPACE:-/nonexistent}/"
-clean() { sed -e 's/\r$//' -e 's/%/%25/g' -e "s#file://##" -e "s#$ws##"; }
+# Lines that mention signing material are never written out.
+clean() { sed -e 's/\r$//' -e 's/%/%25/g' -e "s#file://##" -e "s#$ws##" | grep -viE 'password|storepass|keypass|keystore'; }
 emit() { while IFS= read -r line; do printf '::error title=%s::%s\n' "$1" "$line"; done; }
 found=0
 errs=$(grep -E '^e: |: error: |Dependency verification failed' "$log" | clean | awk '!s[$0]++' | head -10)
