@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 27
+- Owner screenshots of 0.9.6: cricinfo renders fully with images, flags and local times; start screen centred. Decision 45 confirmed on device.
+- Built (run 97 green, released as 0.9.7): Ardour error screen (decision 46); reload arrowhead redrawn as a filled head. Not yet seen on a device.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,076,164 bytes (2.93 MiB) at 0.9.7.
+- Next start: DP17 rest (back gesture, stop, keyboard) and the error screen (airplane mode, an http address); then Phase 4 step 2.
+
 ## 26
 - Owner screenshots of 0.9.5: start screen text flush left (default width, no centring); cricinfo missing images and showing UTC times (page scripts not finishing); reload arrowhead too small.
 - Fixed in run 96, released as 0.9.6: start screen centred; DOM storage on (decision 45); larger arrowhead. Not yet seen on a device.

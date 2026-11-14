@@ -71,7 +71,7 @@ Settings (decision 20): basic options by default; an Advanced section holds the 
 - DP2: passed on 0.0.8 (owner recording): Settings opens, Ardour 0.0.8, WebView 157.0.8103.38 (com.google.android.webview). Scroll with the button present: median gap 16.4 ms, no fast-motion gap over 34 ms (about 3 flicks, short of the 10 the target asks). Start-up with the button not re-measured. DP3: update check and install.
 
 ### 4 Basic browser
-- Approved (decision 43). Step 1 (0.9.5, released, not run on a device): address bar, back, forward, reload and stop, progress line, start screen. Next: error pages in the Ardour look, then the planned items.
+- Approved (decision 43). Step 1 (0.9.5, released, not run on a device): address bar, back, forward, reload and stop, progress line, start screen. 0.9.7 adds the Ardour error screen (decision 46). Next: the planned items below.
 - DP17: type an address and a search; page loads and the address shows the host; system back and gesture walk the history, then leave the app; reload turns into stop while loading; the bottom bar hides while typing. Judge on screenshots.
 - (planned) Pull-to-refresh; find in page; desktop-site switch; text size and zoom; share, print, save as PDF.
 - (planned) Reader mode with a warm "twilight" theme.
