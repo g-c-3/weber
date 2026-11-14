@@ -244,3 +244,7 @@ Not changed: user-agent string (it still contains the WebView marker; no page-re
 ## 46. Own error screen
 Main-frame load failures show an Ardour screen over the view instead of the engine's page: offline, certificate, unencrypted (http) and other. "Try again" reloads the failed address; it is not offered for http. Certificate errors are cancelled, never bypassed (Security rule). Sub-frame and image errors are ignored.
 Not yet seen on a device.
+
+## 47. Error kinds by cause
+Amends 46. The engine's error text (`net::ERR_...`) is used to tell causes apart: name not found ("This site can't be found", with "Search instead" using the host as the query), no internet, certificate, http, and a neutral message when the cause is unknown. A missing site is no longer reported as a connection problem.
+No network-state permission is added; the engine's own text decides. Not run on a device for each cause.

@@ -31,3 +31,4 @@ Maps session, decision and roadmap phase to a date. Append only; never edit a pa
 | 25 | 43, 44 | 4 | 2026-11-14 | Phase 4 step 1 (address bar, toolbar, back) released as 0.9.5; release build annotated |
 | 26 | 45 | 4 | 2026-11-15 | Start screen centred, DOM storage on; released as 0.9.6 |
 | 27 | 46 | 4 | 2026-11-15 | Error screen, reload icon; released as 0.9.7 |
+| 28 | 47 | 4 | 2026-11-15 | DP17 passed on 0.9.7; error kinds by cause; released as 0.9.8 |
