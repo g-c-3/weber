@@ -7,9 +7,9 @@ Pointers only.
 | File | Holds | Range | Older parts |
 |---|---|---|---|
 | ROADMAP.md | Phase checklist, detail, quality targets | Phases 0-13 | none |
-| DECISIONS.md | Numbered decisions | 1-44 | none |
-| SESSIONS.md | Session log | 1-25 | none |
-| TRACK.md | Session/decision/phase to date | Sessions 1-25 | none |
+| DECISIONS.md | Numbered decisions | 1-45 | none |
+| SESSIONS.md | Session log | 1-26 | none |
+| TRACK.md | Session/decision/phase to date | Sessions 1-26 | none |
 | ARCHITECTURE.md | Layers, network, security checks, CI | n/a | none |
 
 ## Standing decisions
