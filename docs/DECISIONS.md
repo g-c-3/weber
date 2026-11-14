@@ -248,3 +248,7 @@ Not yet seen on a device.
 ## 47. Error kinds by cause
 Amends 46. The engine's error text (`net::ERR_...`) is used to tell causes apart: name not found ("This site can't be found", with "Search instead" using the host as the query), no internet, certificate, http, and a neutral message when the cause is unknown. A missing site is no longer reported as a connection problem.
 No network-state permission is added; the engine's own text decides. Not run on a device for each cause.
+
+## 48. Network-state permission
+Amends 47, whose note that no permission was needed was wrong: with airplane mode on, 0.9.8 still said "This site can't be found".
+`ACCESS_NETWORK_STATE` is added (owner approved). Normal install-time permission, no prompt; it reads whether a validated network exists and sends nothing. A name-lookup or connection failure with no validated network is shown as "No internet connection". Not a web-page permission, so the Security rule on page grants is unaffected.
