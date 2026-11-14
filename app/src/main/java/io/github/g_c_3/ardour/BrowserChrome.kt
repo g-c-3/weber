@@ -70,11 +70,11 @@ class IconButton(context: Context, kind: Kind) : View(context) {
                 val ex = cx + r * cos(end).toFloat()
                 val ey = cy + r * sin(end).toFloat()
                 val back = atan2(cos(end), -sin(end)) + Math.PI
-                val len = r * 0.8f
+                val len = r * 1.05f
                 path.reset()
-                path.moveTo(ex + len * cos(back + 0.6).toFloat(), ey + len * sin(back + 0.6).toFloat())
+                path.moveTo(ex + len * cos(back + 0.7).toFloat(), ey + len * sin(back + 0.7).toFloat())
                 path.lineTo(ex, ey)
-                path.lineTo(ex + len * cos(back - 0.6).toFloat(), ey + len * sin(back - 0.6).toFloat())
+                path.lineTo(ex + len * cos(back - 0.7).toFloat(), ey + len * sin(back - 0.7).toFloat())
                 canvas.drawPath(path, stroke)
             }
             Kind.STOP -> {
