@@ -2,6 +2,11 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 30
+- Owner screenshots of 0.9.9: airplane mode shows "No internet connection"; data on shows "This site can't be found" with "Search instead". Decisions 47 and 48 confirmed on device.
+- No code change. Engine: `androidx.webkit` 1.18.0. APK size: 3,078,196 bytes (2.94 MiB) at 0.9.9.
+- Next start: Phase 4 step 2: the Settings button becomes a menu (share, desktop site, find in page, Settings), then pull-to-refresh, text size and zoom.
+
 ## 29
 - Owner screenshots of 0.9.8: typo domain correct; airplane mode showed the same "can't be found" text (fault).
 - Built (run 99 green, released as 0.9.9): `ACCESS_NETWORK_STATE` and an offline check from the phone's network (decision 48). Not yet seen on a device.
