@@ -2,6 +2,13 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 25
+- Built (run 95 green, released as 0.9.5): Phase 4 step 1 per decision 43: address bar, back, forward, reload and stop, progress line, start screen, back callback. Download button now reads "Downloading…" while it runs.
+- Run 94 (same code) failed in the release build with no readable cause; run 95 passed without a code change. Cause unknown. Annotations extended to the release build (decision 44).
+- DP16 on a 0.9.2 screenshot: bar glow and greyed button look finished; pulse and sweep unseen.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,070,792 bytes (2.93 MiB) at 0.9.5.
+- Next start: DP17 (owner, device); plain system error pages are still shown for failed loads and need the same polish; then Phase 4 step 2.
+
 ## 24
 - Checked: docs, INDEX ranges and sizes (all under 60 KB); `androidx.webkit` 1.18.0 still the newest stable (developer.android.com).
 - Built, run 93 green and released as 0.9.3: `version.properties` deleted; build errors written as annotations (`.github/ci/annotate-errors.sh`, decision 42). Not yet seen on a real failure.
