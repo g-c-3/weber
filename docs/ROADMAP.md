@@ -61,7 +61,7 @@ Settings (decision 20): basic options by default; an Advanced section holds the 
 
 ### 3 Settings screen and in-app update
 - DP15: 0.1.0 Settings look passed on a screenshot: cards, back button, dark pill button. Press and entrance motion, gate screen and the Settings button over a page not yet seen.
-- DP16: glow, pulse and progress light (decision 40): the button glow, the pulse when an update is available, the sweep while checking, the glowing download bar. Judge on a screenshot or recording.
+- DP16: glow, pulse and progress light (decision 40). Passed on a 0.9.2 screenshot: glowing download bar, greyed button. Pulse and sweep not yet seen (needs a recording).
 - Settings screen: basic list plus Advanced section (decision 20); "Check for updates" (sideload only). About shows the app version and the phone's WebView version.
 - Step 1 (0.0.8, released, run on device): `sideload` and `play` flavors, Settings screen with About (app and WebView version), temporary Settings button. Step 2 (0.0.9, released): updater per decision 36; check shows "up to date" on device. 0.1.0 restyles Settings, the gate screen and the Settings button to the polish rule (decision 38), not yet run through CI or on a device. Advanced section waits for its first setting.
 - Version compare number by number; the one APK (decision 27); SHA-256 check; system installer.
@@ -71,7 +71,8 @@ Settings (decision 20): basic options by default; an Advanced section holds the 
 - DP2: passed on 0.0.8 (owner recording): Settings opens, Ardour 0.0.8, WebView 157.0.8103.38 (com.google.android.webview). Scroll with the button present: median gap 16.4 ms, no fast-motion gap over 34 ms (about 3 flicks, short of the 10 the target asks). Start-up with the button not re-measured. DP3: update check and install.
 
 ### 4 Basic browser
-- Address bar, back, forward, reload, progress. Replace the placeholder start page (`https://example.com`).
+- Approved (decision 43). Step 1 (0.9.5, released, not run on a device): address bar, back, forward, reload and stop, progress line, start screen. Next: error pages in the Ardour look, then the planned items.
+- DP17: type an address and a search; page loads and the address shows the host; system back and gesture walk the history, then leave the app; reload turns into stop while loading; the bottom bar hides while typing. Judge on screenshots.
 - (planned) Pull-to-refresh; find in page; desktop-site switch; text size and zoom; share, print, save as PDF.
 - (planned) Reader mode with a warm "twilight" theme.
 - (planned) Default browser and links from other apps; Space choice added after Phase 12.

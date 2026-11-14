@@ -28,3 +28,4 @@ Maps session, decision and roadmap phase to a date. Append only; never edit a pa
 | 22 | 40 | 3 (DP3, DP15) | 2026-11-14 | Update install passed on device; light effects built |
 | 23 | 41 | tooling | 2026-11-14 | Direct push access set up; first docs push |
 | 24 | 42 | CI | 2026-11-14 | Build errors as annotations; version.properties removed; 0.9.3 released |
+| 25 | 43, 44 | 4 | 2026-11-14 | Phase 4 step 1 (address bar, toolbar, back) released as 0.9.5; release build annotated |
