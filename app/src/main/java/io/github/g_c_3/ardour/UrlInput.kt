@@ -19,7 +19,9 @@ object UrlInput {
         return search(text)
     }
 
-    private fun search(query: String) = SEARCH + Uri.encode(query)
+    fun searchUrl(query: String) = SEARCH + Uri.encode(query)
+
+    private fun search(query: String) = searchUrl(query)
 
     // Short form shown while the address bar is not being edited.
     fun display(url: String): String {
