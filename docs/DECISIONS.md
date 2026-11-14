@@ -226,3 +226,13 @@ Rule: the `build` job writes Gradle output to `gradle.log`; on failure `.github/
 Scope: the debug build only. The `release` job is not annotated: it handles signing material (decision 13).
 Checked: script run on sample logs; annotations endpoint answers 200 with the token and 403 without. Not checked: annotations from a real failed run.
 `version.properties` is deleted; nothing has read it since decision 39.
+
+## 43. Phase 4 started; step 1 scope
+Phase 4 approved by the owner ("your call") after Phase 3 step 2. Step 1 (0.9.5): address bar, back, forward, reload and stop, progress line, a native start screen in place of the placeholder page.
+Typed text: web address if it has a host-like form or an http(s) scheme, otherwise a search. Default search is DuckDuckGo, an ordinary page the user visits, no connection from Ardour itself; the owner can change it.
+Only http and https load in the view; other schemes are dropped until Ardour handles them itself.
+Back: target SDK 36 no longer calls `onBackPressed` (Android 13+), so a back callback is registered only while there is history or the address field is being edited. Below API 33 the old override is used. Not yet run on a device.
+
+## 44. Release build annotated too
+Amends 42: the `release` job writes its Gradle output to `gradle-release.log` and annotates failures the same way. Lines that mention signing material are filtered out of every annotation.
+Reason: run 94 failed in the release build and the annotation had nothing to say because that job was excluded.
