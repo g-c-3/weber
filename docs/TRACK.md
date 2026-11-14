@@ -33,3 +33,4 @@ Maps session, decision and roadmap phase to a date. Append only; never edit a pa
 | 27 | 46 | 4 | 2026-11-15 | Error screen, reload icon; released as 0.9.7 |
 | 28 | 47 | 4 | 2026-11-15 | DP17 passed on 0.9.7; error kinds by cause; released as 0.9.8 |
 | 29 | 48 | 4 | 2026-11-15 | Network-state permission; offline detection; released as 0.9.9 |
+| 30 | 47, 48 | 4 | 2026-11-15 | Offline and missing-site screens confirmed on device (0.9.9) |

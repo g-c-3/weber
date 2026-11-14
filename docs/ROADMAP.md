@@ -72,7 +72,7 @@ Settings (decision 20): basic options by default; an Advanced section holds the 
 
 ### 4 Basic browser
 - Approved (decision 43). Step 1 (0.9.5, released, not run on a device): address bar, back, forward, reload and stop, progress line, start screen. 0.9.7 adds the Ardour error screen (decision 46). Next: the planned items below.
-- DP17: passed on 0.9.7 (owner screenshots): search and address load, back walks history then leaves the app, error screen. Not yet seen: stop while loading, keyboard hiding the bottom bar. Original check: type an address and a search; page loads and the address shows the host; system back and gesture walk the history, then leave the app; reload turns into stop while loading; the bottom bar hides while typing. Judge on screenshots.
+- DP17: passed on 0.9.7 (owner screenshots): search and address load, back walks history then leaves the app, error screen. Error kinds passed on 0.9.9 (owner screenshots): offline in airplane mode, missing site with data on. Not yet seen: stop while loading, keyboard hiding the bottom bar. Original check: type an address and a search; page loads and the address shows the host; system back and gesture walk the history, then leave the app; reload turns into stop while loading; the bottom bar hides while typing. Judge on screenshots.
 - (planned) Pull-to-refresh; find in page; desktop-site switch; text size and zoom; share, print, save as PDF.
 - (planned) Reader mode with a warm "twilight" theme.
 - (planned) Default browser and links from other apps; Space choice added after Phase 12.
