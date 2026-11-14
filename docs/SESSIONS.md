@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 28
+- Owner device pass 0.9.7 (screenshots): back walks history, second back leaves the app; search loads; error screen looks as intended. Fault found: a non-existent domain said "Check your connection".
+- Built (run 98 green, released as 0.9.8): error kinds by cause and "Search instead" (decision 47). Not yet seen on a device.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,077,668 bytes (2.94 MiB) at 0.9.8.
+- Next start: owner checks 0.9.8 (typo domain, airplane mode); then Phase 4 step 2.
+
 ## 27
 - Owner screenshots of 0.9.6: cricinfo renders fully with images, flags and local times; start screen centred. Decision 45 confirmed on device.
 - Built (run 97 green, released as 0.9.7): Ardour error screen (decision 46); reload arrowhead redrawn as a filled head. Not yet seen on a device.
