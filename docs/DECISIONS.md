@@ -236,3 +236,7 @@ Back: target SDK 36 no longer calls `onBackPressed` (Android 13+), so a back cal
 ## 44. Release build annotated too
 Amends 42: the `release` job writes its Gradle output to `gradle-release.log` and annotates failures the same way. Lines that mention signing material are filtered out of every annotation.
 Reason: run 94 failed in the release build and the annotation had nothing to say because that job was excluded.
+
+## 45. DOM storage on
+`domStorageEnabled` is set in the adapter. It is off by default in WebView and many sites do not finish loading without it (0.9.5 showed cricinfo without images and with times in UTC). The data is site storage inside the profile, on the device, removed with the profile.
+Not changed: user-agent string (it still contains the WebView marker; no page-request rewriting, decision 31), third-party cookies (WebView default, off).

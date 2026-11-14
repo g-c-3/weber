@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 26
+- Owner screenshots of 0.9.5: start screen text flush left (default width, no centring); cricinfo missing images and showing UTC times (page scripts not finishing); reload arrowhead too small.
+- Fixed in run 96, released as 0.9.6: start screen centred; DOM storage on (decision 45); larger arrowhead. Not yet seen on a device.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,070,972 bytes (2.93 MiB) at 0.9.6.
+- Next start: DP17 on 0.9.6, including cricinfo; if images or times are still wrong, test the user-agent marker as the next cause; error pages in the Ardour look.
+
 ## 25
 - Built (run 95 green, released as 0.9.5): Phase 4 step 1 per decision 43: address bar, back, forward, reload and stop, progress line, start screen, back callback. Download button now reads "Downloading…" while it runs.
 - Run 94 (same code) failed in the release build with no readable cause; run 95 passed without a code change. Cause unknown. Annotations extended to the release build (decision 44).
