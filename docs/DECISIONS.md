@@ -284,5 +284,6 @@ Also: a failed job's error summary is read from its check-run annotations when t
 ## 54. Links from other apps and the default-browser role
 Rule: `MainActivity` is `singleTask` and has a VIEW filter (DEFAULT, BROWSABLE, schemes http and https). A link opens only when its scheme is http or https and it has a host; anything else is ignored. Opening from the recents list does not reload the link. Settings has a Links card: where Android offers the browser role, a button asks the system to make Ardour the default (Android shows its own confirmation); Ardour changes nothing itself.
 No new permission, no new connection: an opened link loads like a typed address. The Space choice for opened links waits for Phase 12.
+Where the role dialog is not offered, the card shows an Open default apps button (`ACTION_MANAGE_DEFAULT_APPS_SETTINGS`, developer.android.com) and redraws when the owner returns (1.0.8).
 Verified: `RoleManager` browser role, `isRoleAvailable`, `isRoleHeld`, `createRequestRoleIntent` and `startActivityForResult` (developer.android.com, API 29). Not verified from a primary page: the exact manifest requirements for the browser role (the reference points to the AndroidX Role library). Not run on a device.
 

@@ -18,7 +18,8 @@ Numbered, never dated. Dates live in TRACK.md.
 - Owner widened the push token to include Actions read and write; the chat in use still held the old token, so re-running a failed run needs a new chat.
 - Owner approved instructions version 7: re-run rule (decision 53).
 - Built (run 107 green, released as 1.0.7, decision 54): web links from other apps and the default-browser option. Not yet seen on a device. APK size: 3,113,564 bytes (2.97 MiB) at 1.0.7. Re-run permission tested on a succeeded run: refused as nothing to retry; not proven yet.
-- Next start: Reset text size check and DP23; then reader mode with a twilight theme, default browser and links from other apps.
+- Owner results on 1.0.7: link opens from another app and loads in the open window; Reset text size works; the in-app default-browser button showed no dialog (default set in phone settings instead). Fixed (run 108 green, released as 1.0.8): the card now offers an Open default apps button when the dialog is not offered, and redraws on return. Not yet seen on a device. APK size: 3,114,108 bytes (2.97 MiB) at 1.0.8.
+- Next start: DP23 retest; then Phase 4 close-out check against the roadmap. then reader mode with a twilight theme, default browser and links from other apps.
 
 ## 30
 - Owner screenshots of 0.9.9: airplane mode shows "No internet connection"; data on shows "This site can't be found" with "Search instead". Decisions 47 and 48 confirmed on device.
