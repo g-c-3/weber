@@ -144,8 +144,8 @@ class MainActivity : Activity() {
             setOnClickListener { if (loading) EngineAdapter.stop() else EngineAdapter.reload() }
         }
         val menuButton = IconButton(this, IconButton.Kind.MENU).apply {
-            contentDescription = "Settings"
-            setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+            contentDescription = "Menu"
+            setOnClickListener { showMenu(this) }
         }
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -277,6 +277,33 @@ class MainActivity : Activity() {
         errorView.alpha = 0f
         errorView.visibility = View.VISIBLE
         errorView.animate().alpha(1f).setDuration(220).start()
+    }
+
+    private fun showMenu(anchor: View) {
+        MenuPopup.show(
+            anchor,
+            listOf(
+                MenuItem("Share", enabled = hasPage) { share() },
+                MenuItem("Desktop site", toggle = EngineAdapter.desktopSite) {
+                    EngineAdapter.setDesktopSite(!EngineAdapter.desktopSite, hasPage)
+                },
+                MenuItem("Settings") { startActivity(Intent(this, SettingsActivity::class.java)) },
+            ),
+        )
+    }
+
+    // The system share sheet; Ardour sends nothing itself.
+    private fun share() {
+        val url = EngineAdapter.currentUrl() ?: return
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, url)
+        }
+        try {
+            startActivity(Intent.createChooser(send, null))
+        } catch (_: ActivityNotFoundException) {
+            // No app can take the text.
+        }
     }
 
     private fun submit(text: String) {
