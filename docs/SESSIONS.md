@@ -7,7 +7,8 @@ Numbered, never dated. Dates live in TRACK.md.
 - Built (run 100 green, released as 1.0.0): browser menu with share, desktop site switch and Settings (decision 49). Not yet seen on a device.
 - Engine: `androidx.webkit` 1.18.0. APK size: 3,087,260 bytes (2.94 MiB) at 1.0.0.
 - Owner screenshots of 1.0.0: menu look and Share pass; desktop switch works, but the desktop page appeared cut off at the right edge (fit after load unconfirmed).
-- Next start: confirm the desktop page fits the screen (overview zoom); if not, fix it; then find in page, pull-to-refresh, text size and zoom.
+- Fixed (run 101, released as 1.0.1): desktop page stayed cut off after loading. Cause (from the engine's documented zoom behaviour, not seen directly): a reload keeps the old zoom. Fix: reset initial scale and load the address afresh so overview mode fits the width. Not yet seen on a device. APK size: 3,087,320 bytes (2.94 MiB) at 1.0.1.
+- Next start: owner checks the desktop page fits on 1.0.1; then find in page, pull-to-refresh, text size and zoom.
 
 ## 30
 - Owner screenshots of 0.9.9: airplane mode shows "No internet connection"; data on shows "This site can't be found" with "Search instead". Decisions 47 and 48 confirmed on device.

@@ -255,5 +255,5 @@ Amends 47, whose note that no permission was needed was wrong: with airplane mod
 
 ## 49. Browser menu and desktop site
 Rule: the toolbar's last button opens a menu card (share, desktop site, Settings), drawn by Ardour (`MenuPopup.kt`). Share hands the page address to the system share sheet; Ardour sends nothing.
-Desktop site is a user switch: the phone's own user-agent string with the Android token and "Mobile" removed, plus a wide viewport, then a reload. Off restores the default string. A WebView setting, not request rewriting (31); the string is sent with the page's requests, as any user-agent is. Kept until the app process ends; a saved default waits for Settings and Spaces.
+Desktop site is a user switch: the phone's own user-agent string with the Android token and "Mobile" removed, plus a wide viewport, then a reload. Off restores the default string. A WebView setting, not request rewriting (31); the string is sent with the page's requests, as any user-agent is. The switch loads the address afresh (initial scale reset) instead of reloading, so the page fits the width. Kept until the app process ends; a saved default waits for Settings and Spaces.
 Verified: `setUserAgentString` and `setUseWideViewPort` exist (developer.android.com API diff). Not verified from a primary page: empty string restores the default. Not run on a device.
