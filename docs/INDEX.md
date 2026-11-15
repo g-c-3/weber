@@ -7,7 +7,7 @@ Pointers only.
 | File | Holds | Range | Older parts |
 |---|---|---|---|
 | ROADMAP.md | Phase checklist, detail, quality targets | Phases 0-13 | none |
-| DECISIONS.md | Numbered decisions | 1-52 | none |
+| DECISIONS.md | Numbered decisions | 1-53 | none |
 | SESSIONS.md | Session log | 1-31 | none |
 | TRACK.md | Session/decision/phase to date | Sessions 1-31 | none |
 | ARCHITECTURE.md | Layers, network, security checks, CI | n/a | none |
@@ -45,6 +45,7 @@ Pointers only.
 | 40 | Light, glow, pulse, gradient only where they carry meaning | DECISIONS.md |
 | 41 | Direct push to `main` with an owner-pasted token; token never stored | DECISIONS.md |
 | 42, 44 | Build errors written as annotations (both builds, signing lines filtered) | DECISIONS.md |
+| 53 | Re-run a failed build once on a download failure; never cancel runs | DECISIONS.md |
 | 50 | No Tor or named DNS provider in the app; Private DNS shortcut only | DECISIONS.md |
 | 32 | `androidx.webkit` pin, license, gate by run-time check, Default profile in Phase 2 | DECISIONS.md |
 
