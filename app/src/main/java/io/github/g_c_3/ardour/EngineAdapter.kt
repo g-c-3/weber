@@ -2,6 +2,7 @@ package io.github.g_c_3.ardour
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.net.http.SslError
@@ -14,6 +15,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.Profile
+import androidx.webkit.ScriptHandler
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 
@@ -39,6 +41,26 @@ object EngineAdapter {
     private const val ERROR_FAILED_SSL_HANDSHAKE = WebViewClient.ERROR_FAILED_SSL_HANDSHAKE
     private var webView: WebView? = null
     private var defaultAgent: String? = null
+    private var forceZoomScript: ScriptHandler? = null
+    private var textScale = 100f
+
+    // Viewport rewrite for "Force zoom": drops user-scalable=no and any maximum-scale, now and when the page changes it.
+    private const val FORCE_ZOOM_JS = """
+        (function () {
+          function fix() {
+            var m = document.querySelector('meta[name=viewport]');
+            if (!m) return;
+            var c = m.getAttribute('content') || '';
+            var n = c.replace(/user-scalable\s*=\s*[^,;\s]+/gi, 'user-scalable=yes')
+                     .replace(/maximum-scale\s*=\s*[^,;\s]+/gi, 'maximum-scale=10');
+            if (n.indexOf('user-scalable') < 0) n += (n ? ', ' : '') + 'user-scalable=yes';
+            if (n !== c) m.setAttribute('content', n);
+          }
+          fix();
+          document.addEventListener('DOMContentLoaded', fix);
+          new MutationObserver(fix).observe(document, {childList: true, subtree: true, attributes: true, attributeFilter: ['content']});
+        })();
+    """
 
     // Desktop site (user switch): a desktop user-agent string and a wide viewport. Kept across a view rebuild.
     var desktopSite = false
@@ -162,6 +184,47 @@ object EngineAdapter {
     }
 
     fun currentUrl(): String? = webView?.url
+
+    // True when the page is scrolled to its top (pull to refresh may start).
+    fun atTop(): Boolean = webView?.canScrollVertically(-1) == false
+
+    // Pinch zoom is on by default. `force` ignores a site's zoom block for pages opened next. `wrap` replaces page
+    // scaling with text size changes, so the text re-wraps to the screen width; it needs no viewport rewrite.
+    @SuppressLint("ClickableViewAccessibility")
+    fun setZoomMode(force: Boolean, wrap: Boolean) {
+        val view = webView ?: return
+        view.settings.apply {
+            setSupportZoom(true)
+            builtInZoomControls = !wrap
+            displayZoomControls = false
+        }
+        forceZoomScript?.remove()
+        forceZoomScript = null
+        if (force && !wrap && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            try {
+                forceZoomScript = WebViewCompat.addDocumentStartJavaScript(view, FORCE_ZOOM_JS, setOf("*"))
+            } catch (_: IllegalArgumentException) {
+                // The origin rule was refused; force zoom stays off.
+            }
+        }
+        if (wrap) {
+            val detector = ScaleGestureDetector(view.context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScale(d: ScaleGestureDetector): Boolean {
+                    textScale = (textScale * d.scaleFactor).coerceIn(50f, 300f)
+                    view.settings.textZoom = textScale.toInt()
+                    return true
+                }
+            })
+            view.setOnTouchListener { _, e ->
+                detector.onTouchEvent(e)
+                detector.isInProgress
+            }
+        } else {
+            view.setOnTouchListener(null)
+            textScale = 100f
+            view.settings.textZoom = 100
+        }
+    }
 
     // Find in page: an empty query clears the highlights.
     fun findAll(query: String) {

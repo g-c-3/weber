@@ -37,6 +37,7 @@ class MainActivity : Activity() {
     private var failedUrl: String? = null
     private lateinit var bottomBar: View
     private lateinit var findBar: FindBar
+    private lateinit var pageArea: PullRefreshLayout
     private var finding = false
     private lateinit var backButton: IconButton
     private lateinit var forwardButton: IconButton
@@ -74,6 +75,7 @@ class MainActivity : Activity() {
             this@MainActivity.loading = loading
             if (loading) errorView.visibility = View.GONE
             if (loading && finding) closeFind()
+            if (!loading) pageArea.finish()
             reloadButton.kind = if (loading) IconButton.Kind.STOP else IconButton.Kind.RELOAD
             progress.visibility = if (loading) View.VISIBLE else View.INVISIBLE
             if (loading) progress.value = 0.06f
@@ -126,13 +128,19 @@ class MainActivity : Activity() {
         top.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 8)).apply { topMargin = Ui.dp(this@MainActivity, 4) })
         root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
-        val content = FrameLayout(this)
+        val content = PullRefreshLayout(
+            this,
+            { hasPage && errorView.visibility != View.VISIBLE && EngineAdapter.atTop() },
+            { EngineAdapter.reload() },
+        )
+        pageArea = content
         val fill = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         content.addView(EngineAdapter.createView(this, listener) { root.post { recreate() } }, fill)
         startView = startScreen()
         content.addView(startView, fill)
         errorView = errorScreen().apply { visibility = View.GONE }
         content.addView(errorView, fill)
+        content.attachIndicator()
         root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         backButton = IconButton(this, IconButton.Kind.BACK).apply {
@@ -286,6 +294,13 @@ class MainActivity : Activity() {
         errorView.alpha = 0f
         errorView.visibility = View.VISIBLE
         errorView.animate().alpha(1f).setDuration(220).start()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!::pageArea.isInitialized) return
+        pageArea.enabledPull = Prefs.get(this, Prefs.PULL)
+        EngineAdapter.setZoomMode(Prefs.get(this, Prefs.FORCE_ZOOM), Prefs.get(this, Prefs.WRAP))
     }
 
     private fun showMenu(anchor: View) {
