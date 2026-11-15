@@ -18,6 +18,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -39,6 +40,9 @@ class MainActivity : Activity() {
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var bottomBar: View
+    private lateinit var topBar: View
+    private lateinit var rootLayout: LinearLayout
+    private var reader: ReaderView? = null
     private lateinit var findBar: FindBar
     private lateinit var pageArea: PullRefreshLayout
     private var finding = false
@@ -136,11 +140,13 @@ class MainActivity : Activity() {
         val scheme = uri.scheme?.lowercase() ?: return
         if ((scheme != "http" && scheme != "https") || uri.host.isNullOrEmpty()) return
         if (finding) closeFind()
+        if (reader != null) closeReader()
         EngineAdapter.load(uri.toString())
         leaveAddress()
     }
 
     private fun buildBrowser(root: LinearLayout) {
+        rootLayout = root
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(Ui.dp(this@MainActivity, 12), Ui.dp(this@MainActivity, 8), Ui.dp(this@MainActivity, 12), Ui.dp(this@MainActivity, 4))
@@ -149,6 +155,7 @@ class MainActivity : Activity() {
         top.addView(address, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48)))
         progress = ThinProgress(this).apply { visibility = View.INVISIBLE }
         top.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 8)).apply { topMargin = Ui.dp(this@MainActivity, 4) })
+        topBar = top
         root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         val content = PullRefreshLayout(
@@ -332,6 +339,7 @@ class MainActivity : Activity() {
             listOf(
                 MenuItem("Share", enabled = hasPage) { share() },
                 MenuItem("Find in page", enabled = hasPage) { openFind() },
+                MenuItem("Reader mode", enabled = hasPage && errorView.visibility != View.VISIBLE) { openReader() },
                 MenuItem("Print or save as PDF", enabled = hasPage) { printPage() },
                 MenuItem("Desktop site", toggle = EngineAdapter.desktopSite) {
                     EngineAdapter.setDesktopSite(!EngineAdapter.desktopSite, hasPage)
@@ -349,6 +357,50 @@ class MainActivity : Activity() {
         } else {
             emptyArray()
         }
+
+    // Reader mode: the engine hands back the page's main text; Ardour draws it itself (DECISIONS.md 55).
+    private fun openReader() {
+        if (reader != null) return
+        EngineAdapter.extractArticle { raw ->
+            if (reader == null && !isDestroyed && !isFinishing) showReader(Article.parse(raw))
+        }
+    }
+
+    private fun showReader(article: Article?) {
+        val view = ReaderView(this, article, ::closeReader, ::onReaderStyle)
+        reader = view
+        topBar.visibility = View.GONE
+        pageArea.visibility = View.GONE
+        bottomBar.visibility = View.GONE
+        rootLayout.addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        view.start()
+        refreshBack()
+    }
+
+    private fun closeReader() {
+        val view = reader ?: return
+        reader = null
+        rootLayout.removeView(view)
+        topBar.visibility = View.VISIBLE
+        pageArea.visibility = View.VISIBLE
+        bottomBar.visibility = View.VISIBLE
+        onReaderStyle(Ui.PAPER, true)
+        refreshBack()
+    }
+
+    // The reader sets the colour behind the system bars and whether their icons are dark (on a light background).
+    @Suppress("DEPRECATION")
+    private fun onReaderStyle(background: Int, lightBackground: Boolean) {
+        rootLayout.setBackgroundColor(background)
+        if (Build.VERSION.SDK_INT >= 30) {
+            val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(if (lightBackground) mask else 0, mask)
+        } else {
+            val mask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            val flags = window.decorView.systemUiVisibility
+            window.decorView.systemUiVisibility = if (lightBackground) flags or mask else flags and mask.inv()
+        }
+    }
 
     // The system print screen: printers, or Save as PDF. Ardour sends nothing itself.
     private fun printPage() {
@@ -411,6 +463,10 @@ class MainActivity : Activity() {
 
     // True when back was used: closes the editor first, then walks the page history.
     private fun handleBack(): Boolean {
+        if (reader != null) {
+            closeReader()
+            return true
+        }
         if (finding) {
             closeFind()
             return true
@@ -430,7 +486,7 @@ class MainActivity : Activity() {
     // while Ardour has something to go back to, so the system still plays its normal exit when it has not.
     private fun refreshBack() {
         if (Build.VERSION.SDK_INT < 33) return
-        val needed = EngineAdapter.canGoBack() || address.input.hasFocus() || finding
+        val needed = EngineAdapter.canGoBack() || address.input.hasFocus() || finding || reader != null
         if (needed && backCallback == null) registerBack() else if (!needed && backCallback != null) unregisterBack()
     }
 

@@ -66,6 +66,89 @@ object EngineAdapter {
         })();
     """
 
+    // Reader mode: finds the main text of the open page and returns it as JSON text (title, byline, site, blocks).
+    // It only reads the page; the result is shown as plain text, never as markup (DECISIONS.md 55).
+    private const val READER_JS = """
+(function () {
+  try {
+    var SKIP = /^(NAV|ASIDE|FOOTER|HEADER|FORM|SCRIPT|STYLE|NOSCRIPT|IFRAME|SVG|BUTTON|SELECT|TEXTAREA|FIGURE|TABLE)$/;
+    var JUNK = /comment|share|social|related|promo|advert|sidebar|cookie|subscribe|newsletter|popup|modal|breadcrumb|recommend|outbrain|taboola|menu|footer/i;
+    function clean(s) { return (s || '').replace(/\s+/g, ' ').trim(); }
+    function textOf(el) { return clean(el.innerText || el.textContent); }
+    function meta(sel) { var m = document.querySelector(sel); return m ? clean(m.getAttribute('content')) : ''; }
+    function skipped(el, root) {
+      for (var n = el; n && n !== root; n = n.parentNode) {
+        if (n.nodeType !== 1) continue;
+        if (SKIP.test(n.tagName.toUpperCase()) || n.hidden || n.getAttribute('aria-hidden') === 'true') return true;
+        var cls = typeof n.className === 'string' ? n.className : '';
+        if (JUNK.test((n.id || '') + ' ' + cls)) return true;
+        var st = getComputedStyle(n);
+        if (st.display === 'none' || st.visibility === 'hidden') return true;
+      }
+      return false;
+    }
+    var W = [1, 0.7, 0.5], scores = new Map(), best = null, bestScore = 0;
+    var ps = document.body.querySelectorAll('p');
+    for (var i = 0; i < ps.length; i++) {
+      var t0 = textOf(ps[i]);
+      if (t0.length < 40 || skipped(ps[i], document.body)) continue;
+      var s = 1 + Math.min(3, Math.floor(t0.length / 100)) + Math.min(3, t0.split(',').length - 1);
+      var n = ps[i].parentNode;
+      for (var d = 0; d < 3 && n && n !== document.documentElement; d++, n = n.parentNode) {
+        scores.set(n, (scores.get(n) || 0) + s * W[d]);
+      }
+    }
+    scores.forEach(function (v, el) { if (v > bestScore) { bestScore = v; best = el; } });
+    var root = best || document.body;
+    var art = root.closest('article, [itemprop=articleBody]');
+    if (art) root = art;
+        var h1 = root.querySelector('h1') || document.querySelector('h1');
+    var title = h1 ? textOf(h1) : '';
+    if (!title || title.length > 200) title = meta('meta[property="og:title"]') || clean(document.title);
+    var by = meta('meta[name="author"]');
+    if (!by) { var a = document.querySelector('[rel=author], [itemprop=author]'); by = a ? textOf(a) : ''; }
+    var site = meta('meta[property="og:site_name"]') || location.hostname.replace(/^www\./, '');
+    var els = root.querySelectorAll('h1,h2,h3,h4,p,blockquote,li,pre');
+    var out = [], total = 0, last = '';
+    for (var j = 0; j < els.length && out.length < 600 && total < 300000; j++) {
+      var el = els[j], tag = el.tagName.toLowerCase();
+      if (skipped(el, root)) continue;
+      var c = (tag === 'p' || tag === 'li' || tag === 'blockquote') ? el.parentNode.closest('blockquote, li, pre') : null;
+      // Text already carried by an enclosing quote, list item or code block is not repeated.
+      if (c && c !== root && root.contains(c) && (tag !== 'li' || c.tagName !== 'LI')) continue;
+      if (tag === 'li' && el.querySelector('li')) continue;
+      var t = tag === 'pre' ? (el.textContent || '').replace(/\s+$/, '').slice(0, 4000) : textOf(el);
+      if (!t) continue;
+      var kind, marker = '';
+      if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4') {
+        if (t.length < 2 || t.length > 200 || t === title) continue;
+        kind = tag === 'h1' ? '1' : tag === 'h2' ? '2' : '3';
+      } else if (tag === 'p') {
+        if (t.length < 20) continue;
+        kind = 'p';
+      } else if (tag === 'blockquote') {
+        if (t.length < 10) continue;
+        kind = 'q';
+      } else if (tag === 'li') {
+        if (t.length < 2) continue;
+        kind = 'l';
+        var par = el.parentNode;
+        marker = par && par.tagName === 'OL' ? (Array.prototype.indexOf.call(par.children, el) + 1) + '.' : '\u2022';
+      } else {
+        kind = 'c';
+      }
+      if (t === last) continue;
+      last = t;
+      out.push([kind, t, marker]);
+      total += t.length;
+    }
+    return JSON.stringify({ t: title, a: by.slice(0, 80), s: site, b: out });
+  } catch (e) {
+    return null;
+  }
+})()
+    """
+
     // Desktop site (user switch): a desktop user-agent string and a wide viewport. Kept across a view rebuild.
     var desktopSite = false
         private set
@@ -186,6 +269,17 @@ object EngineAdapter {
                 if (address != null) it.loadUrl(address) else it.reload()
             }
         }
+    }
+
+    // Reader mode: runs the extraction script on the open page. The callback (UI thread) gets the JSON string literal the
+    // engine returns, "null", or null when there is no view.
+    fun extractArticle(onResult: (String?) -> Unit) {
+        val view = webView
+        if (view == null) {
+            onResult(null)
+            return
+        }
+        view.evaluateJavascript(READER_JS) { onResult(it) }
     }
 
     fun currentUrl(): String? = webView?.url
