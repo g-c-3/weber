@@ -9,7 +9,8 @@ Numbered, never dated. Dates live in TRACK.md.
 - Device check of 1.0.9 (screenshots) found clipped headings, a cut-off no-article screen and a front page read as an article; fixed in run 110, released as 1.1.0 (3,147,808 bytes).
 - Second device check: article and no-article screens work; text still clipped at the right edge; padding order fixed in run 111, released as 1.1.1 (3,147,680 bytes).
 - Third device check: clipping fixed. Added justified text with a toggle (run 112, released as 1.1.2, 3,149,000 bytes). A lazily loaded article can show short; not yet understood.
-- Next start: owner confirms DP24 on 1.1.2; then the Phase 4 close-out check against the roadmap.
+- DP24 passed on 1.1.2 (lazy loading confirmed as the cause of short results).
+- Next start: owner chooses: load the rest of an article before reading, or author/date line, or the Phase 4 close-out check; then the Phase 4 close-out check against the roadmap.
 
 ## 31
 - Checked: docs, INDEX ranges and sizes (all under 60 KB); remote head and run 99 green; `androidx.webkit` 1.18.0 still the newest stable seen (search snapshots differ in age).
