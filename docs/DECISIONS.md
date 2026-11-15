@@ -276,3 +276,8 @@ Verified: `addDocumentStartJavaScript` signature and feature flag (developer.and
 Rule: the menu's Print or save as PDF hands the open page to Android's print screen (`createPrintDocumentAdapter`, `PrintManager`); printers or Save as PDF are the system's. No permission, no new connection. Reset text size shows only while Wrap text is on and the text size differs from 100 percent.
 Verified: print flow and WebView limits on developer.android.com (one print job per WebView at a time; no page-range selection). Run on a device: print passed (owner screenshots, 1.0.6).
 
+## 53. Re-run rule for failed builds (owner decision)
+Rule: the push token also has Actions write. A red run whose cause is a library download or other network failure, not code and not a checksum mismatch, is re-run once through the API (failed jobs only). A re-run keeps its run number and version. If it fails again, the next step is a normal fix in a new commit. Runs are never cancelled and no other workflow is started by the assistant. Pages access is granted but unused.
+Cause: run 106 failed in the release job on a library download while the compile job had resolved the same library; the owner re-ran it by hand and it released.
+Also: a failed job's error summary is read from its check-run annotations when the log host is blocked.
+

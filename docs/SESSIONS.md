@@ -16,6 +16,7 @@ Numbered, never dated. Dates live in TRACK.md.
 - Owner result on 1.0.4: pull to refresh works; pinch zoom and force zoom did not (recording shows a pinch with no change). Fixed (run 105 green, released as 1.0.5): force zoom also runs on the open page and after each load. Root cause of the missing pinch zoom not confirmed. APK size: 3,109,032 bytes (2.97 MiB) at 1.0.5.
 - Owner result on 1.0.5: zoom, force zoom and wrap text work. Built (decision 52): Print or save as PDF and Reset text size. Run 106 failed once in the release job on a library download (not code); re-run by the owner succeeded; released as 1.0.6. Print passed on device. APK size: 3,110,904 bytes (2.97 MiB) at 1.0.6.
 - Owner widened the push token to include Actions read and write; the chat in use still held the old token, so re-running a failed run needs a new chat.
+- Owner approved instructions version 7: re-run rule (decision 53).
 - Next start: Reset text size check; then reader mode with a twilight theme, default browser and links from other apps.
 
 ## 30
