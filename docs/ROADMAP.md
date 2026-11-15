@@ -86,7 +86,7 @@ Settings (decision 20): basic options by default; an Advanced section holds the 
 - DP22: Print or save as PDF passed on 1.0.6 (owner screenshots: print screen opens, Save as PDF, six-page preview of a news page). Not yet seen: Reset text size.
 - (planned) Reader mode with a warm "twilight" theme.
 - Step 5 (1.0.7, released, not run on a device, decision 54): web links from other apps open in Ardour (http and https only); Settings > Links asks Android to make Ardour the default browser. Space choice for opened links added after Phase 12.
-- DP23: tap a web link in another app and choose Ardour: it opens. Settings > Links > Make Ardour the default: Android's dialog appears; after confirming, the card says Ardour is the default. A link tapped while Ardour is open loads in the same window.
+- DP23: tap a web link in another app and choose Ardour: it opens. Settings > Links > Make Ardour the default: Android's dialog appears; after confirming, the card says Ardour is the default. A link tapped while Ardour is open loads in the same window. Result on 1.0.7 (owner recording): a web link tapped in an email app opened in Ardour and the page loaded. Not yet seen: the default-browser dialog, a link while Ardour is open.
 - DP4: navigation works.
 
 ### 5 Dependency update pipeline and launch test
