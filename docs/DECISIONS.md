@@ -257,3 +257,9 @@ Amends 47, whose note that no permission was needed was wrong: with airplane mod
 Rule: the toolbar's last button opens a menu card (share, desktop site, Settings), drawn by Ardour (`MenuPopup.kt`). Share hands the page address to the system share sheet; Ardour sends nothing.
 Desktop site is a user switch: the phone's own user-agent string with the Android token and "Mobile" removed, plus a wide viewport, then a reload. Off restores the default string. A WebView setting, not request rewriting (31); the string is sent with the page's requests, as any user-agent is. The switch loads the address afresh (initial scale reset) instead of reloading, so the page fits the width. Kept until the app process ends; a saved default waits for Settings and Spaces.
 Verified: `setUserAgentString` and `setUseWideViewPort` exist (developer.android.com API diff). Not verified from a primary page: empty string restores the default. Not run on a device.
+
+## 50. No Tor or Quad9 in the app; Private DNS shortcut
+Rule: Ardour does not bundle or integrate Tor, Orbot or a named DNS provider (owner decision). Settings has a Private DNS card that explains the phone's setting and opens Android's network settings on tap. Ardour changes no setting, adds no connection and names no provider.
+Cause: bundling Tor is native code (27) and a size cost; a proxy setting is app-wide, so it cannot differ per Space; WebRTC cannot be switched off in WebView, so no IP-protection promise could be kept.
+Verified: the Settings app handles `android.settings.WIRELESS_SETTINGS` (platform source). No public intent straight to Private DNS found; the screen is reached by hand, the path differs by phone. Not run on a device.
+
