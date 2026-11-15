@@ -118,6 +118,26 @@ class MainActivity : Activity() {
         }
         setContentView(root)
         root.requestFocus()
+        if (gateMessage == null && savedInstanceState == null) handleLink(intent)
+    }
+
+    // singleTask: a link from another app arrives here while Ardour is already open.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (::pageArea.isInitialized) handleLink(intent)
+    }
+
+    // Links from other apps: only http and https with a host are opened (DECISIONS.md 54).
+    private fun handleLink(intent: Intent) {
+        if (intent.action != Intent.ACTION_VIEW) return
+        if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return
+        val uri = intent.data ?: return
+        val scheme = uri.scheme?.lowercase() ?: return
+        if ((scheme != "http" && scheme != "https") || uri.host.isNullOrEmpty()) return
+        if (finding) closeFind()
+        EngineAdapter.load(uri.toString())
+        leaveAddress()
     }
 
     private fun buildBrowser(root: LinearLayout) {

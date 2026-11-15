@@ -1,6 +1,7 @@
 package io.github.g_c_3.ardour
 
 import android.app.Activity
+import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Typeface
@@ -15,6 +16,10 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 class SettingsActivity : Activity() {
+    private companion object {
+        const val REQUEST_DEFAULT_BROWSER = 71
+    }
+
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +53,8 @@ class SettingsActivity : Activity() {
             addView(switchRow("Wrap text when zoomed", "Pinch changes the text size and fits it to the screen width instead of scaling the page. Replaces force zoom.", Prefs.WRAP))
         }
         column.addView(browsing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        column.addView(Ui.sectionLabel(this, "Links"))
+        column.addView(defaultBrowserCard(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Privacy"))
         val dns = Ui.card(this).apply {
             addView(Ui.row(this@SettingsActivity, "Private DNS", "Encrypts website-name lookups for every app on the phone, not only Ardour. It does not hide your IP address. In Android's network settings, look for Private DNS (the path differs by phone) and enter a provider's hostname."))
@@ -77,6 +84,37 @@ class SettingsActivity : Activity() {
         }
         setContentView(scroll)
         if (savedInstanceState == null) Ui.enter((0 until column.childCount).map { column.getChildAt(it) })
+    }
+
+    // Default browser: Android's own confirmation dialog asks the user; Ardour changes nothing itself (DECISIONS.md 54).
+    private fun defaultBrowserCard(): View {
+        val roles = getSystemService(RoleManager::class.java)
+        val available = roles != null && roles.isRoleAvailable(RoleManager.ROLE_BROWSER)
+        val held = available && roles.isRoleHeld(RoleManager.ROLE_BROWSER)
+        return Ui.card(this).apply {
+            when {
+                held -> addView(Ui.row(this@SettingsActivity, "Default browser", "Ardour opens the links you tap in other apps."))
+                available -> {
+                    addView(Ui.row(this@SettingsActivity, "Default browser", "Open the links you tap in other apps in Ardour. Android asks you to confirm."))
+                    addView(Ui.secondaryButton(this@SettingsActivity, "Make Ardour the default").apply {
+                        setOnClickListener {
+                            @Suppress("DEPRECATION")
+                            startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_BROWSER), REQUEST_DEFAULT_BROWSER)
+                        }
+                    }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        topMargin = Ui.dp(this@SettingsActivity, 4)
+                        bottomMargin = Ui.dp(this@SettingsActivity, 12)
+                    })
+                }
+                else -> addView(Ui.row(this@SettingsActivity, "Default browser", "Choose Ardour under Default apps in Android's settings to open links from other apps here."))
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_DEFAULT_BROWSER) recreate()
     }
 
     // One option: label and note on the left, an ember switch on the right; a tap anywhere on the row flips it.
