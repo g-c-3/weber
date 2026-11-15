@@ -76,7 +76,9 @@ Settings (decision 20): basic options by default; an Advanced section holds the 
 - Step 2 (1.0.0 and 1.0.1, released, not run on a device): the Settings button is now a menu card with share, desktop site and Settings (decision 49).
 - DP18: menu opens above the toolbar and closes on outside tap; Share opens the share sheet; Desktop site switch reloads the page as desktop and back; Settings opens. Judge on screenshots. Result on 1.0.0 (owner screenshots): menu look passed; Share passed; the Desktop site switch toggles and the page reloads. In the switch-on screenshot the desktop page looks cut off at the right edge; owner confirmed it stayed cut off after loading. Fix in 1.0.1: passed (owner screenshot, google.com fits the screen). DP18 passed.
 - DP19: Settings shows a Private DNS card; the button opens the phone's network settings. Judge on a screenshot.
-- (planned) Find in page; pull-to-refresh; text size and zoom; print, save as PDF.
+- Find in page (1.0.3, released, not run on a device): menu item opens a bar with query, match count, previous, next and close; back closes it.
+- DP20: Find in page: open from the menu, type, count shows "1 of N", next and previous move the highlight, "No matches" for a missing word, close and back both close it, the bar sits above the keyboard. Judge on screenshots.
+- (planned) Pull-to-refresh; text size and zoom; print, save as PDF.
 - (planned) Reader mode with a warm "twilight" theme.
 - (planned) Default browser and links from other apps; Space choice added after Phase 12.
 - DP4: navigation works.
