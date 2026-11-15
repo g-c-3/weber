@@ -37,6 +37,11 @@ object EngineAdapter {
     )
     private const val ERROR_FAILED_SSL_HANDSHAKE = WebViewClient.ERROR_FAILED_SSL_HANDSHAKE
     private var webView: WebView? = null
+    private var defaultAgent: String? = null
+
+    // Desktop site (user switch): a desktop user-agent string and a wide viewport. Kept across a view rebuild.
+    var desktopSite = false
+        private set
 
     // Launch gate (DECISIONS.md 28): null when the engine meets the app's needs, else the text to show.
     // No WebView version number is claimed; the check is the package and the profile feature at run time.
@@ -67,6 +72,8 @@ object EngineAdapter {
             allowUniversalAccessFromFileURLs = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
+        defaultAgent = view.settings.userAgentString
+        applyDesktop(view)
         view.setBackgroundColor(Ui.PAPER)
         view.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, newProgress: Int) = listener.onProgress(newProgress)
@@ -124,6 +131,29 @@ object EngineAdapter {
         webView = view
         return view
     }
+
+    // Desktop agent: the phone's own string with the Android token and "Mobile" removed; the engine version is kept.
+    private fun desktopAgent(mobile: String): String =
+        mobile.replace(Regex("\\(Linux; Android[^)]*\\)"), "(X11; Linux x86_64)").replace(" Mobile", "")
+
+    private fun applyDesktop(view: WebView) {
+        val base = defaultAgent
+        view.settings.apply {
+            userAgentString = if (desktopSite && base != null) desktopAgent(base) else base
+            useWideViewPort = desktopSite
+            loadWithOverviewMode = desktopSite
+        }
+    }
+
+    fun setDesktopSite(on: Boolean, reloadPage: Boolean) {
+        desktopSite = on
+        webView?.let {
+            applyDesktop(it)
+            if (reloadPage) it.reload()
+        }
+    }
+
+    fun currentUrl(): String? = webView?.url
 
     fun load(url: String) = webView?.loadUrl(url)
 
