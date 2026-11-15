@@ -268,6 +268,7 @@ Rule: pinch zoom is on by default. Three options in Settings, all off by default
 Pull to refresh: Ardour's own touch handling and indicator (`PullRefresh.kt`), no library; starts only when the page is at its top. Reload only; sends nothing new.
 Force zoom: a script run at document start (`addDocumentStartJavaScript`, stable API, feature-checked, origin rule `*`) rewrites the viewport meta tag to allow zoom. A page-content change, not a request rewrite (31). Applies to pages opened after the switch.
 Wrap text when zoomed: pinch changes the text size (`setTextZoom`, 50 to 300 percent) so text re-wraps to the screen; page scaling and force zoom are off while it is on. Images do not scale.
+Force zoom also runs the script on the open page and after each page load (1.0.5), as a second path next to the document-start script.
 `setForceUserScalable` exists in platform source but is hidden, so it is not used.
 Verified: `addDocumentStartJavaScript` signature and feature flag (developer.android.com); viewport `user-scalable` behaviour (developer.android.com). Not verified: `*` as an origin rule, `setBuiltInZoomControls` text (from memory and forum answers), `setTextZoom` semantics. Not run on a device.
 
