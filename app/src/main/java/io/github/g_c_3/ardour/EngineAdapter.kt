@@ -42,11 +42,13 @@ object EngineAdapter {
     private var webView: WebView? = null
     private var defaultAgent: String? = null
     private var forceZoomScript: ScriptHandler? = null
+    private var forceZoomOn = false
     private var textScale = 100f
 
     // Viewport rewrite for "Force zoom": drops user-scalable=no and any maximum-scale, now and when the page changes it.
     private const val FORCE_ZOOM_JS = """
         (function () {
+          if (window.__ardourZoomFix) { window.__ardourZoomFix(); return; }
           function fix() {
             var m = document.querySelector('meta[name=viewport]');
             if (!m) return;
@@ -56,6 +58,7 @@ object EngineAdapter {
             if (n.indexOf('user-scalable') < 0) n += (n ? ', ' : '') + 'user-scalable=yes';
             if (n !== c) m.setAttribute('content', n);
           }
+          Object.defineProperty(window, '__ardourZoomFix', { value: fix });
           fix();
           document.addEventListener('DOMContentLoaded', fix);
           new MutationObserver(fix).observe(document, {childList: true, subtree: true, attributes: true, attributeFilter: ['content']});
@@ -116,6 +119,7 @@ object EngineAdapter {
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
+                if (forceZoomOn) view.evaluateJavascript(FORCE_ZOOM_JS, null)
                 listener.onLoading(false)
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
             }
@@ -200,6 +204,9 @@ object EngineAdapter {
         }
         forceZoomScript?.remove()
         forceZoomScript = null
+        forceZoomOn = force && !wrap
+        // Also run it on the page already open and after every page load, in case the start-of-page script is not used.
+        if (forceZoomOn) view.evaluateJavascript(FORCE_ZOOM_JS, null)
         if (force && !wrap && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             try {
                 forceZoomScript = WebViewCompat.addDocumentStartJavaScript(view, FORCE_ZOOM_JS, setOf("*"))
