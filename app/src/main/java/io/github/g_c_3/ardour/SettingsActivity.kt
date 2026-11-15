@@ -20,6 +20,8 @@ class SettingsActivity : Activity() {
         const val REQUEST_DEFAULT_BROWSER = 71
     }
 
+    private var awaitingDefaults = false
+
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,28 +88,58 @@ class SettingsActivity : Activity() {
         if (savedInstanceState == null) Ui.enter((0 until column.childCount).map { column.getChildAt(it) })
     }
 
-    // Default browser: Android's own confirmation dialog asks the user; Ardour changes nothing itself (DECISIONS.md 54).
+    // Default browser: the system role dialog where Android shows it, otherwise the phone's Default apps screen.
+    // Ardour changes nothing itself (DECISIONS.md 54).
     private fun defaultBrowserCard(): View {
         val roles = getSystemService(RoleManager::class.java)
         val available = roles != null && roles.isRoleAvailable(RoleManager.ROLE_BROWSER)
         val held = available && roles.isRoleHeld(RoleManager.ROLE_BROWSER)
+        val note = when {
+            held -> "Ardour opens the links you tap in other apps."
+            available -> "Open the links you tap in other apps in Ardour. Android asks you to confirm."
+            else -> "Open the links you tap in other apps in Ardour. Pick Ardour under Browser app in Android's Default apps."
+        }
         return Ui.card(this).apply {
-            when {
-                held -> addView(Ui.row(this@SettingsActivity, "Default browser", "Ardour opens the links you tap in other apps."))
-                available -> {
-                    addView(Ui.row(this@SettingsActivity, "Default browser", "Open the links you tap in other apps in Ardour. Android asks you to confirm."))
-                    addView(Ui.secondaryButton(this@SettingsActivity, "Make Ardour the default").apply {
-                        setOnClickListener {
-                            @Suppress("DEPRECATION")
-                            startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_BROWSER), REQUEST_DEFAULT_BROWSER)
-                        }
-                    }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                        topMargin = Ui.dp(this@SettingsActivity, 4)
-                        bottomMargin = Ui.dp(this@SettingsActivity, 12)
-                    })
-                }
-                else -> addView(Ui.row(this@SettingsActivity, "Default browser", "Choose Ardour under Default apps in Android's settings to open links from other apps here."))
+            addView(Ui.row(this@SettingsActivity, "Default browser", note))
+            if (!held) {
+                addView(Ui.secondaryButton(this@SettingsActivity, if (available) "Make Ardour the default" else "Open default apps").apply {
+                    setOnClickListener { if (available) requestRole(roles) else openDefaultApps() }
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    topMargin = Ui.dp(this@SettingsActivity, 4)
+                    bottomMargin = Ui.dp(this@SettingsActivity, 12)
+                })
             }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun requestRole(roles: RoleManager) {
+        try {
+            startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_BROWSER), REQUEST_DEFAULT_BROWSER)
+        } catch (_: ActivityNotFoundException) {
+            openDefaultApps()
+        }
+    }
+
+    private fun openDefaultApps() {
+        awaitingDefaults = true
+        try {
+            startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+        } catch (_: ActivityNotFoundException) {
+            try {
+                startActivity(Intent(Settings.ACTION_SETTINGS))
+            } catch (_: ActivityNotFoundException) {
+                awaitingDefaults = false
+            }
+        }
+    }
+
+    // Back from the phone's settings: redraw so the card shows the current state.
+    override fun onResume() {
+        super.onResume()
+        if (awaitingDefaults) {
+            awaitingDefaults = false
+            recreate()
         }
     }
 
