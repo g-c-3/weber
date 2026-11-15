@@ -149,7 +149,12 @@ object EngineAdapter {
         desktopSite = on
         webView?.let {
             applyDesktop(it)
-            if (reloadPage) it.reload()
+            if (reloadPage) {
+                // A reload keeps the page's old zoom; a fresh load of the same address lets overview mode fit the width.
+                val address = it.url
+                it.setInitialScale(0)
+                if (address != null) it.loadUrl(address) else it.reload()
+            }
         }
     }
 
