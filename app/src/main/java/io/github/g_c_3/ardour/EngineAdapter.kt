@@ -25,6 +25,7 @@ interface PageListener {
     fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean)
     fun onProgress(percent: Int)
     fun onLoading(loading: Boolean)
+    fun onFind(active: Int, total: Int)
 }
 
 // The only file that calls android.webkit or androidx.webkit (DECISIONS.md 26). An engine API change is fixed here.
@@ -78,6 +79,8 @@ object EngineAdapter {
         view.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, newProgress: Int) = listener.onProgress(newProgress)
         }
+        // Find in page results: active match is 0-based, total is the match count.
+        view.setFindListener { active, total, _ -> listener.onFind(active, total) }
         view.webViewClient = object : WebViewClient() {
             // Only web addresses load in the view; other schemes are dropped until Ardour handles them itself.
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -159,6 +162,16 @@ object EngineAdapter {
     }
 
     fun currentUrl(): String? = webView?.url
+
+    // Find in page: an empty query clears the highlights.
+    fun findAll(query: String) {
+        val view = webView ?: return
+        if (query.isEmpty()) view.clearMatches() else view.findAllAsync(query)
+    }
+
+    fun findNext(forward: Boolean) = webView?.findNext(forward)
+
+    fun clearFind() = webView?.clearMatches()
 
     fun load(url: String) = webView?.loadUrl(url)
 

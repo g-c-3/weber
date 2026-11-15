@@ -36,6 +36,8 @@ class MainActivity : Activity() {
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var bottomBar: View
+    private lateinit var findBar: FindBar
+    private var finding = false
     private lateinit var backButton: IconButton
     private lateinit var forwardButton: IconButton
     private lateinit var reloadButton: IconButton
@@ -60,6 +62,10 @@ class MainActivity : Activity() {
 
         override fun onError(url: String?, kind: PageError) = showError(url, kind)
 
+        override fun onFind(active: Int, total: Int) {
+            if (finding) findBar.showCount(active, total)
+        }
+
         override fun onProgress(percent: Int) {
             progress.value = max(percent, 6) / 100f
         }
@@ -67,6 +73,7 @@ class MainActivity : Activity() {
         override fun onLoading(loading: Boolean) {
             this@MainActivity.loading = loading
             if (loading) errorView.visibility = View.GONE
+            if (loading && finding) closeFind()
             reloadButton.kind = if (loading) IconButton.Kind.STOP else IconButton.Kind.RELOAD
             progress.visibility = if (loading) View.VISIBLE else View.INVISIBLE
             if (loading) progress.value = 0.06f
@@ -160,6 +167,8 @@ class MainActivity : Activity() {
             addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this@MainActivity, 56)))
         }
         root.addView(bottomBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        findBar = FindBar(this, { EngineAdapter.findAll(it) }, { EngineAdapter.findNext(it) }, ::closeFind).apply { visibility = View.GONE }
+        root.addView(findBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         Ui.enter(listOf(top, startView, bottomBar))
     }
 
@@ -284,6 +293,7 @@ class MainActivity : Activity() {
             anchor,
             listOf(
                 MenuItem("Share", enabled = hasPage) { share() },
+                MenuItem("Find in page", enabled = hasPage) { openFind() },
                 MenuItem("Desktop site", toggle = EngineAdapter.desktopSite) {
                     EngineAdapter.setDesktopSite(!EngineAdapter.desktopSite, hasPage)
                 },
@@ -312,7 +322,27 @@ class MainActivity : Activity() {
         leaveAddress()
     }
 
+    private fun openFind() {
+        if (finding) return
+        finding = true
+        bottomBar.visibility = View.GONE
+        findBar.visibility = View.VISIBLE
+        findBar.open()
+        refreshBack()
+    }
+
+    private fun closeFind() {
+        if (!finding) return
+        finding = false
+        EngineAdapter.clearFind()
+        findBar.close()
+        findBar.visibility = View.GONE
+        bottomBar.visibility = View.VISIBLE
+        refreshBack()
+    }
+
     private fun onAddressFocus(focused: Boolean) {
+        if (focused && finding) closeFind()
         bottomBar.visibility = if (focused) View.GONE else View.VISIBLE
         refreshBack()
     }
@@ -325,6 +355,10 @@ class MainActivity : Activity() {
 
     // True when back was used: closes the editor first, then walks the page history.
     private fun handleBack(): Boolean {
+        if (finding) {
+            closeFind()
+            return true
+        }
         if (address.input.hasFocus()) {
             leaveAddress()
             return true
@@ -340,7 +374,7 @@ class MainActivity : Activity() {
     // while Ardour has something to go back to, so the system still plays its normal exit when it has not.
     private fun refreshBack() {
         if (Build.VERSION.SDK_INT < 33) return
-        val needed = EngineAdapter.canGoBack() || address.input.hasFocus()
+        val needed = EngineAdapter.canGoBack() || address.input.hasFocus() || finding
         if (needed && backCallback == null) registerBack() else if (!needed && backCallback != null) unregisterBack()
     }
 
