@@ -11,7 +11,8 @@ Numbered, never dated. Dates live in TRACK.md.
 - Owner screenshot of 1.0.1: desktop page fits; DP18 passed. Owner's notes on proxy, Tor and Quad9 read; recorded as proposals in ROADMAP, none approved.
 - Owner decision: drop Tor and Quad9; Settings gets a Private DNS shortcut (decision 50). Built (run 102 green, released as 1.0.2): Private DNS card with an "Open network settings" button, shared outlined button in `Ui.kt`. Not yet seen on a device. APK size: 3,088,660 bytes (2.95 MiB) at 1.0.2.
 - Built (run 103 green, released as 1.0.3): find in page (`FindBar.kt`; engine calls `findAllAsync`, `findNext`, `clearMatches`, find listener, read from platform sources and mirrors). Not yet seen on a device. APK size: 3,096,904 bytes (2.95 MiB) at 1.0.3.
-- Next start: DP19 and DP20 on a device; then pull-to-refresh, text size and zoom; then find in page, pull-to-refresh, text size and zoom.
+- Owner screenshots of 1.0.3: DP19 passed; DP20 partly passed (see ROADMAP).
+- Next start: rest of DP20; then pull-to-refresh, text size and zoom; then find in page, pull-to-refresh, text size and zoom.
 
 ## 30
 - Owner screenshots of 0.9.9: airplane mode shows "No internet connection"; data on shows "This site can't be found" with "Search instead". Decisions 47 and 48 confirmed on device.
