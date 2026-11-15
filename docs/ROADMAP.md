@@ -81,8 +81,9 @@ Settings (decision 20): basic options by default; an Advanced section holds the 
 - Step 3 (1.0.4, released, not run on a device, decision 51): pinch zoom on by default; Settings > Browsing has pull to refresh, force zoom, wrap text when zoomed (all off by default).
 - DP21: pinch in and out on a normal page; switch on Pull to refresh, pull a page down from its top: chip fills, page reloads; Force zoom on a site that blocks zoom (open it after switching on); Wrap text: pinch changes text size and the text re-wraps. Judge on screenshots and a short recording.
 - DP21 result on 1.0.4 (owner, recording on a cricket news site): pull to refresh passed; pinch zoom did not work; force zoom did not work; wrap text not tested. Cause not confirmed: the site may block zoom, and the force-zoom script may not have run (or was switched on after the page loaded). 1.0.5 also runs the script on the open page and after each load. Retest 1.0.5: a zoomable site (an encyclopedia page) with all options off, then the same blocked site with Force zoom on and the page reloaded.
-- (planned) Text-size reset control; print, save as PDF.
-- (done above) Pull-to-refresh; text size and zoom; print, save as PDF.
+- DP21 final: 1.0.5 passed (owner): zoom, force zoom and wrap text work.
+- Step 4 (1.0.6, released, decision 52): menu has Print or save as PDF (system print screen) and, when Wrap text is on and the text size was changed, Reset text size.
+- DP22: Print or save as PDF passed on 1.0.6 (owner screenshots: print screen opens, Save as PDF, six-page preview of a news page). Not yet seen: Reset text size.
 - (planned) Reader mode with a warm "twilight" theme.
 - (planned) Default browser and links from other apps; Space choice added after Phase 12.
 - DP4: navigation works.

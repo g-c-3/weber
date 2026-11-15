@@ -14,7 +14,9 @@ Numbered, never dated. Dates live in TRACK.md.
 - Owner screenshots of 1.0.3: DP19 passed; DP20 partly passed (see ROADMAP).
 - Owner request: pull to refresh as an option, pinch zoom, force zoom, wrap text when zoomed. Built (run 104 green, released as 1.0.4): decision 51. Not yet seen on a device. APK size: 3,108,644 bytes (2.96 MiB) at 1.0.4.
 - Owner result on 1.0.4: pull to refresh works; pinch zoom and force zoom did not (recording shows a pinch with no change). Fixed (run 105 green, released as 1.0.5): force zoom also runs on the open page and after each load. Root cause of the missing pinch zoom not confirmed. APK size: 3,109,032 bytes (2.97 MiB) at 1.0.5.
-- Next start: retest zoom on 1.0.5; then rest of DP20; then pull-to-refresh, text size and zoom; then find in page, pull-to-refresh, text size and zoom.
+- Owner result on 1.0.5: zoom, force zoom and wrap text work. Built (decision 52): Print or save as PDF and Reset text size. Run 106 failed once in the release job on a library download (not code); re-run by the owner succeeded; released as 1.0.6. Print passed on device. APK size: 3,110,904 bytes (2.97 MiB) at 1.0.6.
+- Owner widened the push token to include Actions read and write; the chat in use still held the old token, so re-running a failed run needs a new chat.
+- Next start: Reset text size check; then reader mode with a twilight theme, default browser and links from other apps.
 
 ## 30
 - Owner screenshots of 0.9.9: airplane mode shows "No internet connection"; data on shows "This site can't be found" with "Search instead". Decisions 47 and 48 confirmed on device.
