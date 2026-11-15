@@ -28,8 +28,8 @@ import kotlin.math.sin
 class ReaderBlock(val kind: Char, val text: String, val marker: String)
 
 class Article(val title: String, val byline: String, val site: String, val blocks: List<ReaderBlock>) {
-    // Too little text means the page is not an article (a search page, an app, a start page).
-    val readable: Boolean get() = blocks.sumOf { it.text.length } >= 250
+    // Too little running text means the page is not an article (a search page, an app, a front page of headlines).
+    val readable: Boolean get() = blocks.filter { it.kind == 'p' || it.kind == 'q' }.sumOf { it.text.length } >= 200
 
     companion object {
         private const val MAX_BLOCKS = 600
@@ -234,6 +234,12 @@ class ReaderView(
     private val biggerButton = ReaderButton(context, ReaderButton.Kind.BIGGER)
     private val themeButton = ReaderButton(context, ReaderButton.Kind.THEME)
     private val readable = article != null && article.readable
+    private val emptyBox = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        setPadding(Ui.dp(context, 36), 0, Ui.dp(context, 36), Ui.dp(context, 72))
+    }
+    private val content: View get() = if (readable) scroll else emptyBox
 
     init {
         closeButton.contentDescription = "Close reader"
@@ -263,7 +269,7 @@ class ReaderView(
             orientation = LinearLayout.VERTICAL
             addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(readLine, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 2)))
-            addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
         addView(page, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         if (readable) buildArticle(article!!) else buildEmpty()
@@ -272,7 +278,7 @@ class ReaderView(
     // Called once the view is in place: applies the theme to the screen around it and plays the entrance.
     fun start() {
         applyLook()
-        Ui.enter(listOf(bar, scroll))
+        Ui.enter(listOf(bar, content))
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -366,7 +372,7 @@ class ReaderView(
                 }
                 column.addView(TextView(context).apply {
                     text = b.text
-                    typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+                    typeface = Typeface.create(Typeface.create("sans-serif", Typeface.NORMAL), 700, false)
                     setLineSpacing(0f, 1.15f)
                     reg { textSize = body * scale; setTextColor(look.text) }
                 }, params(top = 26, bottom = 8))
@@ -426,24 +432,20 @@ class ReaderView(
 
     // Shown when the page has no article text.
     private fun buildEmpty() {
-        column.setPadding(0, 0, 0, 0)
-        column.gravity = Gravity.CENTER_HORIZONTAL
-        val top = Ui.dp(context, 96)
-        column.addView(TextView(context).apply {
+        emptyBox.addView(TextView(context).apply {
             text = "No article here"
             typeface = serifBold
             gravity = Gravity.CENTER
             reg { textSize = 26f; setTextColor(look.text) }
-        }, params(top = 0, bottom = 12).apply { topMargin = top })
-        column.addView(TextView(context).apply {
+        }, params(bottom = 12))
+        emptyBox.addView(TextView(context).apply {
             text = "Reader mode works on news, blogs and other long text. This page has too little to read."
             typeface = Typeface.create("sans-serif", Typeface.NORMAL)
             gravity = Gravity.CENTER
             setLineSpacing(0f, 1.3f)
-            setPadding(Ui.dp(context, 36), 0, Ui.dp(context, 36), 0)
             reg { textSize = 16f; setTextColor(look.muted) }
         }, params(bottom = 28))
-        column.addView(TextView(context).apply {
+        emptyBox.addView(TextView(context).apply {
             text = "Back to the page"
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER
