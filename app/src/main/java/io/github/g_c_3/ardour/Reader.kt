@@ -1,5 +1,7 @@
 package io.github.g_c_3.ardour
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.LinearGradient
@@ -28,7 +30,7 @@ import kotlin.math.sin
 // One piece of the article. kind: '1' '2' '3' headings, 'p' paragraph, 'q' quote, 'l' list item, 'c' code.
 class ReaderBlock(val kind: Char, val text: String, val marker: String)
 
-class Article(val title: String, val byline: String, val site: String, val blocks: List<ReaderBlock>) {
+class Article(val title: String, val byline: String, val date: String, val site: String, val blocks: List<ReaderBlock>) {
     // Too little running text means the page is not an article (a search page, an app, a front page of headlines).
     val readable: Boolean get() = blocks.filter { it.kind == 'p' || it.kind == 'q' }.sumOf { it.text.length } >= 200
 
@@ -53,7 +55,7 @@ class Article(val title: String, val byline: String, val site: String, val block
                     if (text.isEmpty()) continue
                     blocks.add(ReaderBlock(kind, text, e.optString(2).take(6)))
                 }
-                Article(json.optString("t").take(300), json.optString("a").take(80), json.optString("s").take(80), blocks)
+                Article(json.optString("t").take(300), json.optString("a").take(80), json.optString("d").take(40), json.optString("s").take(80), blocks)
             } catch (_: JSONException) {
                 null
             }
@@ -219,12 +221,12 @@ private class ReadLine(context: Context) : View(context) {
 }
 
 // Full-screen reader: the article as plain text in a serif face. No images, links or page scripts.
-// `article` null or too short shows a quiet "no article" screen. Theme and size are remembered (Prefs).
+// It opens at once with a quiet "preparing" screen; setArticle fills it (or shows "no article" when the text is too
+// short). Theme, size and alignment are remembered (Prefs).
 class ReaderView(
     context: Context,
-    private val article: Article?,
     private val onClose: () -> Unit,
-    private val onStyle: (background: Int, lightBackground: Boolean) -> Unit,
+    private val onStyle: (lightBackground: Boolean) -> Unit,
 ) : FrameLayout(context) {
     private var paper = Prefs.get(context, Prefs.READER_PAPER)
     private var leftAligned = Prefs.get(context, Prefs.READER_LEFT)
@@ -251,15 +253,18 @@ class ReaderView(
     private val biggerButton = ReaderButton(context, ReaderButton.Kind.BIGGER)
     private val themeButton = ReaderButton(context, ReaderButton.Kind.THEME)
     private val justifyButton = ReaderButton(context, ReaderButton.Kind.JUSTIFY)
-    private val readable = article != null && article.readable
+    private var readable = false
+    private var pulse: ObjectAnimator? = null
     private val emptyBox = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
         setPadding(Ui.dp(context, 36), 0, Ui.dp(context, 36), Ui.dp(context, 72))
     }
     private val content: View get() = if (readable) scroll else emptyBox
+    private val holder = FrameLayout(context)
 
     init {
+        isClickable = true
         closeButton.contentDescription = "Close reader"
         smallerButton.contentDescription = "Smaller text"
         biggerButton.contentDescription = "Bigger text"
@@ -274,11 +279,10 @@ class ReaderView(
         val gap = Ui.dp(context, 4)
         bar.addView(closeButton, LinearLayout.LayoutParams(size, size))
         bar.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
-        if (readable) {
-            bar.addView(justifyButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
-            bar.addView(smallerButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
-            bar.addView(biggerButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
-        }
+        bar.addView(justifyButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
+        bar.addView(smallerButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
+        bar.addView(biggerButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
+        for (b in listOf(justifyButton, smallerButton, biggerButton)) b.visibility = GONE
         bar.addView(themeButton, LinearLayout.LayoutParams(size, size))
 
         scroll.addView(column, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -290,14 +294,40 @@ class ReaderView(
             orientation = LinearLayout.VERTICAL
             addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(readLine, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 2)))
-            addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(holder, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
         addView(page, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         // Side padding is set before any text is built: text laid out first and padded later kept its old line breaks
         // and was clipped at the right edge. Wide screens get a comfortable line length.
         val side = max(Ui.dp(context, 22), (resources.displayMetrics.widthPixels - Ui.dp(context, 680)) / 2)
         column.setPadding(side, Ui.dp(context, 18), side, Ui.dp(context, 72))
-        if (readable) buildArticle(article!!) else buildEmpty()
+        holder.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        holder.addView(emptyBox, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        scroll.visibility = GONE
+        buildLoading()
+    }
+
+    // Replaces the "preparing" screen with the article, or with the "no article" screen.
+    fun setArticle(a: Article?) {
+        pulse?.cancel()
+        pulse = null
+        restyle.clear()
+        column.removeAllViews()
+        emptyBox.removeAllViews()
+        readable = a != null && a.readable
+        for (b in listOf(justifyButton, smallerButton, biggerButton)) b.visibility = if (readable) VISIBLE else GONE
+        scroll.visibility = if (readable) VISIBLE else GONE
+        emptyBox.visibility = if (readable) GONE else VISIBLE
+        scroll.scrollTo(0, 0)
+        readLine.fraction = 0f
+        if (readable) buildArticle(a!!) else buildEmpty()
+        applyLook()
+        Ui.enter(listOf(content))
+    }
+
+    override fun onDetachedFromWindow() {
+        pulse?.cancel()
+        super.onDetachedFromWindow()
     }
 
     // Called once the view is in place: applies the theme to the screen around it and plays the entrance.
@@ -344,7 +374,7 @@ class ReaderView(
         smallerButton.isEnabled = step > 0
         biggerButton.isEnabled = step < SIZES.size - 1
         for (r in restyle) r()
-        onStyle(l.bg, l.light)
+        onStyle(l.light)
     }
 
     private fun reg(block: () -> Unit) {
@@ -379,9 +409,10 @@ class ReaderView(
             letterSpacing = -0.01f
             reg { textSize = body * 1.55f; setTextColor(look.text) }
         }, params(bottom = 10))
-        if (a.byline.isNotEmpty()) {
+        val credit = listOf(a.byline, a.date).filter { it.isNotEmpty() }.joinToString("  \u00B7  ")
+        if (credit.isNotEmpty()) {
             column.addView(TextView(context).apply {
-                text = a.byline
+                text = credit
                 typeface = Typeface.create("sans-serif", Typeface.NORMAL)
                 reg { textSize = 14f; setTextColor(look.muted) }
             }, params(bottom = 4))
@@ -460,6 +491,25 @@ class ReaderView(
                 setLineSpacing(0f, 1.5f)
                 reg { textSize = body; setTextColor(look.text); flow() }
             }, params(bottom = 18))
+        }
+    }
+
+    // Shown while the page's text is being gathered: a softly pulsing ember dot and a short line.
+    private fun buildLoading() {
+        val dot = View(context)
+        reg { dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(look.accent) } }
+        emptyBox.addView(dot, LinearLayout.LayoutParams(Ui.dp(context, 12), Ui.dp(context, 12)).apply { bottomMargin = Ui.dp(context, 18) })
+        emptyBox.addView(TextView(context).apply {
+            text = "Preparing the page"
+            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+            gravity = Gravity.CENTER
+            reg { textSize = 16f; setTextColor(look.muted) }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        pulse = ObjectAnimator.ofFloat(dot, View.ALPHA, 0.25f, 1f).apply {
+            duration = 750
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            start()
         }
     }
 
