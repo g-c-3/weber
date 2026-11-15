@@ -263,3 +263,11 @@ Rule: Ardour does not bundle or integrate Tor, Orbot or a named DNS provider (ow
 Cause: bundling Tor is native code (27) and a size cost; a proxy setting is app-wide, so it cannot differ per Space; WebRTC cannot be switched off in WebView, so no IP-protection promise could be kept.
 Verified: the Settings app handles `android.settings.WIRELESS_SETTINGS` (platform source). No public intent straight to Private DNS found; the screen is reached by hand, the path differs by phone. Not run on a device.
 
+## 51. Zoom and pull-to-refresh options
+Rule: pinch zoom is on by default. Three options in Settings, all off by default and kept on the device (`Prefs.kt`, private storage): pull to refresh, force zoom, wrap text when zoomed.
+Pull to refresh: Ardour's own touch handling and indicator (`PullRefresh.kt`), no library; starts only when the page is at its top. Reload only; sends nothing new.
+Force zoom: a script run at document start (`addDocumentStartJavaScript`, stable API, feature-checked, origin rule `*`) rewrites the viewport meta tag to allow zoom. A page-content change, not a request rewrite (31). Applies to pages opened after the switch.
+Wrap text when zoomed: pinch changes the text size (`setTextZoom`, 50 to 300 percent) so text re-wraps to the screen; page scaling and force zoom are off while it is on. Images do not scale.
+`setForceUserScalable` exists in platform source but is hidden, so it is not used.
+Verified: `addDocumentStartJavaScript` signature and feature flag (developer.android.com); viewport `user-scalable` behaviour (developer.android.com). Not verified: `*` as an origin rule, `setBuiltInZoomControls` text (from memory and forum answers), `setTextZoom` semantics. Not run on a device.
+

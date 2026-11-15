@@ -78,7 +78,10 @@ Settings (decision 20): basic options by default; an Advanced section holds the 
 - DP19: Settings shows a Private DNS card; the button opens the phone's network settings. Judge on a screenshot. Result on 1.0.3 (owner screenshots): passed; the card looks finished and the button opens Network & Internet, where Private DNS is listed.
 - Find in page (1.0.3, released, not run on a device): menu item opens a bar with query, match count, previous, next and close; back closes it.
 - DP20: Find in page: open from the menu, type, count shows "1 of N", next and previous move the highlight, "No matches" for a missing word, close and back both close it, the bar sits above the keyboard. Judge on screenshots. Result on 1.0.3 (owner screenshot): bar above the keyboard, matches highlighted, "1 of 14" shown. Not yet seen: next and previous, no-match text, close and back.
-- (planned) Pull-to-refresh; text size and zoom; print, save as PDF.
+- Step 3 (1.0.4, released, not run on a device, decision 51): pinch zoom on by default; Settings > Browsing has pull to refresh, force zoom, wrap text when zoomed (all off by default).
+- DP21: pinch in and out on a normal page; switch on Pull to refresh, pull a page down from its top: chip fills, page reloads; Force zoom on a site that blocks zoom (open it after switching on); Wrap text: pinch changes text size and the text re-wraps. Judge on screenshots and a short recording.
+- (planned) Text-size reset control; print, save as PDF.
+- (done above) Pull-to-refresh; text size and zoom; print, save as PDF.
 - (planned) Reader mode with a warm "twilight" theme.
 - (planned) Default browser and links from other apps; Space choice added after Phase 12.
 - DP4: navigation works.
