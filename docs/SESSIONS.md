@@ -6,7 +6,8 @@ Numbered, never dated. Dates live in TRACK.md.
 - Checked: docs, INDEX ranges and sizes (all under 60 KB); remote head and run 108 green; `androidx.webkit` 1.18.0 still the newest stable (released October 21, 2026).
 - Built (run 109 green, released as 1.0.9, decision 55): reader mode with twilight and paper themes, text size, progress line. Extraction script tested on sample pages in a test DOM; not yet seen on a device.
 - Engine: `androidx.webkit` 1.18.0. APK size: 3,147,356 bytes (3.00 MiB) at 1.0.9; 33,248 bytes more than 1.0.8.
-- Next start: owner runs DP24 on 1.0.9; fix what it shows; then the Phase 4 close-out check against the roadmap.
+- Device check of 1.0.9 (screenshots) found clipped headings, a cut-off no-article screen and a front page read as an article; fixed in run 110, released as 1.1.0 (3,147,808 bytes).
+- Next start: owner re-runs DP24 on 1.1.0; then the Phase 4 close-out check against the roadmap.
 
 ## 31
 - Checked: docs, INDEX ranges and sizes (all under 60 KB); remote head and run 99 green; `androidx.webkit` 1.18.0 still the newest stable seen (search snapshots differ in age).
