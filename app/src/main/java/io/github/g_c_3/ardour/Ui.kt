@@ -142,6 +142,24 @@ object Ui {
         springPress(this)
     }
 
+    // Quiet outlined pill for a secondary action; the glowing pill stays for the one primary action (DECISIONS.md 40).
+    fun secondaryButton(context: Context, text: String) = TextView(context).apply {
+        this.text = text
+        textSize = 15f
+        typeface = medium()
+        setTextColor(INK)
+        gravity = Gravity.CENTER
+        setPadding(dp(context, 24), dp(context, 13), dp(context, 24), dp(context, 13))
+        background = GradientDrawable().apply {
+            setColor(CARD)
+            cornerRadius = dp(context, 28).toFloat()
+            setStroke(dp(context, 1), LINE)
+        }
+        isClickable = true
+        isFocusable = true
+        springPress(this)
+    }
+
     fun setBusy(view: View, busy: Boolean) {
         view.isEnabled = !busy
         view.alpha = if (busy) 0.55f else 1f
