@@ -272,6 +272,10 @@ class ReaderView(
             addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
         addView(page, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        // Side padding is set before any text is built: text laid out first and padded later kept its old line breaks
+        // and was clipped at the right edge. Wide screens get a comfortable line length.
+        val side = max(Ui.dp(context, 22), (resources.displayMetrics.widthPixels - Ui.dp(context, 680)) / 2)
+        column.setPadding(side, Ui.dp(context, 18), side, Ui.dp(context, 72))
         if (readable) buildArticle(article!!) else buildEmpty()
     }
 
@@ -279,12 +283,6 @@ class ReaderView(
     fun start() {
         applyLook()
         Ui.enter(listOf(bar, content))
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        // Comfortable line length on wide screens.
-        val side = max(Ui.dp(context, 22), (w - Ui.dp(context, 680)) / 2)
-        column.setPadding(side, Ui.dp(context, 18), side, Ui.dp(context, 72))
     }
 
     private fun changeSize(delta: Int) {
