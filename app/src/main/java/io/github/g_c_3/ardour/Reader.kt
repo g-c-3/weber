@@ -8,6 +8,7 @@ import android.graphics.Path
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.Layout
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -96,9 +97,16 @@ private const val DEFAULT_STEP = 3
 
 // Round control in the reader's top bar, drawn by hand: close, smaller text, bigger text, theme.
 private class ReaderButton(context: Context, private val kind: Kind) : View(context) {
-    enum class Kind { CLOSE, SMALLER, BIGGER, THEME }
+    enum class Kind { CLOSE, SMALLER, BIGGER, THEME, JUSTIFY }
 
     var look: Look = TWILIGHT
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    // JUSTIFY button: true draws even lines, false draws a ragged right edge.
+    var justified = true
         set(value) {
             field = value
             invalidate()
@@ -150,6 +158,14 @@ private class ReaderButton(context: Context, private val kind: Kind) : View(cont
                 letter.color = look.text
                 letter.textSize = sp(if (kind == Kind.SMALLER) 14f else 21f)
                 canvas.drawText("A", cx, cy - (letter.descent() + letter.ascent()) / 2f, letter)
+            }
+            Kind.JUSTIFY -> {
+                val s = r * 0.4f
+                for (i in 0 until 4) {
+                    val y = cy - s * 0.75f + i * s * 0.5f
+                    val end = if (!justified && i == 3) cx else cx + s
+                    canvas.drawLine(cx - s, y, end, y, line)
+                }
             }
             Kind.THEME -> if (look.light) drawSun(canvas, cx, cy, r) else drawMoon(canvas, cx, cy, r)
         }
@@ -211,6 +227,7 @@ class ReaderView(
     private val onStyle: (background: Int, lightBackground: Boolean) -> Unit,
 ) : FrameLayout(context) {
     private var paper = Prefs.get(context, Prefs.READER_PAPER)
+    private var leftAligned = Prefs.get(context, Prefs.READER_LEFT)
     private var step = Prefs.getInt(context, Prefs.READER_SIZE, DEFAULT_STEP).coerceIn(0, SIZES.size - 1)
     private val look: Look get() = if (paper) PAPER else TWILIGHT
     private val body: Float get() = SIZES[step]
@@ -233,6 +250,7 @@ class ReaderView(
     private val smallerButton = ReaderButton(context, ReaderButton.Kind.SMALLER)
     private val biggerButton = ReaderButton(context, ReaderButton.Kind.BIGGER)
     private val themeButton = ReaderButton(context, ReaderButton.Kind.THEME)
+    private val justifyButton = ReaderButton(context, ReaderButton.Kind.JUSTIFY)
     private val readable = article != null && article.readable
     private val emptyBox = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -246,15 +264,18 @@ class ReaderView(
         smallerButton.contentDescription = "Smaller text"
         biggerButton.contentDescription = "Bigger text"
         themeButton.contentDescription = "Switch theme"
+        justifyButton.contentDescription = "Justify text"
         closeButton.setOnClickListener { onClose() }
         smallerButton.setOnClickListener { changeSize(-1) }
         biggerButton.setOnClickListener { changeSize(1) }
         themeButton.setOnClickListener { toggleTheme() }
+        justifyButton.setOnClickListener { toggleJustify() }
         val size = Ui.dp(context, 44)
         val gap = Ui.dp(context, 4)
         bar.addView(closeButton, LinearLayout.LayoutParams(size, size))
         bar.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
         if (readable) {
+            bar.addView(justifyButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
             bar.addView(smallerButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
             bar.addView(biggerButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
         }
@@ -293,6 +314,19 @@ class ReaderView(
         applyLook()
     }
 
+    private fun toggleJustify() {
+        leftAligned = !leftAligned
+        Prefs.set(context, Prefs.READER_LEFT, leftAligned)
+        applyLook()
+    }
+
+    // Justified text with automatic hyphenation, so lines on a narrow screen do not open wide gaps.
+    private fun TextView.flow() {
+        hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NORMAL
+        breakStrategy = Layout.BREAK_STRATEGY_HIGH_QUALITY
+        justificationMode = if (leftAligned) Layout.JUSTIFICATION_MODE_NONE else Layout.JUSTIFICATION_MODE_INTER_WORD
+    }
+
     private fun toggleTheme() {
         paper = !paper
         Prefs.set(context, Prefs.READER_PAPER, paper)
@@ -303,7 +337,8 @@ class ReaderView(
         val l = look
         setBackgroundColor(l.bg)
         readLine.look = l
-        for (b in listOf(closeButton, smallerButton, biggerButton, themeButton)) b.look = l
+        for (b in listOf(closeButton, smallerButton, biggerButton, themeButton, justifyButton)) b.look = l
+        justifyButton.justified = !leftAligned
         smallerButton.alpha = if (step == 0) 0.35f else 1f
         biggerButton.alpha = if (step == SIZES.size - 1) 0.35f else 1f
         smallerButton.isEnabled = step > 0
@@ -385,7 +420,7 @@ class ReaderView(
                         text = b.text
                         typeface = Typeface.create("serif", Typeface.ITALIC)
                         setLineSpacing(0f, 1.45f)
-                        reg { textSize = body; setTextColor(look.text) }
+                        reg { textSize = body; setTextColor(look.text); flow() }
                     }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(context, 14) })
                 }
                 column.addView(row, params(top = 6, bottom = 18))
@@ -403,7 +438,7 @@ class ReaderView(
                         text = b.text
                         typeface = serif
                         setLineSpacing(0f, 1.45f)
-                        reg { textSize = body; setTextColor(look.text) }
+                        reg { textSize = body; setTextColor(look.text); flow() }
                     }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 }
                 column.addView(row, params(bottom = 8))
@@ -423,7 +458,7 @@ class ReaderView(
                 text = b.text
                 typeface = serif
                 setLineSpacing(0f, 1.5f)
-                reg { textSize = body; setTextColor(look.text) }
+                reg { textSize = body; setTextColor(look.text); flow() }
             }, params(bottom = 18))
         }
     }

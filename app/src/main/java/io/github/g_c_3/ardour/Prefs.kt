@@ -9,6 +9,7 @@ object Prefs {
     const val WRAP = "wrap_on_zoom"
     const val READER_PAPER = "reader_paper"
     const val READER_SIZE = "reader_size"
+    const val READER_LEFT = "reader_left_aligned"
 
     private fun store(context: Context) = context.getSharedPreferences("ardour_options", Context.MODE_PRIVATE)
 
