@@ -11,7 +11,8 @@ Numbered, never dated. Dates live in TRACK.md.
 - Third device check: clipping fixed. Added justified text with a toggle (run 112, released as 1.1.2, 3,149,000 bytes). A lazily loaded article can show short; not yet understood.
 - DP24 passed on 1.1.2 (lazy loading confirmed as the cause of short results).
 - Built (run 113, red once on a library download, re-run green, released as 1.1.3): reader loads lazily loaded text first, shows author and date, opens at once over the whole window. Not run on a device.
-- Next start: owner runs DP25; then: load the rest of an article before reading, or author/date line, or the Phase 4 close-out check; then the Phase 4 close-out check against the roadmap.
+- DP25 passed in screenshots (preparing screen and page position after closing not seen).
+- Next start: Phase 4 close-out: owner checks the unseen items (DP17 stop while loading, keyboard hiding the bottom bar; DP20 next and previous, no-match text, close and back), then Phase 5; or: load the rest of an article before reading, or author/date line, or the Phase 4 close-out check; then the Phase 4 close-out check against the roadmap.
 
 ## 31
 - Checked: docs, INDEX ranges and sizes (all under 60 KB); remote head and run 99 green; `androidx.webkit` 1.18.0 still the newest stable seen (search snapshots differ in age).
