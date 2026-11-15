@@ -358,40 +358,35 @@ class MainActivity : Activity() {
             emptyArray()
         }
 
-    // Reader mode: the engine hands back the page's main text; Ardour draws it itself (DECISIONS.md 55).
+    // Reader mode: the reader covers the whole window at once, the engine gathers the page's main text behind it,
+    // and Ardour draws that text itself (DECISIONS.md 55).
     private fun openReader() {
         if (reader != null) return
-        EngineAdapter.extractArticle { raw ->
-            if (reader == null && !isDestroyed && !isFinishing) showReader(Article.parse(raw))
-        }
-    }
-
-    private fun showReader(article: Article?) {
-        val view = ReaderView(this, article, ::closeReader, ::onReaderStyle)
+        val view = ReaderView(this, ::closeReader, ::onReaderStyle)
         reader = view
-        topBar.visibility = View.GONE
-        pageArea.visibility = View.GONE
-        bottomBar.visibility = View.GONE
-        rootLayout.addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        view.setPadding(rootLayout.paddingLeft, rootLayout.paddingTop, rootLayout.paddingRight, rootLayout.paddingBottom)
+        findViewById<ViewGroup>(android.R.id.content).addView(
+            view,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
         view.start()
         refreshBack()
+        EngineAdapter.extractArticle { raw ->
+            if (reader === view && !isDestroyed && !isFinishing) view.setArticle(Article.parse(raw))
+        }
     }
 
     private fun closeReader() {
         val view = reader ?: return
         reader = null
-        rootLayout.removeView(view)
-        topBar.visibility = View.VISIBLE
-        pageArea.visibility = View.VISIBLE
-        bottomBar.visibility = View.VISIBLE
-        onReaderStyle(Ui.PAPER, true)
+        (view.parent as? ViewGroup)?.removeView(view)
+        onReaderStyle(true)
         refreshBack()
     }
 
-    // The reader sets the colour behind the system bars and whether their icons are dark (on a light background).
+    // Whether the system bar icons are dark (on a light background) while the reader is shown.
     @Suppress("DEPRECATION")
-    private fun onReaderStyle(background: Int, lightBackground: Boolean) {
-        rootLayout.setBackgroundColor(background)
+    private fun onReaderStyle(lightBackground: Boolean) {
         if (Build.VERSION.SDK_INT >= 30) {
             val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
             window.insetsController?.setSystemBarsAppearance(if (lightBackground) mask else 0, mask)

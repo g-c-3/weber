@@ -8,6 +8,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.net.http.SslError
 import android.webkit.RenderProcessGoneDetail
+import android.os.Handler
+import android.os.Looper
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebChromeClient
@@ -76,6 +78,31 @@ object EngineAdapter {
     function clean(s) { return (s || '').replace(/\s+/g, ' ').trim(); }
     function textOf(el) { return clean(el.innerText || el.textContent); }
     function meta(sel) { var m = document.querySelector(sel); return m ? clean(m.getAttribute('content')) : ''; }
+    // Author and date from the page's structured data when it has any.
+    function structured() {
+      var out = {}, nodes = document.querySelectorAll('script[type="application/ld+json"]');
+      function walk(o) {
+        if (!o || typeof o !== 'object') return;
+        if (Array.isArray(o)) { o.forEach(walk); return; }
+        if (o['@graph']) walk(o['@graph']);
+        var t = o['@type'];
+        t = Array.isArray(t) ? t.join(' ') : String(t || '');
+        if (/Article|BlogPosting|Report/.test(t)) {
+          if (!out.author && o.author) {
+            var list = Array.isArray(o.author) ? o.author : [o.author];
+            out.author = list.map(function (x) { return typeof x === 'string' ? x : (x && x.name) || ''; }).filter(Boolean).slice(0, 3).join(', ');
+          }
+          if (!out.date) out.date = o.datePublished || o.dateCreated || '';
+        }
+      }
+      for (var k = 0; k < nodes.length; k++) { try { walk(JSON.parse(nodes[k].textContent)); } catch (e) {} }
+      return out;
+    }
+    function fmt(v) {
+      var d = new Date(v);
+      if (isNaN(d.getTime())) return '';
+      try { return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch (e) { return d.toDateString(); }
+    }
     function skipped(el, root) {
       for (var n = el; n && n !== root; n = n.parentNode) {
         if (n.nodeType !== 1) continue;
@@ -105,8 +132,11 @@ object EngineAdapter {
         var h1 = root.querySelector('h1') || document.querySelector('h1');
     var title = h1 ? textOf(h1) : '';
     if (!title || title.length > 200) title = meta('meta[property="og:title"]') || clean(document.title);
-    var by = meta('meta[name="author"]');
+    var info = structured();
+    var by = clean(info.author) || meta('meta[name="author"]');
     if (!by) { var a = document.querySelector('[rel=author], [itemprop=author]'); by = a ? textOf(a) : ''; }
+    var tm = document.querySelector('time[datetime]');
+    var date = fmt(info.date || meta('meta[property="article:published_time"]') || (tm ? tm.getAttribute('datetime') : ''));
     var site = meta('meta[property="og:site_name"]') || location.hostname.replace(/^www\./, '');
     var els = root.querySelectorAll('h1,h2,h3,h4,p,blockquote,li,pre');
     var out = [], total = 0, last = '';
@@ -142,12 +172,19 @@ object EngineAdapter {
       out.push([kind, t, marker]);
       total += t.length;
     }
-    return JSON.stringify({ t: title, a: by.slice(0, 80), s: site, b: out });
+    return JSON.stringify({ t: title, a: by.slice(0, 80), d: date, s: site, b: out });
   } catch (e) {
     return null;
   }
 })()
     """
+
+    // Before reading, the page is scrolled to its end (up to a few rounds, while it keeps growing) so text it loads
+    // on scroll is present, then put back where it was. It causes only the page's own loads.
+    private const val PRELOAD_JS = """(function () { if (window.__ardourY === undefined) window.__ardourY = window.scrollY; window.scrollTo(0, document.documentElement.scrollHeight); return document.documentElement.scrollHeight; })()"""
+    private const val RESTORE_JS = """(function () { if (window.__ardourY !== undefined) { window.scrollTo(0, window.__ardourY); delete window.__ardourY; } })();"""
+    private const val PRELOAD_ROUNDS = 4
+    private const val PRELOAD_WAIT_MS = 450L
 
     // Desktop site (user switch): a desktop user-agent string and a wide viewport. Kept across a view rebuild.
     var desktopSite = false
@@ -271,15 +308,33 @@ object EngineAdapter {
         }
     }
 
-    // Reader mode: runs the extraction script on the open page. The callback (UI thread) gets the JSON string literal the
-    // engine returns, "null", or null when there is no view.
+    // Reader mode: loads the rest of the page's text, then runs the extraction script. The callback (UI thread) gets the
+    // JSON string literal the engine returns, "null", or null when there is no view.
     fun extractArticle(onResult: (String?) -> Unit) {
         val view = webView
         if (view == null) {
             onResult(null)
             return
         }
-        view.evaluateJavascript(READER_JS) { onResult(it) }
+        val handler = Handler(Looper.getMainLooper())
+        var rounds = 0
+        var lastHeight = -1
+        fun finish() {
+            view.evaluateJavascript(RESTORE_JS + READER_JS) { onResult(it) }
+        }
+        fun step() {
+            view.evaluateJavascript(PRELOAD_JS) { value ->
+                val height = value?.toIntOrNull() ?: -1
+                rounds++
+                if (height <= lastHeight || rounds >= PRELOAD_ROUNDS) {
+                    finish()
+                } else {
+                    lastHeight = height
+                    handler.postDelayed({ step() }, PRELOAD_WAIT_MS)
+                }
+            }
+        }
+        step()
     }
 
     fun currentUrl(): String? = webView?.url
