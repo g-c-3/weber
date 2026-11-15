@@ -2,6 +2,7 @@ package io.github.g_c_3.ardour
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.print.PrintDocumentAdapter
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
@@ -188,6 +189,18 @@ object EngineAdapter {
     }
 
     fun currentUrl(): String? = webView?.url
+
+    fun pageTitle(): String? = webView?.title
+
+    // Print adapter for the open page; the system print screen offers Save as PDF.
+    fun printAdapter(jobName: String): PrintDocumentAdapter? = webView?.createPrintDocumentAdapter(jobName)
+
+    fun textSizeChanged(): Boolean = textScale.toInt() != 100
+
+    fun resetTextSize() {
+        textScale = 100f
+        webView?.settings?.textZoom = 100
+    }
 
     // True when the page is scrolled to its top (pull to refresh may start).
     fun atTop(): Boolean = webView?.canScrollVertically(-1) == false

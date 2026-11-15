@@ -2,6 +2,7 @@ package io.github.g_c_3.ardour
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.graphics.LinearGradient
 import android.graphics.drawable.GradientDrawable
@@ -11,6 +12,8 @@ import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.print.PrintAttributes
+import android.print.PrintManager
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -309,12 +312,30 @@ class MainActivity : Activity() {
             listOf(
                 MenuItem("Share", enabled = hasPage) { share() },
                 MenuItem("Find in page", enabled = hasPage) { openFind() },
+                MenuItem("Print or save as PDF", enabled = hasPage) { printPage() },
                 MenuItem("Desktop site", toggle = EngineAdapter.desktopSite) {
                     EngineAdapter.setDesktopSite(!EngineAdapter.desktopSite, hasPage)
                 },
+                *resetItems(),
                 MenuItem("Settings") { startActivity(Intent(this, SettingsActivity::class.java)) },
             ),
         )
+    }
+
+    // "Reset text size" appears only when Wrap text is on and the text size was changed by pinching.
+    private fun resetItems(): Array<MenuItem> =
+        if (Prefs.get(this, Prefs.WRAP) && EngineAdapter.textSizeChanged()) {
+            arrayOf(MenuItem("Reset text size") { EngineAdapter.resetTextSize() })
+        } else {
+            emptyArray()
+        }
+
+    // The system print screen: printers, or Save as PDF. Ardour sends nothing itself.
+    private fun printPage() {
+        val name = EngineAdapter.pageTitle()?.takeIf { it.isNotBlank() } ?: "Page"
+        val adapter = EngineAdapter.printAdapter(name) ?: return
+        val manager = getSystemService(Context.PRINT_SERVICE) as PrintManager
+        manager.print(name, adapter, PrintAttributes.Builder().build())
     }
 
     // The system share sheet; Ardour sends nothing itself.
