@@ -272,3 +272,7 @@ Force zoom also runs the script on the open page and after each page load (1.0.5
 `setForceUserScalable` exists in platform source but is hidden, so it is not used.
 Verified: `addDocumentStartJavaScript` signature and feature flag (developer.android.com); viewport `user-scalable` behaviour (developer.android.com). Not verified: `*` as an origin rule, `setBuiltInZoomControls` text (from memory and forum answers), `setTextZoom` semantics. Not run on a device.
 
+## 52. Print or save as PDF; reset text size
+Rule: the menu's Print or save as PDF hands the open page to Android's print screen (`createPrintDocumentAdapter`, `PrintManager`); printers or Save as PDF are the system's. No permission, no new connection. Reset text size shows only while Wrap text is on and the text size differs from 100 percent.
+Verified: print flow and WebView limits on developer.android.com (one print job per WebView at a time; no page-range selection). Run on a device: print passed (owner screenshots, 1.0.6).
+
