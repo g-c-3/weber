@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 31
+- Checked: docs, INDEX ranges and sizes (all under 60 KB); remote head and run 99 green; `androidx.webkit` 1.18.0 still the newest stable seen (search snapshots differ in age).
+- Built (run 100 green, released as 1.0.0): browser menu with share, desktop site switch and Settings (decision 49). Not yet seen on a device.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,087,260 bytes (2.94 MiB) at 1.0.0.
+- Next start: owner checks the menu on 1.0.0 (DP18); then find in page, pull-to-refresh, text size and zoom.
+
 ## 30
 - Owner screenshots of 0.9.9: airplane mode shows "No internet connection"; data on shows "This site can't be found" with "Search instead". Decisions 47 and 48 confirmed on device.
 - No code change. Engine: `androidx.webkit` 1.18.0. APK size: 3,078,196 bytes (2.94 MiB) at 0.9.9.
