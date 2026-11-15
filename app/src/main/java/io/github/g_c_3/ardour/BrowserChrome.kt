@@ -17,7 +17,7 @@ import kotlin.math.sin
 
 // Toolbar icon drawn by hand; dimmed when disabled.
 class IconButton(context: Context, kind: Kind) : View(context) {
-    enum class Kind { BACK, FORWARD, RELOAD, STOP, MENU }
+    enum class Kind { BACK, FORWARD, RELOAD, STOP, MENU, UP, DOWN }
 
     var kind: Kind = kind
         set(v) {
@@ -85,6 +85,14 @@ class IconButton(context: Context, kind: Kind) : View(context) {
                 val h = r * 0.8f
                 canvas.drawLine(cx - h, cy - h, cx + h, cy + h, stroke)
                 canvas.drawLine(cx - h, cy + h, cx + h, cy - h, stroke)
+            }
+            Kind.UP, Kind.DOWN -> {
+                val s = if (kind == Kind.UP) 1f else -1f
+                path.reset()
+                path.moveTo(cx - r * 0.75f, cy + s * r * 0.35f)
+                path.lineTo(cx, cy - s * r * 0.35f)
+                path.lineTo(cx + r * 0.75f, cy + s * r * 0.35f)
+                canvas.drawPath(path, stroke)
             }
             Kind.MENU -> {
                 val gap = r * 0.95f
