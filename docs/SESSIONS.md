@@ -17,7 +17,8 @@ Numbered, never dated. Dates live in TRACK.md.
 - Owner result on 1.0.5: zoom, force zoom and wrap text work. Built (decision 52): Print or save as PDF and Reset text size. Run 106 failed once in the release job on a library download (not code); re-run by the owner succeeded; released as 1.0.6. Print passed on device. APK size: 3,110,904 bytes (2.97 MiB) at 1.0.6.
 - Owner widened the push token to include Actions read and write; the chat in use still held the old token, so re-running a failed run needs a new chat.
 - Owner approved instructions version 7: re-run rule (decision 53).
-- Next start: Reset text size check; then reader mode with a twilight theme, default browser and links from other apps.
+- Built (run 107 green, released as 1.0.7, decision 54): web links from other apps and the default-browser option. Not yet seen on a device. APK size: 3,113,564 bytes (2.97 MiB) at 1.0.7. Re-run permission tested on a succeeded run: refused as nothing to retry; not proven yet.
+- Next start: Reset text size check and DP23; then reader mode with a twilight theme, default browser and links from other apps.
 
 ## 30
 - Owner screenshots of 0.9.9: airplane mode shows "No internet connection"; data on shows "This site can't be found" with "Search instead". Decisions 47 and 48 confirmed on device.

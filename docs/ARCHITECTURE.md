@@ -39,7 +39,8 @@ Before changing permissions, certificates, content blocking or the manifest:
 - Any added library: license (11), size cost (30), no connection of its own.
 - Launch gate present and not bypassable (28).
 - Advanced settings (DECISIONS.md 20): curated; none weakens the engine, bypasses certificate checks or allows cleartext traffic.
-- Manifest items planned later (checked first): biometric, foreground service for media, picture-in-picture, default-browser intent filters, screenshot block.
+- Manifest: `MainActivity` is `singleTask` with a VIEW filter for http and https; links of any other scheme are ignored (54).
+- Manifest items planned later (checked first): biometric, foreground service for media, picture-in-picture, screenshot block.
 
 ## Toolchain
 Gradle 9.9.1, AGP 9.5.1, JDK 17 (DECISIONS.md 12). Exact pins in `gradle/wrapper/gradle-wrapper.properties` and `gradle/libs.versions.toml`.
