@@ -252,3 +252,8 @@ No network-state permission is added; the engine's own text decides. Not run on 
 ## 48. Network-state permission
 Amends 47, whose note that no permission was needed was wrong: with airplane mode on, 0.9.8 still said "This site can't be found".
 `ACCESS_NETWORK_STATE` is added (owner approved). Normal install-time permission, no prompt; it reads whether a validated network exists and sends nothing. A name-lookup or connection failure with no validated network is shown as "No internet connection". Not a web-page permission, so the Security rule on page grants is unaffected.
+
+## 49. Browser menu and desktop site
+Rule: the toolbar's last button opens a menu card (share, desktop site, Settings), drawn by Ardour (`MenuPopup.kt`). Share hands the page address to the system share sheet; Ardour sends nothing.
+Desktop site is a user switch: the phone's own user-agent string with the Android token and "Mobile" removed, plus a wide viewport, then a reload. Off restores the default string. A WebView setting, not request rewriting (31); the string is sent with the page's requests, as any user-agent is. Kept until the app process ends; a saved default waits for Settings and Spaces.
+Verified: `setUserAgentString` and `setUseWideViewPort` exist (developer.android.com API diff). Not verified from a primary page: empty string restores the default. Not run on a device.
