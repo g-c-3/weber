@@ -26,7 +26,7 @@ class MenuItem(
     val onTap: () -> Unit,
 )
 
-// Card that rises from the menu button, drawn by Ardour (DECISIONS.md 38).
+// Card that opens from the menu button, drawn by Ardour (DECISIONS.md 38).
 object MenuPopup {
     fun show(anchor: View, items: List<MenuItem>) {
         val context = anchor.context
@@ -58,7 +58,9 @@ object MenuPopup {
         val loc = IntArray(2)
         anchor.getLocationOnScreen(loc)
         val x = context.resources.displayMetrics.widthPixels - holder.measuredWidth
-        val y = loc[1] - holder.measuredHeight + margin
+        // Above the button when it sits low on the screen, below it when it sits at the top.
+        val below = loc[1] < context.resources.displayMetrics.heightPixels / 2
+        val y = if (below) loc[1] + anchor.height - margin else loc[1] - holder.measuredHeight + margin
         popup.showAtLocation(anchor.rootView, Gravity.NO_GRAVITY, x, y)
 
         card.alpha = 0f
@@ -66,7 +68,7 @@ object MenuPopup {
         card.scaleY = 0.86f
         card.post {
             card.pivotX = card.width.toFloat()
-            card.pivotY = card.height.toFloat()
+            card.pivotY = if (below) 0f else card.height.toFloat()
             card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(380).setInterpolator(SpringInterpolator()).start()
         }
     }

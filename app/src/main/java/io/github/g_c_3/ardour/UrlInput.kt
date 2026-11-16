@@ -28,4 +28,22 @@ object UrlInput {
         val host = Uri.parse(url).host?.removePrefix("www.") ?: return url
         return if (url.startsWith("http://")) "Not secure · $host" else host
     }
+
+    private val SECOND_LEVEL = setOf("co", "com", "org", "net", "gov", "edu", "ac", "ne", "or")
+
+    // Where the cursor goes when the address is opened for editing: right after the site name, before the dot that
+    // leads to .com, .org or .co.uk (www.google.com puts it after "google"). Text with no web address: its end.
+    fun nameEnd(text: String): Int {
+        val start = text.indexOf("://").let { if (it >= 0) it + 3 else 0 }
+        var end = start
+        while (end < text.length && text[end] !in "/?#:") end++
+        val host = text.substring(start, end)
+        val labels = host.split('.')
+        if (labels.size < 2 || host.all { it.isDigit() || it == '.' }) return end
+        var dot = host.lastIndexOf('.')
+        if (labels.size >= 3 && labels.last().length == 2 && labels[labels.size - 2] in SECOND_LEVEL) {
+            dot = host.lastIndexOf('.', dot - 1)
+        }
+        return start + dot
+    }
 }

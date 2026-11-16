@@ -7,6 +7,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.text.InputType
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -102,7 +103,7 @@ class IconButton(context: Context, kind: Kind) : View(context) {
     }
 }
 
-// Pill-shaped address field: host while idle, full address while editing, ember rim when focused.
+// Pill-shaped address field: host while idle, full address while editing (cursor after the site name), ember rim when focused.
 class AddressField(context: Context, private val onSubmit: (String) -> Unit, private val onFocus: (Boolean) -> Unit) :
     LinearLayout(context) {
     val input = EditText(context)
@@ -116,7 +117,8 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
     init {
         gravity = Gravity.CENTER_VERTICAL
         background = rim
-        elevation = Ui.dp(context, 2).toFloat()
+        clipChildren = false
+        setGlow(false)
         input.apply {
             background = null
             hint = "Search or enter address"
@@ -127,16 +129,18 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             imeOptions = EditorInfo.IME_ACTION_GO or EditorInfo.IME_FLAG_NO_EXTRACT_UI
             highlightColor = 0x40E8451D
-            setPadding(Ui.dp(context, 20), 0, Ui.dp(context, 20), 0)
+            setPadding(Ui.dp(context, 16), 0, Ui.dp(context, 16), 0)
+            ellipsize = TextUtils.TruncateAt.END
             setOnEditorActionListener { _, _, _ ->
                 onSubmit(text.toString())
                 true
             }
             setOnFocusChangeListener { _, focused ->
                 rim.setStroke(Ui.dp(context, if (focused) 2 else 1), if (focused) Ui.EMBER else Ui.LINE)
+                setGlow(focused)
                 if (focused) {
                     setText(url ?: "")
-                    selectAll()
+                    placeCursor()
                 } else {
                     setText(url?.let { UrlInput.display(it) } ?: "")
                 }
@@ -144,6 +148,21 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             }
         }
         addView(input, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    }
+
+    // Slight ember glow around the pill; a little stronger while editing.
+    private fun setGlow(focused: Boolean) {
+        elevation = Ui.dp(context, if (focused) 7 else 4).toFloat()
+        outlineSpotShadowColor = ((if (focused) 0x99 else 0x59) shl 24) or (Ui.EMBER and 0x00FFFFFF)
+        outlineAmbientShadowColor = 0x22000000
+    }
+
+    // Cursor after the site name. The tap that focused the field sets its own cursor a moment later, so this runs again.
+    private fun placeCursor() {
+        val at = { input.setSelection(UrlInput.nameEnd(input.text.toString()).coerceIn(0, input.text.length)) }
+        at()
+        input.post { at() }
+        input.postDelayed({ if (input.hasFocus()) at() }, 90)
     }
 
     fun showUrl(value: String) {

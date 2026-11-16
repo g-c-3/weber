@@ -179,12 +179,12 @@ object EngineAdapter {
 })()
     """
 
-    // Before reading, the page is scrolled to its end (up to a few rounds, while it keeps growing) so text it loads
+    // Before reading, the page is scrolled to its end (up to three short rounds, while it keeps growing by more than 8%) so text it loads
     // on scroll is present, then put back where it was. It causes only the page's own loads.
     private const val PRELOAD_JS = """(function () { if (window.__ardourY === undefined) window.__ardourY = window.scrollY; window.scrollTo(0, document.documentElement.scrollHeight); return document.documentElement.scrollHeight; })()"""
     private const val RESTORE_JS = """(function () { if (window.__ardourY !== undefined) { window.scrollTo(0, window.__ardourY); delete window.__ardourY; } })();"""
-    private const val PRELOAD_ROUNDS = 4
-    private const val PRELOAD_WAIT_MS = 450L
+    private const val PRELOAD_ROUNDS = 3
+    private const val PRELOAD_WAIT_MS = 300L
 
     // Desktop site (user switch): a desktop user-agent string and a wide viewport. Kept across a view rebuild.
     var desktopSite = false
@@ -326,7 +326,7 @@ object EngineAdapter {
             view.evaluateJavascript(PRELOAD_JS) { value ->
                 val height = value?.toIntOrNull() ?: -1
                 rounds++
-                if (height <= lastHeight || rounds >= PRELOAD_ROUNDS) {
+                if ((lastHeight >= 0 && height <= lastHeight + lastHeight / 12) || rounds >= PRELOAD_ROUNDS) {
                     finish()
                 } else {
                     lastHeight = height
