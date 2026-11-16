@@ -76,10 +76,7 @@ class MainActivity : Activity() {
         override fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean) {
             if (url != null && url != "about:blank") {
                 address.showUrl(url)
-                if (!hasPage) {
-                    hasPage = true
-                    startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
-                }
+                revealPage()
             }
             backButton.isEnabled = canGoBack
             forwardButton.isEnabled = canGoForward
@@ -88,6 +85,8 @@ class MainActivity : Activity() {
         }
 
         override fun onError(url: String?, kind: PageError) = showError(url, kind)
+
+        override fun onNavigate(url: String) = beginNavigation(url)
 
         override fun onFind(active: Int, total: Int) {
             if (finding) findBar.showCount(active, total)
@@ -98,6 +97,7 @@ class MainActivity : Activity() {
             // Ad-heavy pages show their content long before the engine reports the load finished. When the bar is
             // essentially full, the page is treated as ready after a short pause, and the stop button goes back
             // to reload; whatever still loads carries on quietly (DECISIONS.md 59).
+            progress.indeterminate = false
             if (percent >= 90 && this@MainActivity.loading && !settlePending) {
                 settlePending = true
                 progress.postDelayed(settle, SETTLE_MS)
@@ -115,6 +115,8 @@ class MainActivity : Activity() {
             reloadButton.kind = if (loading) IconButton.Kind.STOP else IconButton.Kind.RELOAD
             progress.visibility = if (loading) View.VISIBLE else View.INVISIBLE
             if (loading) progress.value = 0.06f
+            // Until the engine reports its first progress the bar sweeps, so a slow connection looks alive.
+            progress.indeterminate = loading
         }
     }
 
@@ -171,6 +173,7 @@ class MainActivity : Activity() {
         if (finding) closeFind()
         if (reader != null) closeReader()
         EngineAdapter.load(uri.toString())
+        beginNavigation(uri.toString())
         leaveAddress()
     }
 
@@ -418,7 +421,7 @@ class MainActivity : Activity() {
         }
         addView(errorHost)
         errorRetry = Ui.pillButton(context, "Try again").apply {
-            setOnClickListener { failedUrl?.let { EngineAdapter.load(it) } }
+            setOnClickListener { failedUrl?.let { EngineAdapter.load(it); beginNavigation(it) } }
         }
         addView(errorRetry, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
         errorSearch = TextView(context).apply {
@@ -436,7 +439,13 @@ class MainActivity : Activity() {
             isClickable = true
             isFocusable = true
             Ui.springPress(this)
-            setOnClickListener { failedUrl?.let { EngineAdapter.load(UrlInput.searchUrl(UrlInput.display(it))) } }
+            setOnClickListener {
+                failedUrl?.let {
+                    val search = UrlInput.searchUrl(UrlInput.display(it))
+                    EngineAdapter.load(search)
+                    beginNavigation(search)
+                }
+            }
         }
         addView(errorSearch, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             gravity = Gravity.CENTER_HORIZONTAL
@@ -479,7 +488,7 @@ class MainActivity : Activity() {
         if (!::pageArea.isInitialized) return
         pageArea.enabledPull = Prefs.get(this, Prefs.PULL)
         EngineAdapter.setZoomMode(Prefs.get(this, Prefs.FORCE_ZOOM), Prefs.get(this, Prefs.WRAP))
-        EngineAdapter.setThirdPartyCookies(Prefs.get(this, Prefs.THIRD_PARTY, true))
+        EngineAdapter.setThirdPartyCookies(Prefs.get(this, Prefs.THIRD_PARTY, false))
     }
 
     private fun showMenu(anchor: View) {
@@ -597,6 +606,23 @@ class MainActivity : Activity() {
         val target = UrlInput.resolve(text) ?: return
         EngineAdapter.load(target)
         leaveAddress()
+        beginNavigation(target)
+    }
+
+    // A navigation the user started (Go, a tapped link, a link from another app): the address shows where it goes and
+    // the bar sweeps at once, instead of staying blank until the engine reports the page started, which can take
+    // seconds on a slow connection.
+    private fun beginNavigation(url: String) {
+        address.showUrl(url)
+        revealPage()
+        reloadButton.isEnabled = true
+        listener.onLoading(true)
+    }
+
+    private fun revealPage() {
+        if (hasPage) return
+        hasPage = true
+        startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
     }
 
     private fun openFind() {

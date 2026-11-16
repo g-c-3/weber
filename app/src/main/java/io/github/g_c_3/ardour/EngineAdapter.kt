@@ -34,6 +34,7 @@ interface PageListener {
     fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean)
     fun onProgress(percent: Int)
     fun onLoading(loading: Boolean)
+    fun onNavigate(url: String)
     fun onFind(active: Int, total: Int)
 }
 
@@ -354,7 +355,10 @@ object EngineAdapter {
             // Only web addresses load in the view; other schemes are dropped until Ardour handles them itself.
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val scheme = request.url.scheme
-                return scheme != "http" && scheme != "https"
+                val web = scheme == "http" || scheme == "https"
+                // A tapped link: the app shows where it goes before the engine reports the page started.
+                if (web && request.isForMainFrame && !request.isRedirect) listener.onNavigate(request.url.toString())
+                return !web
             }
 
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
