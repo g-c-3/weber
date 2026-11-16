@@ -128,6 +128,16 @@ object EngineAdapter {
       for (var n = el; n && n !== root; n = n.parentNode) if (n.nodeType === 1 && bad(n)) return true;
       return false;
     }
+    // Short description of an element and its ancestors (tag, id, first classes) for the diagnostic report.
+    function short(n) {
+      var c = typeof n.className === 'string' ? n.className.trim().split(/\s+/).slice(0, 3).join('.') : '';
+      return n.tagName.toLowerCase() + (n.id ? '#' + n.id.slice(0, 20) : '') + (c ? '.' + c.slice(0, 40) : '');
+    }
+    function path(el) {
+      var p = [];
+      for (var n = el, i = 0; n && n.nodeType === 1 && i < 6; n = n.parentNode, i++) p.push(short(n));
+      return p.reverse().join(' > ');
+    }
     function chars(list) {
       var c = 0;
       for (var i = 0; i < list.length; i++) if (list[i][0] === 'p' || list[i][0] === 'q') c += list[i][1].length;
@@ -149,7 +159,10 @@ object EngineAdapter {
           scores.set(n, (scores.get(n) || 0) + s * W[d]);
         }
       }
-      scores.forEach(function (v, el) { if (v > bestScore) { bestScore = v; best = el; } });
+      var ranked = [];
+      scores.forEach(function (v, el) { ranked.push([v, el]); if (v > bestScore) { bestScore = v; best = el; } });
+      ranked.sort(function (x, y) { return y[0] - x[0]; });
+      var top = ranked.slice(0, 4).map(function (x) { return Math.round(x[0]) + ' ' + path(x[1]); });
       var root = best || document.body;
       var art = root.closest('article, [itemprop=articleBody]');
       if (art) root = art;
@@ -211,7 +224,40 @@ object EngineAdapter {
         else walk(n);
       }
       walk(root);
-      return { title: title, out: out };
+      return { title: title, out: out, root: path(root), top: top };
+    }
+
+    // Diagnostic report (long press on the reader's title): page structure and slow requests, no page text.
+    function report(strict, loose) {
+      var lines = ['Ardour reader report', 'host ' + location.hostname,
+        'strict chars ' + chars(strict.out) + ' root ' + strict.root, 'lenient chars ' + chars(loose.out) + ' root ' + loose.root];
+      strict.top.forEach(function (t) { lines.push(' strict top ' + t); });
+      loose.top.forEach(function (t) { lines.push(' lenient top ' + t); });
+      var big = [], els = document.body.querySelectorAll('p, div, section, article, main');
+      for (var i = 0; i < els.length; i++) {
+        var t = els[i].tagName === 'P' ? textOf(els[i]) : ownText(els[i]);
+        if (t.length >= 150) big.push([t.length, els[i]]);
+      }
+      big.sort(function (x, y) { return y[0] - x[0]; });
+      big.slice(0, 6).forEach(function (b) {
+        var why = '';
+        for (var n = b[1]; n && n !== document.body; n = n.parentNode) {
+          if (n.nodeType === 1 && bad(n)) { why = ' skipped-by ' + short(n); break; }
+        }
+        lines.push(' text ' + b[0] + ' ' + path(b[1]) + why);
+      });
+      try {
+        var es = performance.getEntriesByType('resource');
+        var slow = es.filter(function (e) { return e.duration > 3000; }).sort(function (x, y) { return y.duration - x.duration; });
+        lines.push('resources ' + es.length + ', slower than 3 s: ' + slow.length);
+        slow.slice(0, 8).forEach(function (e) {
+          var h = '';
+          try { var u = new URL(e.name); h = u.hostname + u.pathname.slice(0, 30); } catch (x) { h = e.name.slice(0, 40); }
+          lines.push(' slow ' + Math.round(e.duration) + ' ms ' + e.initiatorType + ' ' + h);
+        });
+      } catch (e) { lines.push('resource timing unavailable'); }
+      lines.push('page height ' + document.documentElement.scrollHeight + ' screen ' + window.innerHeight);
+      return lines.join('\n');
     }
 
     var info = structured();
@@ -221,14 +267,14 @@ object EngineAdapter {
     var date = fmt(info.date || meta('meta[property="article:published_time"]') || (tm ? tm.getAttribute('datetime') : ''));
     var site = meta('meta[property="og:site_name"]') || location.hostname.replace(/^www\./, '');
 
-    // First pass is strict. If it finds little text, a second pass ignores names like "ad" or "menu" on containers.
+    // Both passes always run. The lenient one ignores names like "ad" or "menu" on containers; it is used only when it
+    // finds clearly more text (a page whose article sits inside such a container).
     var r = attempt();
-    if (chars(r.out) < 300) {
-      lenient = true;
-      var r2 = attempt();
-      lenient = false;
-      if (chars(r2.out) > chars(r.out) + 150) r = r2;
-    }
+    lenient = true;
+    var r2 = attempt();
+    lenient = false;
+    if (window.__ardourReport) return report(r, r2);
+    if (chars(r2.out) > chars(r.out) * 1.6 + 100) r = r2;
     var out = r.out;
     // While the page is being scrolled in steps (pages that only keep the text near the screen), results of every
     // step are gathered here, new blocks added in the order they were first seen.
@@ -240,7 +286,7 @@ object EngineAdapter {
       }
       out = acc;
     }
-    return JSON.stringify({ t: r.title, a: by.slice(0, 80), d: date, s: site, c: chars(out), b: out });
+    return JSON.stringify({ t: r.title, a: by.slice(0, 80), d: date, s: site, c: chars(out), k: document.documentElement.scrollHeight > 3 * window.innerHeight ? 1 : 0, b: out });
   } catch (e) {
     return null;
   }
@@ -259,7 +305,7 @@ object EngineAdapter {
     private const val PRELOAD_WAIT_MS = 300L
     private const val STEP_WAIT_MS = 160L
     private const val STEP_MAX = 24
-    private const val MIN_CHARS = 300
+    private const val MIN_CHARS = 600
 
     // Desktop site (user switch): a desktop user-agent string and a wide viewport. Kept across a view rebuild.
     var desktopSite = false
@@ -421,7 +467,9 @@ object EngineAdapter {
 
         fun finish() {
             view.evaluateJavascript(READER_JS) { raw ->
-                if (textChars(raw) < MIN_CHARS) stepwise() else done(raw)
+                val peek = peek(raw)
+                // Little text on a tall page: the text may be kept only near the screen, so scroll in steps.
+                if (peek[0] < MIN_CHARS && peek[1] == 1) stepwise() else done(raw)
             }
         }
 
@@ -440,13 +488,33 @@ object EngineAdapter {
         step()
     }
 
-    // Characters of running text (paragraphs and quotes) in an extraction result; 0 when there is none.
-    private fun textChars(raw: String?): Int {
-        if (raw == null || raw == "null") return 0
+    // From an extraction result: characters of running text (paragraphs and quotes) and whether the page is tall.
+    private fun peek(raw: String?): IntArray {
+        if (raw == null || raw == "null") return intArrayOf(0, 0)
         return try {
-            JSONObject(JSONTokener(raw).nextValue() as? String ?: return 0).optInt("c")
+            val json = JSONObject(JSONTokener(raw).nextValue() as? String ?: return intArrayOf(0, 0))
+            intArrayOf(json.optInt("c"), json.optInt("k"))
         } catch (_: JSONException) {
-            0
+            intArrayOf(0, 0)
+        }
+    }
+
+    // Diagnostic report on the open page for the reader's long press: page structure and requests slower than 3 s.
+    // No page text and no network use; the text goes to the clipboard only when the user asks (DECISIONS.md 58).
+    fun pageReport(onResult: (String?) -> Unit) {
+        val view = webView
+        if (view == null) {
+            onResult(null)
+            return
+        }
+        view.evaluateJavascript("window.__ardourReport = true;\n" + READER_JS) { raw ->
+            view.evaluateJavascript("delete window.__ardourReport;", null)
+            val text = try {
+                JSONTokener(raw ?: "null").nextValue() as? String
+            } catch (_: JSONException) {
+                null
+            }
+            onResult(text)
         }
     }
 

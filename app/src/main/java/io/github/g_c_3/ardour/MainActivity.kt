@@ -496,7 +496,7 @@ class MainActivity : Activity() {
     // and Ardour draws that text itself (DECISIONS.md 55).
     private fun openReader() {
         if (reader != null) return
-        val view = ReaderView(this, ::closeReader, ::onReaderStyle)
+        val view = ReaderView(this, ::closeReader, ::onReaderStyle, ::reportPage)
         reader = view
         view.setPadding(rootLayout.paddingLeft, rootLayout.paddingTop, rootLayout.paddingRight, rootLayout.paddingBottom)
         findViewById<ViewGroup>(android.R.id.content).addView(
@@ -519,6 +519,18 @@ class MainActivity : Activity() {
                     cachedLoadId = loadId
                 }
                 view.setArticle(article)
+            }
+        }
+    }
+
+    // Long press on the reader's title: copies a report about the page's structure and slow requests (no page text).
+    private fun reportPage() {
+        EngineAdapter.pageReport { text ->
+            if (text.isNullOrEmpty()) {
+                reader?.notice("No report")
+            } else {
+                (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Ardour report", text))
+                reader?.notice("Report copied")
             }
         }
     }
