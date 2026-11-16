@@ -7,7 +7,11 @@ import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.net.http.SslError
+import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
+import org.json.JSONException
+import org.json.JSONObject
+import org.json.JSONTokener
 import android.os.Handler
 import android.os.Looper
 import android.webkit.SslErrorHandler
@@ -76,6 +80,8 @@ object EngineAdapter {
     var SKIP = /^(NAV|ASIDE|FOOTER|HEADER|FORM|SCRIPT|STYLE|NOSCRIPT|IFRAME|SVG|BUTTON|SELECT|TEXTAREA|FIGURE|TABLE|INS|AMP-AD|VIDEO|AUDIO|CANVAS|OBJECT|EMBED)$/;
     var JUNK = /comment|share|social|related|promo|advert|sidebar|cookie|subscribe|newsletter|popup|modal|breadcrumb|recommend|outbrain|taboola|menu|footer|adsbygoogle|doubleclick|(^|[\s_-])ads?($|[\s_-])/i;
     var BLOCKY = /^(P|DIV|SECTION|ARTICLE|MAIN|UL|OL|LI|H1|H2|H3|H4|H5|H6|BLOCKQUOTE|PRE|FIGCAPTION|DL|DD|DT)$/;
+    // Lines that end the article: what follows is comments, widgets and recommendations.
+    var STOP = /^(end of article|related (stories|articles|news|posts)|recommended for you|you may (also )?like|read next|more from .{1,30}|sponsored (links|content)|what readers are saying|join (the )?conversation|all comments.*|comments( \(\d+\))?)$/i;
     function clean(s) { return (s || '').replace(/\s+/g, ' ').trim(); }
     function textOf(el) { return clean(el.innerText || el.textContent); }
     function ownText(el) {
@@ -87,10 +93,10 @@ object EngineAdapter {
     // Author and date from the page's structured data when it has any.
     function structured() {
       var out = {}, nodes = document.querySelectorAll('script[type="application/ld+json"]');
-      function walk(o) {
+      function walkLd(o) {
         if (!o || typeof o !== 'object') return;
-        if (Array.isArray(o)) { o.forEach(walk); return; }
-        if (o['@graph']) walk(o['@graph']);
+        if (Array.isArray(o)) { o.forEach(walkLd); return; }
+        if (o['@graph']) walkLd(o['@graph']);
         var t = o['@type'];
         t = Array.isArray(t) ? t.join(' ') : String(t || '');
         if (/Article|BlogPosting|Report/.test(t)) {
@@ -101,7 +107,7 @@ object EngineAdapter {
           if (!out.date) out.date = o.datePublished || o.dateCreated || '';
         }
       }
-      for (var k = 0; k < nodes.length; k++) { try { walk(JSON.parse(nodes[k].textContent)); } catch (e) {} }
+      for (var k = 0; k < nodes.length; k++) { try { walkLd(JSON.parse(nodes[k].textContent)); } catch (e) {} }
       return out;
     }
     function fmt(v) {
@@ -109,11 +115,12 @@ object EngineAdapter {
       if (isNaN(d.getTime())) return '';
       try { return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch (e) { return d.toDateString(); }
     }
-    // One element that never belongs to the article: page furniture, hidden, or named like an advert or widget.
+    // One element that never belongs to the article: page furniture, hidden, or (unless lenient) named like an advert or widget.
+    var lenient = false;
     function bad(n) {
       if (SKIP.test(n.tagName.toUpperCase()) || n.hidden || n.getAttribute('aria-hidden') === 'true') return true;
       var cls = typeof n.className === 'string' ? n.className : '';
-      if (JUNK.test((n.id || '') + ' ' + cls)) return true;
+      if (!lenient && JUNK.test((n.id || '') + ' ' + cls)) return true;
       var st = getComputedStyle(n);
       return st.display === 'none' || st.visibility === 'hidden';
     }
@@ -121,27 +128,92 @@ object EngineAdapter {
       for (var n = el; n && n !== root; n = n.parentNode) if (n.nodeType === 1 && bad(n)) return true;
       return false;
     }
-    // Find the container that holds most running text. Text in paragraphs counts for the paragraph's parents;
-    // text sitting directly in other elements (pages that do not use paragraph tags) counts for that element.
-    var W = [1, 0.7, 0.5], scores = new Map(), best = null, bestScore = 0;
-    var cands = document.body.querySelectorAll('p, div, section, article, main');
-    for (var i = 0; i < cands.length; i++) {
-      var c = cands[i], isP = c.tagName === 'P';
-      var t0 = isP ? textOf(c) : ownText(c);
-      if (t0.length < 40 || skipped(c, document.body)) continue;
-      var s = 1 + Math.min(10, Math.floor(t0.length / 100)) + Math.min(3, t0.split(',').length - 1);
-      var n = isP ? c.parentNode : c;
-      for (var d = 0; d < 3 && n && n !== document.documentElement; d++, n = n.parentNode) {
-        scores.set(n, (scores.get(n) || 0) + s * W[d]);
-      }
+    function chars(list) {
+      var c = 0;
+      for (var i = 0; i < list.length; i++) if (list[i][0] === 'p' || list[i][0] === 'q') c += list[i][1].length;
+      return c;
     }
-    scores.forEach(function (v, el) { if (v > bestScore) { bestScore = v; best = el; } });
-    var root = best || document.body;
-    var art = root.closest('article, [itemprop=articleBody]');
-    if (art) root = art;
-    var h1 = root.querySelector('h1') || document.querySelector('h1');
-    var title = h1 ? textOf(h1) : '';
-    if (!title || title.length > 200) title = meta('meta[property="og:title"]') || clean(document.title);
+
+    function attempt() {
+      // Find the container that holds most running text. Text in paragraphs counts for the paragraph's parents;
+      // text sitting directly in other elements (pages that do not use paragraph tags) counts for that element.
+      var W = [1, 0.7, 0.5], scores = new Map(), best = null, bestScore = 0;
+      var cands = document.body.querySelectorAll('p, div, section, article, main');
+      for (var i = 0; i < cands.length; i++) {
+        var c = cands[i], isP = c.tagName === 'P';
+        var t0 = isP ? textOf(c) : ownText(c);
+        if (t0.length < 40 || skipped(c, document.body)) continue;
+        var s = 1 + Math.min(10, Math.floor(t0.length / 100)) + Math.min(3, t0.split(',').length - 1);
+        var n = isP ? c.parentNode : c;
+        for (var d = 0; d < 3 && n && n !== document.documentElement; d++, n = n.parentNode) {
+          scores.set(n, (scores.get(n) || 0) + s * W[d]);
+        }
+      }
+      scores.forEach(function (v, el) { if (v > bestScore) { bestScore = v; best = el; } });
+      var root = best || document.body;
+      var art = root.closest('article, [itemprop=articleBody]');
+      if (art) root = art;
+      var h1 = root.querySelector('h1') || document.querySelector('h1');
+      var title = h1 ? textOf(h1) : '';
+      if (!title || title.length > 200) title = meta('meta[property="og:title"]') || clean(document.title);
+
+      // Walk the container in order. Text sitting loose between elements becomes paragraphs too (a double line break
+      // starts a new one), so pages that skip paragraph tags still read properly.
+      var out = [], total = 0, last = '', stopped = false;
+      function push(kind, text, marker) {
+        if (stopped || out.length >= 600 || total >= 300000) return;
+        var t = kind === 'c' ? String(text || '').replace(/\s+$/, '').slice(0, 4000) : clean(text);
+        if (!t) return;
+        if (t.length <= 40 && STOP.test(t)) { stopped = true; return; }
+        if (kind === 'p' && (t.length < 20 || /^advertisement$/i.test(t))) return;
+        if (kind === 'q' && t.length < 10) return;
+        if ((kind === '1' || kind === '2' || kind === '3') && (t.length < 2 || t.length > 200 || t === title)) return;
+        if (kind === 'l' && t.length < 2) return;
+        if (t === last) return;
+        last = t;
+        out.push([kind, t, marker || '']);
+        total += t.length;
+      }
+      function walk(el) {
+        var buf = '';
+        function flush() {
+          if (!buf) return;
+          var parts = buf.split(/\u0001\s*\u0001/);
+          for (var k = 0; k < parts.length; k++) push('p', parts[k].replace(/\u0001/g, ' '));
+          buf = '';
+        }
+        for (var n = el.firstChild; n && !stopped; n = n.nextSibling) {
+          if (n.nodeType === 3) { buf += n.nodeValue; continue; }
+          if (n.nodeType !== 1) continue;
+          var tag = n.tagName.toUpperCase();
+          if (tag === 'BR') { buf += '\u0001'; continue; }
+          if (bad(n)) { flush(); continue; }
+          if (!BLOCKY.test(tag)) { buf += (n.innerText || n.textContent || ''); continue; }
+          flush();
+          block(n, tag);
+        }
+        flush();
+      }
+      function block(n, tag) {
+        if (/^H[1-6]$/.test(tag)) push(tag === 'H1' ? '1' : tag === 'H2' ? '2' : '3', textOf(n));
+        else if (tag === 'P') push('p', textOf(n));
+        else if (tag === 'BLOCKQUOTE') push('q', textOf(n));
+        else if (tag === 'PRE') push('c', n.textContent);
+        else if (tag === 'UL' || tag === 'OL') {
+          var idx = 0;
+          for (var li = n.firstElementChild; li; li = li.nextElementSibling) {
+            if (li.tagName !== 'LI' || bad(li)) continue;
+            idx++;
+            if (li.querySelector('li')) walk(li);
+            else push('l', textOf(li), tag === 'OL' ? idx + '.' : '\u2022');
+          }
+        } else if (tag === 'LI') push('l', textOf(n), '\u2022');
+        else walk(n);
+      }
+      walk(root);
+      return { title: title, out: out };
+    }
+
     var info = structured();
     var by = clean(info.author) || meta('meta[name="author"]');
     if (!by) { var a = document.querySelector('[rel=author], [itemprop=author]'); by = a ? textOf(a) : ''; }
@@ -149,72 +221,45 @@ object EngineAdapter {
     var date = fmt(info.date || meta('meta[property="article:published_time"]') || (tm ? tm.getAttribute('datetime') : ''));
     var site = meta('meta[property="og:site_name"]') || location.hostname.replace(/^www\./, '');
 
-    // Walk the container in order. Text sitting loose between elements becomes paragraphs too (a double line break
-    // starts a new one), so pages that skip paragraph tags still read properly.
-    var out = [], total = 0, last = '';
-    function push(kind, text, marker) {
-      if (out.length >= 600 || total >= 300000) return;
-      var t = kind === 'c' ? String(text || '').replace(/\s+$/, '').slice(0, 4000) : clean(text);
-      if (!t) return;
-      if (kind === 'p' && (t.length < 20 || /^advertisement$/i.test(t))) return;
-      if (kind === 'q' && t.length < 10) return;
-      if ((kind === '1' || kind === '2' || kind === '3') && (t.length < 2 || t.length > 200 || t === title)) return;
-      if (kind === 'l' && t.length < 2) return;
-      if (t === last) return;
-      last = t;
-      out.push([kind, t, marker || '']);
-      total += t.length;
+    // First pass is strict. If it finds little text, a second pass ignores names like "ad" or "menu" on containers.
+    var r = attempt();
+    if (chars(r.out) < 300) {
+      lenient = true;
+      var r2 = attempt();
+      lenient = false;
+      if (chars(r2.out) > chars(r.out) + 150) r = r2;
     }
-    function walk(el) {
-      var buf = '';
-      function flush() {
-        if (!buf) return;
-        var parts = buf.split(/\u0001\s*\u0001/);
-        for (var k = 0; k < parts.length; k++) push('p', parts[k].replace(/\u0001/g, ' '));
-        buf = '';
+    var out = r.out;
+    // While the page is being scrolled in steps (pages that only keep the text near the screen), results of every
+    // step are gathered here, new blocks added in the order they were first seen.
+    if (window.__ardourMerge) {
+      var acc = window.__ardourAcc || (window.__ardourAcc = []);
+      var seen = window.__ardourSeen || (window.__ardourSeen = {});
+      for (var q = 0; q < out.length && acc.length < 600; q++) {
+        if (!seen[out[q][1]]) { seen[out[q][1]] = 1; acc.push(out[q]); }
       }
-      for (var n = el.firstChild; n; n = n.nextSibling) {
-        if (n.nodeType === 3) { buf += n.nodeValue; continue; }
-        if (n.nodeType !== 1) continue;
-        var tag = n.tagName.toUpperCase();
-        if (tag === 'BR') { buf += '\u0001'; continue; }
-        if (bad(n)) { flush(); continue; }
-        if (!BLOCKY.test(tag)) { buf += (n.innerText || n.textContent || ''); continue; }
-        flush();
-        block(n, tag);
-      }
-      flush();
+      out = acc;
     }
-    function block(n, tag) {
-      if (/^H[1-6]$/.test(tag)) push(tag === 'H1' ? '1' : tag === 'H2' ? '2' : '3', textOf(n));
-      else if (tag === 'P') push('p', textOf(n));
-      else if (tag === 'BLOCKQUOTE') push('q', textOf(n));
-      else if (tag === 'PRE') push('c', n.textContent);
-      else if (tag === 'UL' || tag === 'OL') {
-        var idx = 0;
-        for (var li = n.firstElementChild; li; li = li.nextElementSibling) {
-          if (li.tagName !== 'LI' || bad(li)) continue;
-          idx++;
-          if (li.querySelector('li')) walk(li);
-          else push('l', textOf(li), tag === 'OL' ? idx + '.' : '\u2022');
-        }
-      } else if (tag === 'LI') push('l', textOf(n), '\u2022');
-      else walk(n);
-    }
-    walk(root);
-    return JSON.stringify({ t: title, a: by.slice(0, 80), d: date, s: site, b: out });
+    return JSON.stringify({ t: r.title, a: by.slice(0, 80), d: date, s: site, c: chars(out), b: out });
   } catch (e) {
     return null;
   }
 })()
     """
 
-    // Before reading, the page is scrolled to its end (up to three short rounds, while it keeps growing by more than 8%) so text it loads
-    // on scroll is present, then put back where it was. It causes only the page's own loads.
+    // Before reading, the page is scrolled to its end (up to three short rounds, while it keeps growing by more than 8%) so text
+    // it loads on scroll is present. If that still gives too little text, the page is scrolled down in screen-sized steps
+    // and what is on screen at each step is gathered (pages that keep only the text near the screen). Afterwards the page
+    // is put back where it was. This causes only the page's own loads.
     private const val PRELOAD_JS = """(function () { if (window.__ardourY === undefined) window.__ardourY = window.scrollY; window.scrollTo(0, document.documentElement.scrollHeight); return document.documentElement.scrollHeight; })()"""
-    private const val RESTORE_JS = """(function () { if (window.__ardourY !== undefined) { window.scrollTo(0, window.__ardourY); delete window.__ardourY; } })();"""
+    private const val RESTORE_JS = """(function () { if (window.__ardourY !== undefined) { window.scrollTo(0, window.__ardourY); delete window.__ardourY; } delete window.__ardourMerge; delete window.__ardourAcc; delete window.__ardourSeen; })();"""
+    private const val STEP_START_JS = """(function () { window.__ardourMerge = true; delete window.__ardourAcc; delete window.__ardourSeen; if (window.__ardourY === undefined) window.__ardourY = window.scrollY; window.scrollTo(0, 0); })();"""
+    private const val STEP_JS = """(function () { window.scrollBy(0, Math.max(200, window.innerHeight * 0.9)); return Math.round(window.scrollY) + '|' + document.documentElement.scrollHeight + '|' + window.innerHeight; })()"""
     private const val PRELOAD_ROUNDS = 3
     private const val PRELOAD_WAIT_MS = 300L
+    private const val STEP_WAIT_MS = 160L
+    private const val STEP_MAX = 24
+    private const val MIN_CHARS = 300
 
     // Desktop site (user switch): a desktop user-agent string and a wide viewport. Kept across a view rebuild.
     var desktopSite = false
@@ -349,9 +394,37 @@ object EngineAdapter {
         val handler = Handler(Looper.getMainLooper())
         var rounds = 0
         var lastHeight = -1
-        fun finish() {
-            view.evaluateJavascript(RESTORE_JS + READER_JS) { onResult(it) }
+        var steps = 0
+
+        fun done(raw: String?) {
+            view.evaluateJavascript(RESTORE_JS, null)
+            onResult(raw)
         }
+
+        fun stepwise() {
+            view.evaluateJavascript(STEP_START_JS, null)
+            fun next() {
+                view.evaluateJavascript(STEP_JS) { position ->
+                    steps++
+                    val parts = position?.trim('"')?.split('|')
+                    val atEnd = parts != null && parts.size == 3 &&
+                        (parts[0].toDoubleOrNull() ?: 0.0) + (parts[2].toDoubleOrNull() ?: 0.0) >= (parts[1].toDoubleOrNull() ?: 0.0) - 2
+                    handler.postDelayed({
+                        view.evaluateJavascript(READER_JS) { raw ->
+                            if (atEnd || steps >= STEP_MAX) done(raw) else next()
+                        }
+                    }, STEP_WAIT_MS)
+                }
+            }
+            next()
+        }
+
+        fun finish() {
+            view.evaluateJavascript(READER_JS) { raw ->
+                if (textChars(raw) < MIN_CHARS) stepwise() else done(raw)
+            }
+        }
+
         fun step() {
             view.evaluateJavascript(PRELOAD_JS) { value ->
                 val height = value?.toIntOrNull() ?: -1
@@ -365,6 +438,22 @@ object EngineAdapter {
             }
         }
         step()
+    }
+
+    // Characters of running text (paragraphs and quotes) in an extraction result; 0 when there is none.
+    private fun textChars(raw: String?): Int {
+        if (raw == null || raw == "null") return 0
+        return try {
+            JSONObject(JSONTokener(raw).nextValue() as? String ?: return 0).optInt("c")
+        } catch (_: JSONException) {
+            0
+        }
+    }
+
+    // Third-party cookies (embedded ads, sign-in frames) are refused unless the user allows them (DECISIONS.md 57).
+    fun setThirdPartyCookies(allow: Boolean) {
+        val view = webView ?: return
+        CookieManager.getInstance().setAcceptThirdPartyCookies(view, allow)
     }
 
     fun currentUrl(): String? = webView?.url

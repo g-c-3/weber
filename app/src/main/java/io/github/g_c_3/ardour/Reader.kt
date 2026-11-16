@@ -32,7 +32,7 @@ class ReaderBlock(val kind: Char, val text: String, val marker: String)
 
 class Article(val title: String, val byline: String, val date: String, val site: String, val blocks: List<ReaderBlock>) {
     // Too little running text means the page is not an article (a search page, an app, a front page of headlines).
-    val readable: Boolean get() = blocks.filter { it.kind == 'p' || it.kind == 'q' }.sumOf { it.text.length } >= 200
+    val readable: Boolean get() = blocks.filter { it.kind == 'p' || it.kind == 'q' }.sumOf { it.text.length } >= 300
 
     companion object {
         private const val MAX_BLOCKS = 600
