@@ -53,6 +53,8 @@ class SettingsActivity : Activity() {
             addView(switchRow("Force zoom", "Pinch to zoom on sites that block it. Applies to pages you open next.", Prefs.FORCE_ZOOM))
             addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Wrap text when zoomed", "Pinch changes the text size and fits it to the screen width instead of scaling the page. Replaces force zoom.", Prefs.WRAP))
+            addView(Ui.divider(this@SettingsActivity))
+            addView(switchRow("Third-party cookies", "Lets content embedded in a page, such as ads and sign-in frames, set cookies. Off by default. Some sites need them to work. Applies to pages you open next.", Prefs.THIRD_PARTY))
         }
         column.addView(browsing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Links"))

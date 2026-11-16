@@ -464,6 +464,7 @@ class MainActivity : Activity() {
         if (!::pageArea.isInitialized) return
         pageArea.enabledPull = Prefs.get(this, Prefs.PULL)
         EngineAdapter.setZoomMode(Prefs.get(this, Prefs.FORCE_ZOOM), Prefs.get(this, Prefs.WRAP))
+        EngineAdapter.setThirdPartyCookies(Prefs.get(this, Prefs.THIRD_PARTY))
     }
 
     private fun showMenu(anchor: View) {

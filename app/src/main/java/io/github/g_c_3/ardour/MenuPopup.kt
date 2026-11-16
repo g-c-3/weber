@@ -1,6 +1,7 @@
 package io.github.g_c_3.ardour
 
 import android.animation.ArgbEvaluator
+import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
@@ -11,7 +12,10 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -41,6 +45,7 @@ object MenuPopup {
             elevation = Ui.dp(context, 10).toFloat()
             outlineSpotShadowColor = 0x66000000
             setPadding(0, Ui.dp(context, 6), 0, Ui.dp(context, 6))
+            isClickable = true
         }
         val margin = Ui.dp(context, 14)
         val holder = FrameLayout(context).apply {
@@ -52,28 +57,52 @@ object MenuPopup {
             setBackgroundDrawable(ColorDrawable(0))
             isOutsideTouchable = true
         }
-        for (item in items) card.addView(row(context, item, popup))
+        // Closing fades and shrinks the card first, then removes the window. A touch outside it, or on the clear margin
+        // around it, closes it the same way.
+        var closing = false
+        var below = false
+        fun close() {
+            if (closing) return
+            closing = true
+            card.animate().cancel()
+            card.animate().alpha(0f).scaleX(0.94f).scaleY(0.94f).translationY(if (below) -Ui.dp(context, 4).toFloat() else Ui.dp(context, 4).toFloat())
+                .setDuration(150).setInterpolator(AccelerateInterpolator()).withEndAction { popup.dismiss() }.start()
+        }
+        holder.setOnClickListener { close() }
+        popup.setTouchInterceptor { _, event ->
+            if (event.action == MotionEvent.ACTION_OUTSIDE) {
+                close()
+                true
+            } else {
+                false
+            }
+        }
+        for (item in items) card.addView(row(context, item, ::close))
 
         holder.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val loc = IntArray(2)
         anchor.getLocationOnScreen(loc)
         val x = context.resources.displayMetrics.widthPixels - holder.measuredWidth
         // Above the button when it sits low on the screen, below it when it sits at the top.
-        val below = loc[1] < context.resources.displayMetrics.heightPixels / 2
+        below = loc[1] < context.resources.displayMetrics.heightPixels / 2
         val y = if (below) loc[1] + anchor.height - margin else loc[1] - holder.measuredHeight + margin
         popup.showAtLocation(anchor.rootView, Gravity.NO_GRAVITY, x, y)
 
+        // Opens with a quick fade and a spring settle from the button's corner.
+        val lift = Ui.dp(context, 6).toFloat()
         card.alpha = 0f
-        card.scaleX = 0.86f
-        card.scaleY = 0.86f
+        card.scaleX = 0.92f
+        card.scaleY = 0.92f
+        card.translationY = if (below) -lift else lift
         card.post {
             card.pivotX = card.width.toFloat()
             card.pivotY = if (below) 0f else card.height.toFloat()
-            card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(380).setInterpolator(SpringInterpolator()).start()
+            ObjectAnimator.ofFloat(card, View.ALPHA, 0f, 1f).setDuration(160).apply { interpolator = DecelerateInterpolator() }.start()
+            card.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(380).setInterpolator(SpringInterpolator()).start()
         }
     }
 
-    private fun row(context: Context, item: MenuItem, popup: PopupWindow): View {
+    private fun row(context: Context, item: MenuItem, close: () -> Unit): View {
         val pressed = ColorDrawable(Ui.PAPER)
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -104,9 +133,9 @@ object MenuPopup {
             if (switch != null) {
                 switch.on = !switch.on
                 item.onTap()
-                row.postDelayed({ popup.dismiss() }, 240)
+                row.postDelayed({ close() }, 240)
             } else {
-                popup.dismiss()
+                close()
                 item.onTap()
             }
         }
