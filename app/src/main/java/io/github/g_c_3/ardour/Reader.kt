@@ -227,6 +227,7 @@ class ReaderView(
     context: Context,
     private val onClose: () -> Unit,
     private val onStyle: (lightBackground: Boolean) -> Unit,
+    private val onReport: () -> Unit,
 ) : FrameLayout(context) {
     private var paper = Prefs.get(context, Prefs.READER_PAPER)
     private var leftAligned = Prefs.get(context, Prefs.READER_LEFT)
@@ -254,6 +255,13 @@ class ReaderView(
     private val themeButton = ReaderButton(context, ReaderButton.Kind.THEME)
     private val justifyButton = ReaderButton(context, ReaderButton.Kind.JUSTIFY)
     private var readable = false
+    private val notice = TextView(context).apply {
+        visibility = GONE
+        textSize = 14f
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        gravity = Gravity.CENTER
+        setPadding(Ui.dp(context, 18), Ui.dp(context, 10), Ui.dp(context, 18), Ui.dp(context, 10))
+    }
     private var pulse: ObjectAnimator? = null
     private val emptyBox = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -297,6 +305,7 @@ class ReaderView(
             addView(holder, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
         addView(page, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(notice, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = Ui.dp(context, 48) })
         // Side padding is set before any text is built: text laid out first and padded later kept its old line breaks
         // and was clipped at the right edge. Wide screens get a comfortable line length.
         val side = max(Ui.dp(context, 22), (resources.displayMetrics.widthPixels - Ui.dp(context, 680)) / 2)
@@ -323,6 +332,19 @@ class ReaderView(
         if (readable) buildArticle(a!!) else buildEmpty()
         applyLook()
         Ui.enter(listOf(content))
+    }
+
+    // A short pill at the bottom of the reader, for example "Report copied".
+    fun notice(text: String) {
+        notice.text = text
+        notice.animate().cancel()
+        notice.visibility = VISIBLE
+        notice.alpha = 0f
+        notice.animate().alpha(1f).setDuration(160).withEndAction {
+            notice.postDelayed({
+                notice.animate().alpha(0f).setDuration(240).withEndAction { notice.visibility = GONE }.start()
+            }, 1600)
+        }.start()
     }
 
     override fun onDetachedFromWindow() {
@@ -373,6 +395,12 @@ class ReaderView(
         biggerButton.alpha = if (step == SIZES.size - 1) 0.35f else 1f
         smallerButton.isEnabled = step > 0
         biggerButton.isEnabled = step < SIZES.size - 1
+        notice.setTextColor(l.text)
+        notice.background = GradientDrawable().apply {
+            setColor(l.chip)
+            cornerRadius = Ui.dp(context, 22).toFloat()
+            setStroke(Ui.dp(context, 1), l.edge)
+        }
         for (r in restyle) r()
         onStyle(l.light)
     }
@@ -407,6 +435,10 @@ class ReaderView(
             typeface = serifBold
             setLineSpacing(0f, 1.12f)
             letterSpacing = -0.01f
+            setOnLongClickListener {
+                onReport()
+                true
+            }
             reg { textSize = body * 1.55f; setTextColor(look.text) }
         }, params(bottom = 10))
         val credit = listOf(a.byline, a.date).filter { it.isNotEmpty() }.joinToString("  \u00B7  ")
@@ -519,6 +551,10 @@ class ReaderView(
             text = "No article here"
             typeface = serifBold
             gravity = Gravity.CENTER
+            setOnLongClickListener {
+                onReport()
+                true
+            }
             reg { textSize = 26f; setTextColor(look.text) }
         }, params(bottom = 12))
         emptyBox.addView(TextView(context).apply {
