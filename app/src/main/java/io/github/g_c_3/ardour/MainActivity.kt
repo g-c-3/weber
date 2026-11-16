@@ -1,6 +1,9 @@
 package io.github.g_c_3.ardour
 
+import android.animation.ValueAnimator
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -19,6 +22,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.animation.PathInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -39,7 +43,16 @@ class MainActivity : Activity() {
     private lateinit var errorRetry: View
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
-    private lateinit var bottomBar: View
+    private lateinit var buttonGroup: LinearLayout
+    private lateinit var floatingBar: LinearLayout
+    private lateinit var copyChip: TextView
+    private var expanded = false
+    private var rowWidth = 0
+    private var idleWidth = 0
+    private var widthAnim: ValueAnimator? = null
+    private var loadId = 0
+    private var cachedArticle: Article? = null
+    private var cachedLoadId = -1
     private lateinit var topBar: View
     private lateinit var rootLayout: LinearLayout
     private var reader: ReaderView? = null
@@ -80,6 +93,7 @@ class MainActivity : Activity() {
 
         override fun onLoading(loading: Boolean) {
             this@MainActivity.loading = loading
+            if (loading) loadId++
             if (loading) errorView.visibility = View.GONE
             if (loading && finding) closeFind()
             if (!loading) pageArea.finish()
@@ -145,34 +159,10 @@ class MainActivity : Activity() {
         leaveAddress()
     }
 
+    private fun px(n: Int) = Ui.dp(this, n)
+
     private fun buildBrowser(root: LinearLayout) {
         rootLayout = root
-        val top = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(Ui.dp(this@MainActivity, 12), Ui.dp(this@MainActivity, 8), Ui.dp(this@MainActivity, 12), Ui.dp(this@MainActivity, 4))
-        }
-        address = AddressField(this, ::submit, ::onAddressFocus)
-        top.addView(address, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48)))
-        progress = ThinProgress(this).apply { visibility = View.INVISIBLE }
-        top.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 8)).apply { topMargin = Ui.dp(this@MainActivity, 4) })
-        topBar = top
-        root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-        val content = PullRefreshLayout(
-            this,
-            { hasPage && errorView.visibility != View.VISIBLE && EngineAdapter.atTop() },
-            { EngineAdapter.reload() },
-        )
-        pageArea = content
-        val fill = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        content.addView(EngineAdapter.createView(this, listener) { root.post { recreate() } }, fill)
-        startView = startScreen()
-        content.addView(startView, fill)
-        errorView = errorScreen().apply { visibility = View.GONE }
-        content.addView(errorView, fill)
-        content.attachIndicator()
-        root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-
         backButton = IconButton(this, IconButton.Kind.BACK).apply {
             contentDescription = "Back"
             isEnabled = false
@@ -192,22 +182,165 @@ class MainActivity : Activity() {
             contentDescription = "Menu"
             setOnClickListener { showMenu(this) }
         }
-        val row = LinearLayout(this).apply {
+        // One top row: the address pill takes the left half, the four buttons the right half. Editing the address
+        // widens the pill over the buttons (setExpanded).
+        buttonGroup = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Ui.CARD)
             for (b in listOf(backButton, forwardButton, reloadButton, menuButton)) {
                 addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
             }
         }
-        bottomBar = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(Ui.divider(this@MainActivity))
-            addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this@MainActivity, 56)))
+        address = AddressField(this, ::submit, ::onAddressFocus)
+        val bar = FrameLayout(this).apply {
+            clipChildren = false
+            addView(buttonGroup, FrameLayout.LayoutParams(px(150), px(48), Gravity.END or Gravity.CENTER_VERTICAL))
+            addView(address, FrameLayout.LayoutParams(px(150), px(48), Gravity.START or Gravity.CENTER_VERTICAL))
+            addOnLayoutChangeListener { _, l, _, r, _, _, _, _, _ -> sizeTopRow(r - l) }
         }
-        root.addView(bottomBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false
+            setPadding(px(12), px(8), px(12), px(4))
+        }
+        top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(52)))
+        progress = ThinProgress(this).apply { visibility = View.INVISIBLE }
+        top.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(8)).apply { topMargin = px(2) })
+        topBar = top
+        root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        val content = PullRefreshLayout(
+            this,
+            { hasPage && errorView.visibility != View.VISIBLE && EngineAdapter.atTop() },
+            { EngineAdapter.reload() },
+        )
+        pageArea = content
+        val fill = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        content.addView(EngineAdapter.createView(this, listener) { root.post { recreate() } }, fill)
+        startView = startScreen()
+        content.addView(startView, fill)
+        errorView = errorScreen().apply { visibility = View.GONE }
+        content.addView(errorView, fill)
+        content.attachIndicator()
+        floatingBar = editBar()
+        content.addView(
+            floatingBar,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                .apply { topMargin = px(8) },
+        )
+        root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
         findBar = FindBar(this, { EngineAdapter.findAll(it) }, { EngineAdapter.findNext(it) }, ::closeFind).apply { visibility = View.GONE }
         root.addView(findBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        Ui.enter(listOf(top, startView, bottomBar))
+        Ui.enter(listOf(top, startView))
+    }
+
+    // Row width known: the pill gets half of it, the buttons the other half.
+    private fun sizeTopRow(w: Int) {
+        if (w <= 0 || w == rowWidth) return
+        rowWidth = w
+        val gap = px(8)
+        idleWidth = (w - gap) / 2
+        val buttons = buttonGroup.layoutParams as FrameLayout.LayoutParams
+        buttons.width = w - idleWidth - gap
+        buttonGroup.layoutParams = buttons
+        val pill = address.layoutParams as FrameLayout.LayoutParams
+        pill.width = if (expanded) w else idleWidth
+        address.layoutParams = pill
+    }
+
+    // Semi-transparent floating bar under the address while it is edited: Copy, Paste, Clear, Go.
+    // The chips never take focus, so the keyboard and the cursor stay in the address field.
+    private fun editBar(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(px(6), px(6), px(6), px(6))
+        background = GradientDrawable().apply {
+            setColor(0xE8FFFFFF.toInt())
+            cornerRadius = px(28).toFloat()
+            setStroke(px(1), 0x40E8451D)
+        }
+        elevation = px(8).toFloat()
+        outlineSpotShadowColor = 0x70E8451D
+        outlineAmbientShadowColor = 0x22000000
+        visibility = View.GONE
+        alpha = 0f
+        copyChip = editChip("Copy") { copyAddress() }
+        addView(copyChip)
+        addView(editChip("Paste") { pasteIntoAddress() })
+        addView(editChip("Clear") { address.input.setText("") })
+        addView(
+            Ui.floatingPill(this@MainActivity, "Go").apply {
+                isFocusable = false
+                setOnClickListener { submit(address.input.text.toString()) }
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = px(4) },
+        )
+    }
+
+    private fun editChip(label: String, onTap: () -> Unit) = TextView(this).apply {
+        text = label
+        textSize = 14.5f
+        typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+        setTextColor(Ui.INK)
+        gravity = Gravity.CENTER
+        setPadding(px(16), px(10), px(16), px(10))
+        isClickable = true
+        isFocusable = false
+        Ui.springPress(this)
+        setOnClickListener { onTap() }
+    }
+
+    private fun copyAddress() {
+        val text = address.input.text.toString()
+        if (text.isEmpty()) return
+        (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("address", text))
+        copyChip.text = "Copied"
+        copyChip.postDelayed({ copyChip.text = "Copy" }, 1200)
+    }
+
+    private fun pasteIntoAddress() {
+        val clip = (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).primaryClip ?: return
+        if (clip.itemCount == 0) return
+        val text = clip.getItemAt(0).coerceToText(this)?.toString().orEmpty()
+        if (text.isEmpty()) return
+        val field = address.input
+        val a = field.selectionStart.coerceAtLeast(0)
+        val b = field.selectionEnd.coerceAtLeast(0)
+        field.text.replace(minOf(a, b), maxOf(a, b), text)
+    }
+
+    // The pill widens from half the row to the full row, left to right, over the buttons; they fade away.
+    private fun setExpanded(on: Boolean) {
+        if (expanded == on) return
+        expanded = on
+        widthAnim?.cancel()
+        if (rowWidth > 0) {
+            val from = (address.layoutParams as FrameLayout.LayoutParams).width
+            widthAnim = ValueAnimator.ofInt(from, if (on) rowWidth else idleWidth).apply {
+                duration = 340
+                interpolator = PathInterpolator(0.2f, 0f, 0f, 1f)
+                addUpdateListener {
+                    val pill = address.layoutParams as FrameLayout.LayoutParams
+                    pill.width = it.animatedValue as Int
+                    address.layoutParams = pill
+                }
+                start()
+            }
+        }
+        buttonGroup.animate().cancel()
+        buttonGroup.animate().alpha(if (on) 0f else 1f).translationX(if (on) px(24).toFloat() else 0f)
+            .setDuration(if (on) 200L else 280L).start()
+        floatingBar.animate().cancel()
+        if (on) {
+            floatingBar.visibility = View.VISIBLE
+            floatingBar.translationY = -px(10).toFloat()
+            floatingBar.animate().alpha(1f).translationY(0f).setStartDelay(120).setDuration(380)
+                .setInterpolator(SpringInterpolator()).start()
+        } else {
+            floatingBar.animate().alpha(0f).translationY(-px(6).toFloat()).setStartDelay(0).setDuration(160)
+                .setInterpolator(android.view.animation.LinearInterpolator())
+                .withEndAction { if (!expanded) floatingBar.visibility = View.GONE }.start()
+        }
     }
 
     // Wordmark in the ember gradient over a quiet hint; shown until the first page starts.
@@ -371,8 +504,21 @@ class MainActivity : Activity() {
         )
         view.start()
         refreshBack()
+        // The same page, not loaded again since: its text is already known, so no preparing screen.
+        val known = cachedArticle?.takeIf { cachedLoadId == loadId }
+        if (known != null) {
+            view.setArticle(known)
+            return
+        }
         EngineAdapter.extractArticle { raw ->
-            if (reader === view && !isDestroyed && !isFinishing) view.setArticle(Article.parse(raw))
+            if (reader === view && !isDestroyed && !isFinishing) {
+                val article = Article.parse(raw)
+                if (article != null && article.readable && !loading) {
+                    cachedArticle = article
+                    cachedLoadId = loadId
+                }
+                view.setArticle(article)
+            }
         }
     }
 
@@ -428,7 +574,6 @@ class MainActivity : Activity() {
     private fun openFind() {
         if (finding) return
         finding = true
-        bottomBar.visibility = View.GONE
         findBar.visibility = View.VISIBLE
         findBar.open()
         refreshBack()
@@ -440,13 +585,12 @@ class MainActivity : Activity() {
         EngineAdapter.clearFind()
         findBar.close()
         findBar.visibility = View.GONE
-        bottomBar.visibility = View.VISIBLE
         refreshBack()
     }
 
     private fun onAddressFocus(focused: Boolean) {
         if (focused && finding) closeFind()
-        bottomBar.visibility = if (focused) View.GONE else View.VISIBLE
+        setExpanded(focused)
         refreshBack()
     }
 
