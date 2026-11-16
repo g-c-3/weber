@@ -67,12 +67,12 @@ class MainActivity : Activity() {
     private var backCallback: Any? = null
 
     private var settlePending = false
-    private val settle = Runnable {
+    private val settle: Runnable = Runnable {
         settlePending = false
         if (loading) listener.onLoading(false)
     }
 
-    private val listener = object : PageListener {
+    private val listener: PageListener = object : PageListener {
         override fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean) {
             if (url != null && url != "about:blank") {
                 address.showUrl(url)
