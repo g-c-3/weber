@@ -14,7 +14,8 @@ object Prefs {
 
     private fun store(context: Context) = context.getSharedPreferences("ardour_options", Context.MODE_PRIVATE)
 
-    fun get(context: Context, key: String): Boolean = store(context).getBoolean(key, false)
+    // `default` applies until the user flips the switch; most switches start off.
+    fun get(context: Context, key: String, default: Boolean = false): Boolean = store(context).getBoolean(key, default)
 
     fun set(context: Context, key: String, value: Boolean) = store(context).edit().putBoolean(key, value).apply()
 

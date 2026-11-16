@@ -66,6 +66,12 @@ class MainActivity : Activity() {
     private var hasPage = false
     private var backCallback: Any? = null
 
+    private var settlePending = false
+    private val settle = Runnable {
+        settlePending = false
+        if (loading) listener.onLoading(false)
+    }
+
     private val listener = object : PageListener {
         override fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean) {
             if (url != null && url != "about:blank") {
@@ -89,9 +95,18 @@ class MainActivity : Activity() {
 
         override fun onProgress(percent: Int) {
             progress.value = max(percent, 6) / 100f
+            // Ad-heavy pages show their content long before the engine reports the load finished. When the bar is
+            // essentially full, the page is treated as ready after a short pause, and the stop button goes back
+            // to reload; whatever still loads carries on quietly (DECISIONS.md 59).
+            if (percent >= 90 && this@MainActivity.loading && !settlePending) {
+                settlePending = true
+                progress.postDelayed(settle, SETTLE_MS)
+            }
         }
 
         override fun onLoading(loading: Boolean) {
+            progress.removeCallbacks(settle)
+            settlePending = false
             this@MainActivity.loading = loading
             if (loading) loadId++
             if (loading) errorView.visibility = View.GONE
@@ -464,7 +479,7 @@ class MainActivity : Activity() {
         if (!::pageArea.isInitialized) return
         pageArea.enabledPull = Prefs.get(this, Prefs.PULL)
         EngineAdapter.setZoomMode(Prefs.get(this, Prefs.FORCE_ZOOM), Prefs.get(this, Prefs.WRAP))
-        EngineAdapter.setThirdPartyCookies(Prefs.get(this, Prefs.THIRD_PARTY))
+        EngineAdapter.setThirdPartyCookies(Prefs.get(this, Prefs.THIRD_PARTY, true))
     }
 
     private fun showMenu(anchor: View) {
@@ -694,5 +709,6 @@ class MainActivity : Activity() {
 
     private companion object {
         const val WEBVIEW_PAGE = "https://play.google.com/store/apps/details?id=com.google.android.webview"
+        const val SETTLE_MS = 2500L
     }
 }

@@ -79,7 +79,9 @@ object EngineAdapter {
   try {
     var SKIP = /^(NAV|ASIDE|FOOTER|HEADER|FORM|SCRIPT|STYLE|NOSCRIPT|IFRAME|SVG|BUTTON|SELECT|TEXTAREA|FIGURE|TABLE|INS|AMP-AD|VIDEO|AUDIO|CANVAS|OBJECT|EMBED)$/;
     var JUNK = /comment|share|social|related|promo|advert|sidebar|cookie|subscribe|newsletter|popup|modal|breadcrumb|recommend|outbrain|taboola|menu|footer|adsbygoogle|doubleclick|(^|[\s_-])ads?($|[\s_-])/i;
-    var BLOCKY = /^(P|DIV|SECTION|ARTICLE|MAIN|UL|OL|LI|H1|H2|H3|H4|H5|H6|BLOCKQUOTE|PRE|FIGCAPTION|DL|DD|DT)$/;
+    // Only these stay inside the running paragraph; any other element (including unknown ones) starts a new paragraph.
+    var INLINE = /^(A|ABBR|B|BDI|BDO|CITE|CODE|DATA|DFN|EM|FONT|I|IMG|KBD|LABEL|MARK|Q|S|SAMP|SMALL|SPAN|STRONG|SUB|SUP|TIME|U|VAR|WBR)$/;
+    var BLOCKISH = 'p,div,ul,ol,li,h1,h2,h3,h4,h5,h6,blockquote,section,article,pre,table';
     // Lines that end the article: what follows is comments, widgets and recommendations.
     var STOP = /^(end of article|related (stories|articles|news|posts)|recommended for you|you may (also )?like|read next|more from .{1,30}|sponsored (links|content)|what readers are saying|join (the )?conversation|all comments.*|comments( \(\d+\))?)$/i;
     function clean(s) { return (s || '').replace(/\s+/g, ' ').trim(); }
@@ -201,7 +203,7 @@ object EngineAdapter {
           var tag = n.tagName.toUpperCase();
           if (tag === 'BR') { buf += '\u0001'; continue; }
           if (bad(n)) { flush(); continue; }
-          if (!BLOCKY.test(tag)) { buf += (n.innerText || n.textContent || ''); continue; }
+          if (INLINE.test(tag) && !n.querySelector(BLOCKISH)) { buf += (n.innerText || n.textContent || ''); continue; }
           flush();
           block(n, tag);
         }
