@@ -11,6 +11,7 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -40,11 +41,27 @@ class SettingsActivity : Activity() {
             setPadding(Ui.dp(this@SettingsActivity, 4), Ui.dp(this@SettingsActivity, 20), 0, 0)
         })
         column.addView(Ui.sectionLabel(this, "About"))
+        // Version row with the update button beside it (sideload build only); the line under it becomes the download bar.
+        // Padding gives the button's glow room inside the slot.
+        val updateSlot = FrameLayout(this).apply {
+            clipChildren = false
+            setPadding(Ui.dp(this@SettingsActivity, 6), Ui.dp(this@SettingsActivity, 6), Ui.dp(this@SettingsActivity, 6), Ui.dp(this@SettingsActivity, 6))
+        }
+        val divider = ProgressDivider(this)
+        val versionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(Ui.row(this@SettingsActivity, "Ardour version", appVersion()), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(updateSlot, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = Ui.dp(this@SettingsActivity, 12)
+            })
+        }
         val about = Ui.card(this).apply {
-            addView(Ui.row(this@SettingsActivity, "Ardour version", appVersion()))
-            addView(Ui.divider(this@SettingsActivity))
+            addView(versionRow)
+            addView(divider, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this@SettingsActivity, 8)))
             addView(Ui.row(this@SettingsActivity, "WebView version", EngineAdapter.webViewVersion(this@SettingsActivity) ?: "not found"))
         }
+        UpdateFeature.attach(this, updateSlot, divider, appVersion())
         column.addView(about, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Browsing"))
         val browsing = Ui.card(this).apply {
@@ -57,20 +74,11 @@ class SettingsActivity : Activity() {
             addView(switchRow("Third-party cookies", "Lets content embedded in a page, such as ads and sign-in frames, set cookies. This also lets those sites recognise you across the pages that embed them. Off by default; some sites need them to work. Applies to pages you open next.", Prefs.THIRD_PARTY))
         }
         column.addView(browsing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        column.addView(Ui.sectionLabel(this, "Links"))
-        column.addView(defaultBrowserCard(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        column.addView(Ui.sectionLabel(this, "Privacy"))
-        val dns = Ui.card(this).apply {
-            addView(Ui.row(this@SettingsActivity, "Private DNS", "Encrypts website-name lookups for every app on the phone, not only Ardour. It does not hide your IP address. In Android's network settings, look for Private DNS (the path differs by phone) and enter a provider's hostname."))
-            addView(Ui.secondaryButton(this@SettingsActivity, "Open network settings").apply {
-                setOnClickListener { openNetworkSettings() }
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = Ui.dp(this@SettingsActivity, 4)
-                bottomMargin = Ui.dp(this@SettingsActivity, 12)
+        defaultBrowserButton()?.let { card ->
+            column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = Ui.dp(this@SettingsActivity, 20)
             })
         }
-        column.addView(dns, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        UpdateFeature.addRows(this, column, appVersion())
 
         val scroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
@@ -91,26 +99,18 @@ class SettingsActivity : Activity() {
     }
 
     // Default browser: the system role dialog where Android shows it, otherwise the phone's Default apps screen.
-    // Ardour changes nothing itself (DECISIONS.md 54).
-    private fun defaultBrowserCard(): View {
+    // Ardour changes nothing itself (DECISIONS.md 54). Only the button is shown, and not once Ardour already holds the role.
+    private fun defaultBrowserButton(): View? {
         val roles = getSystemService(RoleManager::class.java)
         val available = roles != null && roles.isRoleAvailable(RoleManager.ROLE_BROWSER)
-        val held = available && roles.isRoleHeld(RoleManager.ROLE_BROWSER)
-        val note = when {
-            held -> "Ardour opens the links you tap in other apps."
-            available -> "Open the links you tap in other apps in Ardour. Android asks you to confirm."
-            else -> "Open the links you tap in other apps in Ardour. Pick Ardour under Browser app in Android's Default apps."
-        }
+        if (available && roles.isRoleHeld(RoleManager.ROLE_BROWSER)) return null
         return Ui.card(this).apply {
-            addView(Ui.row(this@SettingsActivity, "Default browser", note))
-            if (!held) {
-                addView(Ui.secondaryButton(this@SettingsActivity, if (available) "Make Ardour the default" else "Open default apps").apply {
-                    setOnClickListener { if (available) requestRole(roles) else openDefaultApps() }
-                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = Ui.dp(this@SettingsActivity, 4)
-                    bottomMargin = Ui.dp(this@SettingsActivity, 12)
-                })
-            }
+            addView(Ui.secondaryButton(this@SettingsActivity, if (available) "Make Ardour the default" else "Open default apps").apply {
+                setOnClickListener { if (available) requestRole(roles) else openDefaultApps() }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = Ui.dp(this@SettingsActivity, 8)
+                bottomMargin = Ui.dp(this@SettingsActivity, 8)
+            })
         }
     }
 
@@ -179,19 +179,6 @@ class SettingsActivity : Activity() {
             Prefs.set(ctx, key, switch.on)
         }
         return row
-    }
-
-    // Hands off to Android's own settings on the user's tap; Ardour changes nothing and sends nothing (DECISIONS.md 50).
-    private fun openNetworkSettings() {
-        try {
-            startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
-        } catch (_: ActivityNotFoundException) {
-            try {
-                startActivity(Intent(Settings.ACTION_SETTINGS))
-            } catch (_: ActivityNotFoundException) {
-                // No settings app can open; the text above still says where to look.
-            }
-        }
     }
 
     @Suppress("DEPRECATION")
