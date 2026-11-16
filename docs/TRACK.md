@@ -35,4 +35,4 @@ Maps session, decision and roadmap phase to a date. Append only; never edit a pa
 | 29 | 48 | 4 | 2026-11-15 | Network-state permission; offline detection; released as 0.9.9 |
 | 30 | 47, 48 | 4 | 2026-11-15 | Offline and missing-site screens confirmed on device (0.9.9) |
 | 31 | 49 | 4 | 2026-11-15 | Browser menu (share, desktop site, Settings); released as 1.0.0 |
-| 32 | 55 | 4 | 2026-11-16 | Reader mode (twilight and paper themes); released as 1.0.9; fixes, justify option, lazy-text loading and author/date line in 1.1.0 to 1.1.3 |
+| 32 | 55 | 4 | 2026-11-16 | Reader mode (twilight and paper themes); released as 1.0.9; fixes, justify option, lazy-text loading and author/date line in 1.1.0 to 1.1.3; top row redesign in 1.1.4 |
