@@ -73,10 +73,16 @@ object EngineAdapter {
     private const val READER_JS = """
 (function () {
   try {
-    var SKIP = /^(NAV|ASIDE|FOOTER|HEADER|FORM|SCRIPT|STYLE|NOSCRIPT|IFRAME|SVG|BUTTON|SELECT|TEXTAREA|FIGURE|TABLE)$/;
-    var JUNK = /comment|share|social|related|promo|advert|sidebar|cookie|subscribe|newsletter|popup|modal|breadcrumb|recommend|outbrain|taboola|menu|footer/i;
+    var SKIP = /^(NAV|ASIDE|FOOTER|HEADER|FORM|SCRIPT|STYLE|NOSCRIPT|IFRAME|SVG|BUTTON|SELECT|TEXTAREA|FIGURE|TABLE|INS|AMP-AD|VIDEO|AUDIO|CANVAS|OBJECT|EMBED)$/;
+    var JUNK = /comment|share|social|related|promo|advert|sidebar|cookie|subscribe|newsletter|popup|modal|breadcrumb|recommend|outbrain|taboola|menu|footer|adsbygoogle|doubleclick|(^|[\s_-])ads?($|[\s_-])/i;
+    var BLOCKY = /^(P|DIV|SECTION|ARTICLE|MAIN|UL|OL|LI|H1|H2|H3|H4|H5|H6|BLOCKQUOTE|PRE|FIGCAPTION|DL|DD|DT)$/;
     function clean(s) { return (s || '').replace(/\s+/g, ' ').trim(); }
     function textOf(el) { return clean(el.innerText || el.textContent); }
+    function ownText(el) {
+      var t = '';
+      for (var n = el.firstChild; n; n = n.nextSibling) if (n.nodeType === 3) t += n.nodeValue;
+      return clean(t);
+    }
     function meta(sel) { var m = document.querySelector(sel); return m ? clean(m.getAttribute('content')) : ''; }
     // Author and date from the page's structured data when it has any.
     function structured() {
@@ -103,24 +109,28 @@ object EngineAdapter {
       if (isNaN(d.getTime())) return '';
       try { return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch (e) { return d.toDateString(); }
     }
+    // One element that never belongs to the article: page furniture, hidden, or named like an advert or widget.
+    function bad(n) {
+      if (SKIP.test(n.tagName.toUpperCase()) || n.hidden || n.getAttribute('aria-hidden') === 'true') return true;
+      var cls = typeof n.className === 'string' ? n.className : '';
+      if (JUNK.test((n.id || '') + ' ' + cls)) return true;
+      var st = getComputedStyle(n);
+      return st.display === 'none' || st.visibility === 'hidden';
+    }
     function skipped(el, root) {
-      for (var n = el; n && n !== root; n = n.parentNode) {
-        if (n.nodeType !== 1) continue;
-        if (SKIP.test(n.tagName.toUpperCase()) || n.hidden || n.getAttribute('aria-hidden') === 'true') return true;
-        var cls = typeof n.className === 'string' ? n.className : '';
-        if (JUNK.test((n.id || '') + ' ' + cls)) return true;
-        var st = getComputedStyle(n);
-        if (st.display === 'none' || st.visibility === 'hidden') return true;
-      }
+      for (var n = el; n && n !== root; n = n.parentNode) if (n.nodeType === 1 && bad(n)) return true;
       return false;
     }
+    // Find the container that holds most running text. Text in paragraphs counts for the paragraph's parents;
+    // text sitting directly in other elements (pages that do not use paragraph tags) counts for that element.
     var W = [1, 0.7, 0.5], scores = new Map(), best = null, bestScore = 0;
-    var ps = document.body.querySelectorAll('p');
-    for (var i = 0; i < ps.length; i++) {
-      var t0 = textOf(ps[i]);
-      if (t0.length < 40 || skipped(ps[i], document.body)) continue;
-      var s = 1 + Math.min(3, Math.floor(t0.length / 100)) + Math.min(3, t0.split(',').length - 1);
-      var n = ps[i].parentNode;
+    var cands = document.body.querySelectorAll('p, div, section, article, main');
+    for (var i = 0; i < cands.length; i++) {
+      var c = cands[i], isP = c.tagName === 'P';
+      var t0 = isP ? textOf(c) : ownText(c);
+      if (t0.length < 40 || skipped(c, document.body)) continue;
+      var s = 1 + Math.min(10, Math.floor(t0.length / 100)) + Math.min(3, t0.split(',').length - 1);
+      var n = isP ? c.parentNode : c;
       for (var d = 0; d < 3 && n && n !== document.documentElement; d++, n = n.parentNode) {
         scores.set(n, (scores.get(n) || 0) + s * W[d]);
       }
@@ -129,7 +139,7 @@ object EngineAdapter {
     var root = best || document.body;
     var art = root.closest('article, [itemprop=articleBody]');
     if (art) root = art;
-        var h1 = root.querySelector('h1') || document.querySelector('h1');
+    var h1 = root.querySelector('h1') || document.querySelector('h1');
     var title = h1 ? textOf(h1) : '';
     if (!title || title.length > 200) title = meta('meta[property="og:title"]') || clean(document.title);
     var info = structured();
@@ -138,40 +148,60 @@ object EngineAdapter {
     var tm = document.querySelector('time[datetime]');
     var date = fmt(info.date || meta('meta[property="article:published_time"]') || (tm ? tm.getAttribute('datetime') : ''));
     var site = meta('meta[property="og:site_name"]') || location.hostname.replace(/^www\./, '');
-    var els = root.querySelectorAll('h1,h2,h3,h4,p,blockquote,li,pre');
+
+    // Walk the container in order. Text sitting loose between elements becomes paragraphs too (a double line break
+    // starts a new one), so pages that skip paragraph tags still read properly.
     var out = [], total = 0, last = '';
-    for (var j = 0; j < els.length && out.length < 600 && total < 300000; j++) {
-      var el = els[j], tag = el.tagName.toLowerCase();
-      if (skipped(el, root)) continue;
-      var c = (tag === 'p' || tag === 'li' || tag === 'blockquote') ? el.parentNode.closest('blockquote, li, pre') : null;
-      // Text already carried by an enclosing quote, list item or code block is not repeated.
-      if (c && c !== root && root.contains(c) && (tag !== 'li' || c.tagName !== 'LI')) continue;
-      if (tag === 'li' && el.querySelector('li')) continue;
-      var t = tag === 'pre' ? (el.textContent || '').replace(/\s+$/, '').slice(0, 4000) : textOf(el);
-      if (!t) continue;
-      var kind, marker = '';
-      if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4') {
-        if (t.length < 2 || t.length > 200 || t === title) continue;
-        kind = tag === 'h1' ? '1' : tag === 'h2' ? '2' : '3';
-      } else if (tag === 'p') {
-        if (t.length < 20) continue;
-        kind = 'p';
-      } else if (tag === 'blockquote') {
-        if (t.length < 10) continue;
-        kind = 'q';
-      } else if (tag === 'li') {
-        if (t.length < 2) continue;
-        kind = 'l';
-        var par = el.parentNode;
-        marker = par && par.tagName === 'OL' ? (Array.prototype.indexOf.call(par.children, el) + 1) + '.' : '\u2022';
-      } else {
-        kind = 'c';
-      }
-      if (t === last) continue;
+    function push(kind, text, marker) {
+      if (out.length >= 600 || total >= 300000) return;
+      var t = kind === 'c' ? String(text || '').replace(/\s+$/, '').slice(0, 4000) : clean(text);
+      if (!t) return;
+      if (kind === 'p' && (t.length < 20 || /^advertisement$/i.test(t))) return;
+      if (kind === 'q' && t.length < 10) return;
+      if ((kind === '1' || kind === '2' || kind === '3') && (t.length < 2 || t.length > 200 || t === title)) return;
+      if (kind === 'l' && t.length < 2) return;
+      if (t === last) return;
       last = t;
-      out.push([kind, t, marker]);
+      out.push([kind, t, marker || '']);
       total += t.length;
     }
+    function walk(el) {
+      var buf = '';
+      function flush() {
+        if (!buf) return;
+        var parts = buf.split(/\u0001\s*\u0001/);
+        for (var k = 0; k < parts.length; k++) push('p', parts[k].replace(/\u0001/g, ' '));
+        buf = '';
+      }
+      for (var n = el.firstChild; n; n = n.nextSibling) {
+        if (n.nodeType === 3) { buf += n.nodeValue; continue; }
+        if (n.nodeType !== 1) continue;
+        var tag = n.tagName.toUpperCase();
+        if (tag === 'BR') { buf += '\u0001'; continue; }
+        if (bad(n)) { flush(); continue; }
+        if (!BLOCKY.test(tag)) { buf += (n.innerText || n.textContent || ''); continue; }
+        flush();
+        block(n, tag);
+      }
+      flush();
+    }
+    function block(n, tag) {
+      if (/^H[1-6]$/.test(tag)) push(tag === 'H1' ? '1' : tag === 'H2' ? '2' : '3', textOf(n));
+      else if (tag === 'P') push('p', textOf(n));
+      else if (tag === 'BLOCKQUOTE') push('q', textOf(n));
+      else if (tag === 'PRE') push('c', n.textContent);
+      else if (tag === 'UL' || tag === 'OL') {
+        var idx = 0;
+        for (var li = n.firstElementChild; li; li = li.nextElementSibling) {
+          if (li.tagName !== 'LI' || bad(li)) continue;
+          idx++;
+          if (li.querySelector('li')) walk(li);
+          else push('l', textOf(li), tag === 'OL' ? idx + '.' : '\u2022');
+        }
+      } else if (tag === 'LI') push('l', textOf(n), '\u2022');
+      else walk(n);
+    }
+    walk(root);
     return JSON.stringify({ t: title, a: by.slice(0, 80), d: date, s: site, b: out });
   } catch (e) {
     return null;
