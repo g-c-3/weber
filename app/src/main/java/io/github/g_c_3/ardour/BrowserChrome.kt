@@ -28,7 +28,7 @@ class IconButton(context: Context, kind: Kind) : View(context) {
 
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = Ui.dp(context, 2).toFloat()
+        strokeWidth = Ui.dp(context, 2) * 0.9f
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
         color = Ui.INK
@@ -51,7 +51,7 @@ class IconButton(context: Context, kind: Kind) : View(context) {
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
-        val r = Ui.dp(context, 9).toFloat()
+        val r = Ui.dp(context, 8).toFloat()
         when (kind) {
             Kind.BACK, Kind.FORWARD -> {
                 val s = if (kind == Kind.BACK) 1f else -1f

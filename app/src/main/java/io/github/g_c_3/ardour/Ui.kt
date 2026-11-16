@@ -21,6 +21,7 @@ import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.Interpolator
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlin.math.cos
@@ -361,5 +362,23 @@ class BackButton(context: Context) : View(context) {
         path.lineTo(cx - s * 0.5f, cy)
         path.lineTo(cx + s * 0.5f, cy + s)
         canvas.drawPath(path, chevron)
+    }
+}
+
+// A thin separator that turns into the amber glowing progress bar while a download runs.
+class ProgressDivider(context: Context) : FrameLayout(context) {
+    val bar = ThinProgress(context).apply { visibility = View.GONE }
+    private val line = View(context).apply { setBackgroundColor(Ui.LINE) }
+
+    init {
+        clipChildren = false
+        addView(line, LayoutParams(LayoutParams.MATCH_PARENT, 1, Gravity.CENTER_VERTICAL))
+        addView(bar, LayoutParams(LayoutParams.MATCH_PARENT, Ui.dp(context, 20), Gravity.CENTER_VERTICAL))
+    }
+
+    fun showProgress(show: Boolean) {
+        line.visibility = if (show) View.INVISIBLE else View.VISIBLE
+        bar.visibility = if (show) View.VISIBLE else View.GONE
+        if (!show) bar.indeterminate = false
     }
 }
