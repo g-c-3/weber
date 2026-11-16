@@ -11,6 +11,7 @@ Numbered, never dated. Dates live in TRACK.md.
 - Third device check: clipping fixed. Added justified text with a toggle (run 112, released as 1.1.2, 3,149,000 bytes). A lazily loaded article can show short; not yet understood.
 - DP24 passed on 1.1.2 (lazy loading confirmed as the cause of short results).
 - Built (run 113, red once on a library download, re-run green, released as 1.1.3): reader loads lazily loaded text first, shows author and date, opens at once over the whole window. Not run on a device.
+- Built (run 114, released as 1.1.4, decision 56): top row replaces the bottom bar, expanding address with floating Copy/Paste/Clear/Go bar, cursor after site name, address glow; reader text cached per page load, preparing time shortened. Not run on a device. gsmarena slow loading: open question, cause not found.
 - DP25 passed (screenshots and a recording): preparing screen seen, about 2.1 s first open and 0.7 s second; page position kept after closing.
 - Next start: Phase 4 close-out: owner checks the unseen items (DP17 stop while loading, keyboard hiding the bottom bar; DP20 next and previous, no-match text, close and back), then Phase 5; or: load the rest of an article before reading, or author/date line, or the Phase 4 close-out check; then the Phase 4 close-out check against the roadmap.
 
