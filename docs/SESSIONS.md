@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 33
+- Built (release 1.2.3, decisions 63 to 65): progress bar stays until the engine reports the page finished (settle rule removed); pages laid out like a full browser, so desktop-built pages fit the screen without the Desktop site switch; pill and buttons 34 dp with a clear strip for the progress line.
+- Owner check of 1.2.2: reader passed on the Times of India articles; top row showed the progress line under the pill.
+- Engine: `androidx.webkit` 1.18.0 (newest stable, checked). APK size: 3,211,271 bytes at 1.2.3. Not run on a device: all of 1.2.3 (DP33).
+- Next start: owner's DP33 results. Still open, not to be started unasked: Phase 4 close-out checks (DP17 stop while loading; DP20 next, previous, no-match text), the Phase 3 checkbox, Phase 5.
+
 ## 32
 - Built (releases 1.0.9 to 1.2.2, decisions 55 to 62): reader mode with twilight and paper themes, justified text, author and date, long-press report, and Mozilla Readability as the main finder with the built-in finder as fallback; one top row (address left, buttons right, expanding address with Copy, Paste, Clear, Go) replacing the bottom bar; instant address and sweeping bar on navigation; page treated as ready 2.5 s after the bar fills; Settings trimmed, with Update Check beside the version and the amber download line.
 - Fixed or learned: reader clipping, paragraph splitting and several Times of India page structures; slow "finished" signal on ad-heavy sites is not solved (third-party cookies and Desktop site made no difference; default stays off).

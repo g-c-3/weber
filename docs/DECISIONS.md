@@ -335,3 +335,12 @@ Size cost, measured: the APK grew from 3,192,944 bytes (1.2.1) to 3,211,987 byte
 How it is used: its cleaned article is turned into blocks by the existing block code and wins when it finds at least 300 characters of running text and at least half of what the built-in finder found; otherwise the built-in finder (decisions 55, 57, 58, 59) is used. While a page is scrolled in steps the built-in finder runs alone. The long-press report now says whether Readability was used. Title, author and date fall back to Readability's when the page's structured data has none.
 Tested with the real library on ten sample pages in a test DOM (Readability took 6 of them, the built-in finder the rest); not yet on the Times of India pages.
 Top row (1.2.2): pill 38 dp, row 42 dp, 2 dp above; the remaining gap above is Android's status bar, which the app does not draw into.
+
+## 63. Progress bar stays until the page finishes
+Owner request: hiding the bar after 2.5 s while the page is still loading is untrue. The settle rule of 59 is removed. The bar shows the engine's progress and stays, with the stop button, until the engine reports the load finished or the user stops it. There is no timer. On ad-heavy sites this means the bar can sit near full for a long time; that is the real state. 59's cookie default is unchanged (see 60).
+
+## 64. Browser-like page layout
+Cause of pages cut off in mobile mode (Speedometer on browserbench.org; other browsers show it fitted): the engine's defaults lay every page out at the screen width and ignore the page's viewport rules. Fix (1.2.3), from the Chromium WebView layout guide, "Configuring WebView like a browser": wide viewport on, overview mode on, text auto-sizing. Pages without a mobile viewport get a 980 px layout shown fitted to the screen; pages with one keep it. The Desktop site switch now changes only the user-agent string. Not run on a device: it changes how every page is laid out, so mobile sites, the reader and text size need a look.
+
+## 65. Top row geometry
+Owner screenshot (gsmarena, loading): the progress line ran under the address pill. Pill and buttons are now 34 dp in a 42 dp row, leaving a strip under them for the progress line, which is also drawn above the pill's shadow. Replaces the sizes in 62 (pill 38 dp).
