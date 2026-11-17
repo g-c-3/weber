@@ -7,6 +7,7 @@ Numbered, never dated. Dates live in TRACK.md.
 - Fixed or learned: reader clipping, paragraph splitting and several Times of India page structures; slow "finished" signal on ad-heavy sites is not solved (third-party cookies and Desktop site made no difference; default stays off).
 - Engine: `androidx.webkit` 1.18.0. APK size: 3,211,987 bytes at 1.2.2. Passed on the device: DP24, DP25, DP31. Not yet run on a device: Readability and the 4 dp tighter top row (1.2.2).
 - Next start: DO NOTHING from the roadmap. Wait for the owner's reply on the three DP32 checks: (1) the Times of India articles that failed before (Lakshmi Venu / TVS, Hello Doctor, Sachin Tendulkar) in Reader mode; (2) a pasted long-press report for any that still fail; (3) a screenshot of the top row. Act only on that reply.
+- Instructions updated to version 8 (update section: Update Check button beside the version; Readability named as the one approved JavaScript asset); delivered as a file, not in the repo.
 - Still open afterwards, not to be started unasked: Phase 4 close-out checks (DP17 stop while loading; DP20 next, previous, no-match text), the Phase 3 checkbox, Phase 5, and the download path of Update Check (needs a newer release).
 
 ## 31
