@@ -120,7 +120,7 @@ class MainActivity : Activity() {
             val outcome = ExternalLinks.open(this@MainActivity, url)
             if (!outcome.opened) {
                 val next = outcome.loadInstead
-                if (next != null) root.post { submit(next) } else root.post { showNotice("No app can open this link") }
+                if (next != null) pageArea.post { submit(next) } else pageArea.post { showNotice("No app can open this link") }
             }
             return outcome.opened
         }
