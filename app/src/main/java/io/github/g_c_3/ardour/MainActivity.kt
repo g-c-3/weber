@@ -34,7 +34,7 @@ import kotlin.math.max
 
 class MainActivity : Activity() {
     private lateinit var address: AddressField
-    private lateinit var progress: ThinProgress
+    private lateinit var progress: PageProgress
     private lateinit var startView: View
     private lateinit var errorView: LinearLayout
     private lateinit var errorTitle: TextView
@@ -44,8 +44,7 @@ class MainActivity : Activity() {
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var buttonGroup: LinearLayout
-    private lateinit var floatingBar: LinearLayout
-    private lateinit var copyChip: TextView
+    private lateinit var floatingBar: EditBar
     private var expanded = false
     private var rowWidth = 0
     private var idleWidth = 0
@@ -102,8 +101,7 @@ class MainActivity : Activity() {
         override fun onProgress(percent: Int) {
             // The bar shows the engine's own progress. It leaves when the engine reports the load finished, or earlier
             // when the engine is at 90% or more and the page's document is parsed (DECISIONS.md 66).
-            progress.value = max(percent, 6) / 100f
-            progress.indeterminate = false
+            progress.update(percent / 100f)
             if (percent >= 90 && this@MainActivity.loading && readyPollId != loadId) pollDocument(loadId)
         }
 
@@ -114,10 +112,8 @@ class MainActivity : Activity() {
             if (loading && finding) closeFind()
             if (!loading) pageArea.finish()
             reloadButton.kind = if (loading) IconButton.Kind.STOP else IconButton.Kind.RELOAD
-            progress.visibility = if (loading) View.VISIBLE else View.INVISIBLE
-            if (loading) progress.value = 0.06f
             // Until the engine reports its first progress the bar sweeps, so a slow connection looks alive.
-            progress.indeterminate = loading
+            if (loading) progress.start() else progress.finish()
         }
     }
 
@@ -223,7 +219,7 @@ class MainActivity : Activity() {
         }
         // The progress line has its own strip under the pill and buttons (a few dp clear of them) and is drawn above
         // the pill's shadow, so it never runs under the pill.
-        progress = ThinProgress(this).apply {
+        progress = PageProgress(this).apply {
             visibility = View.INVISIBLE
             elevation = px(9).toFloat()
         }
@@ -245,7 +241,20 @@ class MainActivity : Activity() {
         errorView = errorScreen().apply { visibility = View.GONE }
         content.addView(errorView, fill)
         content.attachIndicator()
-        floatingBar = editBar()
+        floatingBar = EditBar(
+            this,
+            onCopy = { copyAddress() },
+            onPaste = { pasteIntoAddress() },
+            onClear = { address.input.setText("") },
+            onGo = { submit(address.input.text.toString()) },
+        )
+        address.input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                floatingBar.refresh(!s.isNullOrEmpty(), clipboardHasText())
+            }
+        })
         content.addView(
             floatingBar,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
@@ -272,54 +281,17 @@ class MainActivity : Activity() {
         address.layoutParams = pill
     }
 
-    // Semi-transparent floating bar under the address while it is edited: Copy, Paste, Clear, Go.
-    // The chips never take focus, so the keyboard and the cursor stay in the address field.
-    private fun editBar(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(px(6), px(6), px(6), px(6))
-        background = GradientDrawable().apply {
-            setColor(0xE8FFFFFF.toInt())
-            cornerRadius = px(28).toFloat()
-            setStroke(px(1), 0x40E8451D)
-        }
-        elevation = px(8).toFloat()
-        outlineSpotShadowColor = 0x70E8451D
-        outlineAmbientShadowColor = 0x22000000
-        visibility = View.GONE
-        alpha = 0f
-        copyChip = editChip("Copy") { copyAddress() }
-        addView(copyChip)
-        addView(editChip("Paste") { pasteIntoAddress() })
-        addView(editChip("Clear") { address.input.setText("") })
-        addView(
-            Ui.floatingPill(this@MainActivity, "Go").apply {
-                isFocusable = false
-                setOnClickListener { submit(address.input.text.toString()) }
-            },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = px(4) },
-        )
-    }
-
-    private fun editChip(label: String, onTap: () -> Unit) = TextView(this).apply {
-        text = label
-        textSize = 14.5f
-        typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
-        setTextColor(Ui.INK)
-        gravity = Gravity.CENTER
-        setPadding(px(16), px(10), px(16), px(10))
-        isClickable = true
-        isFocusable = false
-        Ui.springPress(this)
-        setOnClickListener { onTap() }
-    }
-
+    // Copy action of the floating bar over the page while the address is edited.
     private fun copyAddress() {
         val text = address.input.text.toString()
         if (text.isEmpty()) return
         (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("address", text))
-        copyChip.text = "Copied"
-        copyChip.postDelayed({ copyChip.text = "Copy" }, 1200)
+    }
+
+    // Whether the clipboard holds text; reads only its type, never its content.
+    private fun clipboardHasText(): Boolean {
+        val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        return cm.hasPrimaryClip() && cm.primaryClipDescription?.hasMimeType("text/*") == true
     }
 
     private fun pasteIntoAddress() {
@@ -331,6 +303,7 @@ class MainActivity : Activity() {
         val a = field.selectionStart.coerceAtLeast(0)
         val b = field.selectionEnd.coerceAtLeast(0)
         field.text.replace(minOf(a, b), maxOf(a, b), text)
+        floatingBar.refresh(field.text.isNotEmpty(), clipboardHasText())
     }
 
     // The pill widens from half the row to the full row, left to right, over the buttons; they fade away.
@@ -356,7 +329,9 @@ class MainActivity : Activity() {
             .setDuration(if (on) 200L else 280L).start()
         floatingBar.animate().cancel()
         if (on) {
+            floatingBar.refresh(address.input.text.isNotEmpty(), clipboardHasText())
             floatingBar.visibility = View.VISIBLE
+            floatingBar.playIn()
             floatingBar.translationY = -px(10).toFloat()
             floatingBar.animate().alpha(1f).translationY(0f).setStartDelay(120).setDuration(380)
                 .setInterpolator(SpringInterpolator()).start()

@@ -1,5 +1,6 @@
 package io.github.g_c_3.ardour
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -9,8 +10,10 @@ import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.text.TextUtils
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import kotlin.math.cos
@@ -148,6 +151,38 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             }
         }
         addView(input, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        isClickable = true
+    }
+
+    // While idle the whole pill is one button (DECISIONS.md 69): the field takes no touch of its own, so a tap never
+    // drops the cursor under the finger. A tap opens the editor with the cursor already after the site name. Once the
+    // editor is open, touches reach the text as usual.
+    override fun onInterceptTouchEvent(e: MotionEvent): Boolean = !input.hasFocus()
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        if (input.hasFocus()) return super.onTouchEvent(e)
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> animate().scaleX(0.985f).scaleY(0.985f).setDuration(90).start()
+            MotionEvent.ACTION_UP -> {
+                release()
+                if (e.x >= 0f && e.x <= width && e.y >= 0f && e.y <= height) performClick()
+            }
+            MotionEvent.ACTION_CANCEL -> release()
+        }
+        return true
+    }
+
+    private fun release() {
+        animate().scaleX(1f).scaleY(1f).setDuration(380).setInterpolator(SpringInterpolator()).start()
+    }
+
+    override fun performClick(): Boolean {
+        if (!input.hasFocus()) {
+            input.requestFocus()
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(input, 0)
+        }
+        return super.performClick()
     }
 
     // Slight ember glow around the pill; a little stronger while editing.
@@ -157,12 +192,11 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         outlineAmbientShadowColor = 0x22000000
     }
 
-    // Cursor after the site name. The tap that focused the field sets its own cursor a moment later, so this runs again.
+    // Cursor after the site name, set when the editor opens; no touch of the text follows it.
     private fun placeCursor() {
         val at = { input.setSelection(UrlInput.nameEnd(input.text.toString()).coerceIn(0, input.text.length)) }
         at()
         input.post { at() }
-        input.postDelayed({ if (input.hasFocus()) at() }, 90)
     }
 
     fun showUrl(value: String) {
