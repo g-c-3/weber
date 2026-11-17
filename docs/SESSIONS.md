@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 36
+- Built (releases 1.2.6 and 1.2.8, decisions 70 to 75): loading line inside the address pill with the ember rim never shown with it, and the old strip returned to the page; Go as an amber arrow with a slow fill; finish check reads only the newly committed page, and reload stops background loads; reader with one A button, pinch sizing and a smooth reset; links open other apps and the Play Store app; desktop site sends matching client hints and skips the cache once.
+- Owner check of 1.2.5: pill tap, thin line and edit actions passed. Run 126 failed once on a library download and passed on its single re-run (1.2.6); run 127 failed to compile (a wrong reference) and was fixed in run 128 (1.2.8; 1.2.7 was not released).
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,244,859 bytes at 1.2.8. Not run on a device: all of 1.2.6 and 1.2.8 (DP36). The cause of the desktop-site problems is a best reading of the evidence, not confirmed.
+- Next start: owner's DP36 results. Still open, not to be started unasked: Phase 4 close-out checks (DP17 stop while loading; DP20 next, previous, no-match text), the Phase 3 checkbox, Phase 5.
+
 ## 35
 - Built (release 1.2.5, decisions 67 to 69): address pill takes the touch itself while idle and opens the editor with the cursor already after the site name; page loading line now 2 dp with glide, sheen, leading glow and a fade-out; Copy, Paste, Clear and Go redrawn with icons, state-aware dimming, entry motion and a Copied confirmation.
 - Engine: `androidx.webkit` 1.18.0. APK size: 3,229,235 bytes at 1.2.5 (about 16 KB more than 1.2.4). Not run on a device: all of 1.2.5 (DP35); the build passed but the code was not compiled outside CI before the push.
