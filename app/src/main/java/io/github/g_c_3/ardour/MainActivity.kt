@@ -66,12 +66,6 @@ class MainActivity : Activity() {
     private var hasPage = false
     private var backCallback: Any? = null
 
-    private var settlePending = false
-    private val settle: Runnable = Runnable {
-        settlePending = false
-        if (loading) listener.onLoading(false)
-    }
-
     private val listener: PageListener = object : PageListener {
         override fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean) {
             if (url != null && url != "about:blank") {
@@ -93,20 +87,12 @@ class MainActivity : Activity() {
         }
 
         override fun onProgress(percent: Int) {
+            // The bar shows the engine's own progress and stays until the engine reports the load finished (DECISIONS.md 63).
             progress.value = max(percent, 6) / 100f
-            // Ad-heavy pages show their content long before the engine reports the load finished. When the bar is
-            // essentially full, the page is treated as ready after a short pause, and the stop button goes back
-            // to reload; whatever still loads carries on quietly (DECISIONS.md 59).
             progress.indeterminate = false
-            if (percent >= 90 && this@MainActivity.loading && !settlePending) {
-                settlePending = true
-                progress.postDelayed(settle, SETTLE_MS)
-            }
         }
 
         override fun onLoading(loading: Boolean) {
-            progress.removeCallbacks(settle)
-            settlePending = false
             this@MainActivity.loading = loading
             if (loading) loadId++
             if (loading) errorView.visibility = View.GONE
@@ -211,8 +197,8 @@ class MainActivity : Activity() {
         address = AddressField(this, ::submit, ::onAddressFocus)
         val bar = FrameLayout(this).apply {
             clipChildren = false
-            addView(buttonGroup, FrameLayout.LayoutParams(px(150), px(38), Gravity.END or Gravity.TOP))
-            addView(address, FrameLayout.LayoutParams(px(150), px(38), Gravity.START or Gravity.TOP))
+            addView(buttonGroup, FrameLayout.LayoutParams(px(150), px(ROW_HEIGHT), Gravity.END or Gravity.TOP))
+            addView(address, FrameLayout.LayoutParams(px(150), px(ROW_HEIGHT), Gravity.START or Gravity.TOP))
             addOnLayoutChangeListener { _, l, _, r, _, _, _, _, _ -> sizeTopRow(r - l) }
         }
         val top = LinearLayout(this).apply {
@@ -220,8 +206,12 @@ class MainActivity : Activity() {
             clipChildren = false
             setPadding(px(10), px(2), px(10), 0)
         }
-        // The progress line runs along the bottom edge of the row, so it takes no height of its own.
-        progress = ThinProgress(this).apply { visibility = View.INVISIBLE }
+        // The progress line has its own strip under the pill and buttons (a few dp clear of them) and is drawn above
+        // the pill's shadow, so it never runs under the pill.
+        progress = ThinProgress(this).apply {
+            visibility = View.INVISIBLE
+            elevation = px(9).toFloat()
+        }
         bar.addView(progress, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(6), Gravity.BOTTOM))
         top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(42)))
         topBar = top
@@ -735,7 +725,7 @@ class MainActivity : Activity() {
     }
 
     private companion object {
+        const val ROW_HEIGHT = 34
         const val WEBVIEW_PAGE = "https://play.google.com/store/apps/details?id=com.google.android.webview"
-        const val SETTLE_MS = 2500L
     }
 }

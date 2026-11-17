@@ -342,7 +342,7 @@ object EngineAdapter {
     private const val STEP_MAX = 24
     private const val MIN_CHARS = 600
 
-    // Desktop site (user switch): a desktop user-agent string and a wide viewport. Kept across a view rebuild.
+    // Desktop site (user switch): a desktop user-agent string. Kept across a view rebuild.
     var desktopSite = false
         private set
 
@@ -375,6 +375,13 @@ object EngineAdapter {
             allowFileAccessFromFileURLs = false
             allowUniversalAccessFromFileURLs = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            // Layout like a full browser (Chromium's WebView layout guide, "Configuring WebView like a browser"): pages
+            // without a mobile viewport get a 980 px layout shown fitted to the screen, pages with one keep it, and
+            // text is auto-sized. With the engine defaults every page is laid out at the screen width, so pages
+            // built for desktop were cut off (DECISIONS.md 64).
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
         }
         defaultAgent = view.settings.userAgentString
         applyDesktop(view)
@@ -450,8 +457,6 @@ object EngineAdapter {
         val base = defaultAgent
         view.settings.apply {
             userAgentString = if (desktopSite && base != null) desktopAgent(base) else base
-            useWideViewPort = desktopSite
-            loadWithOverviewMode = desktopSite
         }
     }
 
