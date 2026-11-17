@@ -473,6 +473,17 @@ object EngineAdapter {
         }
     }
 
+    // True once the open page's document is parsed ("interactive" or "complete"); images, ads and frames may still load
+    // (DECISIONS.md 66). False when there is no view.
+    fun documentParsed(onResult: (Boolean) -> Unit) {
+        val view = webView
+        if (view == null) {
+            onResult(false)
+            return
+        }
+        view.evaluateJavascript("document.readyState") { raw -> onResult(raw == "\"interactive\"" || raw == "\"complete\"") }
+    }
+
     // Reader mode: loads the rest of the page's text, then runs the extraction script. The callback (UI thread) gets the
     // JSON string literal the engine returns, "null", or null when there is no view.
     fun extractArticle(onResult: (String?) -> Unit) {

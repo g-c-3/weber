@@ -66,6 +66,19 @@ class MainActivity : Activity() {
     private var hasPage = false
     private var backCallback: Any? = null
 
+    // Ad-heavy pages show all their content long before the engine reports the load finished, because ads and
+    // tracking frames keep it loading. At 90% or more the page's document state is checked until it is parsed; no timer
+    // decides it (DECISIONS.md 66). Whatever still loads carries on quietly.
+    private var readyPollId = -1
+
+    private fun pollDocument(id: Int) {
+        readyPollId = id
+        EngineAdapter.documentParsed { parsed ->
+            if (!loading || loadId != id) return@documentParsed
+            if (parsed) listener.onLoading(false) else progress.postDelayed({ if (loading && loadId == id) pollDocument(id) }, 300L)
+        }
+    }
+
     private val listener: PageListener = object : PageListener {
         override fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean) {
             if (url != null && url != "about:blank") {
@@ -87,9 +100,11 @@ class MainActivity : Activity() {
         }
 
         override fun onProgress(percent: Int) {
-            // The bar shows the engine's own progress and stays until the engine reports the load finished (DECISIONS.md 63).
+            // The bar shows the engine's own progress. It leaves when the engine reports the load finished, or earlier
+            // when the engine is at 90% or more and the page's document is parsed (DECISIONS.md 66).
             progress.value = max(percent, 6) / 100f
             progress.indeterminate = false
+            if (percent >= 90 && this@MainActivity.loading && readyPollId != loadId) pollDocument(loadId)
         }
 
         override fun onLoading(loading: Boolean) {
