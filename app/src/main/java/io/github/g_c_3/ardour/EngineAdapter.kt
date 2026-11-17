@@ -120,9 +120,11 @@ object EngineAdapter {
     }
     // One element that never belongs to the article: page furniture, hidden, or (unless lenient) named like an advert or widget.
     var lenient = false;
+    var trusted = false; // true for text Readability already cleaned: no page styles to consult
     function bad(n) {
       if (SKIP.test(n.tagName.toUpperCase()) || n.hidden || n.getAttribute('aria-hidden') === 'true') return true;
       var cls = typeof n.className === 'string' ? n.className : '';
+      if (trusted) return false;
       if (!lenient && JUNK.test((n.id || '') + ' ' + cls)) return true;
       var st = getComputedStyle(n);
       return st.display === 'none' || st.visibility === 'hidden';
@@ -145,6 +147,64 @@ object EngineAdapter {
       var c = 0;
       for (var i = 0; i < list.length; i++) if (list[i][0] === 'p' || list[i][0] === 'q') c += list[i][1].length;
       return c;
+    }
+
+    // Turns a container into blocks in reading order. Text sitting loose between elements becomes paragraphs too
+    // (a double line break starts a new one), so pages that skip paragraph tags still read properly.
+    function collect(root, title) {
+    var out = [], total = 0, last = '', stopped = false;
+    function push(kind, text, marker) {
+      if (stopped || out.length >= 600 || total >= 300000) return;
+      var t = kind === 'c' ? String(text || '').replace(/\s+$/, '').slice(0, 4000) : clean(text);
+      if (!t) return;
+      if (t.length <= 40 && STOP.test(t)) { stopped = true; return; }
+      if (kind === 'p' && (t.length < 20 || /^advertisement$/i.test(t))) return;
+      if (kind === 'q' && t.length < 10) return;
+      if ((kind === '1' || kind === '2' || kind === '3') && (t.length < 2 || t.length > 200 || t === title)) return;
+      if (kind === 'l' && t.length < 2) return;
+      if (t === last) return;
+      last = t;
+      out.push([kind, t, marker || '']);
+      total += t.length;
+    }
+    function walk(el) {
+      var buf = '';
+      function flush() {
+        if (!buf) return;
+        var parts = buf.split(/\u0001\s*\u0001/);
+        for (var k = 0; k < parts.length; k++) push('p', parts[k].replace(/\u0001/g, ' '));
+        buf = '';
+      }
+      for (var n = el.firstChild; n && !stopped; n = n.nextSibling) {
+        if (n.nodeType === 3) { buf += n.nodeValue; continue; }
+        if (n.nodeType !== 1) continue;
+        var tag = n.tagName.toUpperCase();
+        if (tag === 'BR') { buf += '\u0001'; continue; }
+        if (bad(n)) { flush(); continue; }
+        if (INLINE.test(tag) && !n.querySelector(BLOCKISH)) { buf += (n.innerText || n.textContent || ''); continue; }
+        flush();
+        block(n, tag);
+      }
+      flush();
+    }
+    function block(n, tag) {
+      if (/^H[1-6]$/.test(tag)) push(tag === 'H1' ? '1' : tag === 'H2' ? '2' : '3', textOf(n));
+      else if (tag === 'P') push('p', textOf(n));
+      else if (tag === 'BLOCKQUOTE') push('q', textOf(n));
+      else if (tag === 'PRE') push('c', n.textContent);
+      else if (tag === 'UL' || tag === 'OL') {
+        var idx = 0;
+        for (var li = n.firstElementChild; li; li = li.nextElementSibling) {
+          if (li.tagName !== 'LI' || bad(li)) continue;
+          idx++;
+          if (li.querySelector('li')) walk(li);
+          else push('l', textOf(li), tag === 'OL' ? idx + '.' : '\u2022');
+        }
+      } else if (tag === 'LI') push('l', textOf(n), '\u2022');
+      else walk(n);
+    }
+      walk(root);
+      return out;
     }
 
     function attempt() {
@@ -173,66 +233,13 @@ object EngineAdapter {
       var title = h1 ? textOf(h1) : '';
       if (!title || title.length > 200) title = meta('meta[property="og:title"]') || clean(document.title);
 
-      // Walk the container in order. Text sitting loose between elements becomes paragraphs too (a double line break
-      // starts a new one), so pages that skip paragraph tags still read properly.
-      var out = [], total = 0, last = '', stopped = false;
-      function push(kind, text, marker) {
-        if (stopped || out.length >= 600 || total >= 300000) return;
-        var t = kind === 'c' ? String(text || '').replace(/\s+$/, '').slice(0, 4000) : clean(text);
-        if (!t) return;
-        if (t.length <= 40 && STOP.test(t)) { stopped = true; return; }
-        if (kind === 'p' && (t.length < 20 || /^advertisement$/i.test(t))) return;
-        if (kind === 'q' && t.length < 10) return;
-        if ((kind === '1' || kind === '2' || kind === '3') && (t.length < 2 || t.length > 200 || t === title)) return;
-        if (kind === 'l' && t.length < 2) return;
-        if (t === last) return;
-        last = t;
-        out.push([kind, t, marker || '']);
-        total += t.length;
-      }
-      function walk(el) {
-        var buf = '';
-        function flush() {
-          if (!buf) return;
-          var parts = buf.split(/\u0001\s*\u0001/);
-          for (var k = 0; k < parts.length; k++) push('p', parts[k].replace(/\u0001/g, ' '));
-          buf = '';
-        }
-        for (var n = el.firstChild; n && !stopped; n = n.nextSibling) {
-          if (n.nodeType === 3) { buf += n.nodeValue; continue; }
-          if (n.nodeType !== 1) continue;
-          var tag = n.tagName.toUpperCase();
-          if (tag === 'BR') { buf += '\u0001'; continue; }
-          if (bad(n)) { flush(); continue; }
-          if (INLINE.test(tag) && !n.querySelector(BLOCKISH)) { buf += (n.innerText || n.textContent || ''); continue; }
-          flush();
-          block(n, tag);
-        }
-        flush();
-      }
-      function block(n, tag) {
-        if (/^H[1-6]$/.test(tag)) push(tag === 'H1' ? '1' : tag === 'H2' ? '2' : '3', textOf(n));
-        else if (tag === 'P') push('p', textOf(n));
-        else if (tag === 'BLOCKQUOTE') push('q', textOf(n));
-        else if (tag === 'PRE') push('c', n.textContent);
-        else if (tag === 'UL' || tag === 'OL') {
-          var idx = 0;
-          for (var li = n.firstElementChild; li; li = li.nextElementSibling) {
-            if (li.tagName !== 'LI' || bad(li)) continue;
-            idx++;
-            if (li.querySelector('li')) walk(li);
-            else push('l', textOf(li), tag === 'OL' ? idx + '.' : '\u2022');
-          }
-        } else if (tag === 'LI') push('l', textOf(n), '\u2022');
-        else walk(n);
-      }
-      walk(root);
+      var out = collect(root, title);
       return { title: title, out: out, root: path(root), top: top };
     }
 
     // Diagnostic report (long press on the reader's title): page structure and slow requests, no page text.
-    function report(strict, loose) {
-      var lines = ['Ardour reader report', 'host ' + location.hostname,
+    function report(strict, loose, rdInfo) {
+      var lines = ['Ardour reader report', 'host ' + location.hostname, 'readability ' + rdInfo + ', used ' + strict.root,
         'strict chars ' + chars(strict.out) + ' root ' + strict.root, 'lenient chars ' + chars(loose.out) + ' root ' + loose.root];
       strict.top.forEach(function (t) { lines.push(' strict top ' + t); });
       loose.top.forEach(function (t) { lines.push(' lenient top ' + t); });
@@ -276,8 +283,33 @@ object EngineAdapter {
     lenient = true;
     var r2 = attempt();
     lenient = false;
-    if (window.__ardourReport) return report(r, r2);
     if (chars(r2.out) > chars(r.out) * 1.6 + 100) r = r2;
+    // Mozilla Readability, when loaded, reads a copy of the page; its cleaned article is turned into blocks by the same
+    // code and wins when it finds a real article. It is skipped while the page is scrolled in steps, because it needs
+    // the whole page at once.
+    var rdMeta = null, rdInfo = 'absent';
+    if (window.__ardourRd && !window.__ardourMerge) {
+      rdInfo = 'no article';
+      try {
+        var art = new window.__ardourRd(document.cloneNode(true)).parse();
+        if (art && art.content) {
+          var doc = new DOMParser().parseFromString(art.content, 'text/html');
+          trusted = true;
+          var rdOut = collect(doc.body, clean(art.title));
+          trusted = false;
+          rdInfo = 'chars ' + chars(rdOut);
+          if (chars(rdOut) >= 300 && chars(rdOut) >= chars(r.out) * 0.5) {
+            r = { title: clean(art.title) || r.title, out: rdOut, root: 'readability', top: [] };
+            rdMeta = art;
+          }
+        }
+      } catch (e) { trusted = false; rdInfo = 'failed'; }
+    }
+    if (rdMeta) {
+      if (!by) by = clean(rdMeta.byline || '');
+      if (!date && rdMeta.publishedTime) date = fmt(rdMeta.publishedTime);
+    }
+    if (window.__ardourReport) return report(r, r2, rdInfo);
     var out = r.out;
     // While the page is being scrolled in steps (pages that only keep the text near the screen), results of every
     // step are gathered here, new blocks added in the order they were first seen.
@@ -289,7 +321,7 @@ object EngineAdapter {
       }
       out = acc;
     }
-    return JSON.stringify({ t: r.title, a: by.slice(0, 80), d: date, s: site, c: chars(out), k: document.documentElement.scrollHeight > 3 * window.innerHeight ? 1 : 0, b: out });
+    return JSON.stringify({ t: r.title, a: by.slice(0, 80), d: date, s: site, e: rdMeta ? 'rd' : 'own', c: chars(out), k: document.documentElement.scrollHeight > 3 * window.innerHeight ? 1 : 0, b: out });
   } catch (e) {
     return null;
   }
@@ -301,7 +333,7 @@ object EngineAdapter {
     // and what is on screen at each step is gathered (pages that keep only the text near the screen). Afterwards the page
     // is put back where it was. This causes only the page's own loads.
     private const val PRELOAD_JS = """(function () { if (window.__ardourY === undefined) window.__ardourY = window.scrollY; window.scrollTo(0, document.documentElement.scrollHeight); return document.documentElement.scrollHeight; })()"""
-    private const val RESTORE_JS = """(function () { if (window.__ardourY !== undefined) { window.scrollTo(0, window.__ardourY); delete window.__ardourY; } delete window.__ardourMerge; delete window.__ardourAcc; delete window.__ardourSeen; })();"""
+    private const val RESTORE_JS = """(function () { if (window.__ardourY !== undefined) { window.scrollTo(0, window.__ardourY); delete window.__ardourY; } delete window.__ardourMerge; delete window.__ardourAcc; delete window.__ardourSeen; delete window.__ardourRd; })();"""
     private const val STEP_START_JS = """(function () { window.__ardourMerge = true; delete window.__ardourAcc; delete window.__ardourSeen; if (window.__ardourY === undefined) window.__ardourY = window.scrollY; window.scrollTo(0, 0); })();"""
     private const val STEP_JS = """(function () { window.scrollBy(0, Math.max(200, window.innerHeight * 0.9)); return Math.round(window.scrollY) + '|' + document.documentElement.scrollHeight + '|' + window.innerHeight; })()"""
     private const val PRELOAD_ROUNDS = 3
@@ -330,6 +362,7 @@ object EngineAdapter {
     @SuppressLint("SetJavaScriptEnabled")
     @Suppress("DEPRECATION")
     fun createView(context: Context, listener: PageListener, onEngineLost: () -> Unit): View {
+        appContext = context.applicationContext
         val view = WebView(context)
         // Profile first: no other call on the view before it (ROADMAP 2). Named Space profiles arrive in Phase 12.
         WebViewCompat.setProfile(view, Profile.DEFAULT_PROFILE_NAME)
@@ -443,6 +476,7 @@ object EngineAdapter {
             onResult(null)
             return
         }
+        readabilityScript()?.let { view.evaluateJavascript(it, null) }
         val handler = Handler(Looper.getMainLooper())
         var rounds = 0
         var lastHeight = -1
@@ -494,6 +528,24 @@ object EngineAdapter {
         step()
     }
 
+    private var appContext: Context? = null
+    private var readabilityLoader: String? = null
+
+    // Mozilla Readability (Apache-2.0, DECISIONS.md 62) is kept as an app asset and handed to the page view only for
+    // reading; it is removed again afterwards. Null when the asset cannot be read; the built-in finder then runs alone.
+    private fun readabilityScript(): String? {
+        readabilityLoader?.let { return it }
+        val context = appContext ?: return null
+        return try {
+            val source = context.assets.open("Readability.min.js").bufferedReader().use { it.readText() }
+            val script = "if (!window.__ardourRd) { (function () {\n" + source + "\n;window.__ardourRd = Readability; })(); }"
+            readabilityLoader = script
+            script
+        } catch (_: java.io.IOException) {
+            null
+        }
+    }
+
     // From an extraction result: characters of running text (paragraphs and quotes) and whether the page is tall.
     private fun peek(raw: String?): IntArray {
         if (raw == null || raw == "null") return intArrayOf(0, 0)
@@ -513,8 +565,9 @@ object EngineAdapter {
             onResult(null)
             return
         }
+        readabilityScript()?.let { view.evaluateJavascript(it, null) }
         view.evaluateJavascript("window.__ardourReport = true;\n" + READER_JS) { raw ->
-            view.evaluateJavascript("delete window.__ardourReport;", null)
+            view.evaluateJavascript("delete window.__ardourReport; delete window.__ardourRd;", null)
             val text = try {
                 JSONTokener(raw ?: "null").nextValue() as? String
             } catch (_: JSONException) {

@@ -211,8 +211,8 @@ class MainActivity : Activity() {
         address = AddressField(this, ::submit, ::onAddressFocus)
         val bar = FrameLayout(this).apply {
             clipChildren = false
-            addView(buttonGroup, FrameLayout.LayoutParams(px(150), px(40), Gravity.END or Gravity.TOP))
-            addView(address, FrameLayout.LayoutParams(px(150), px(40), Gravity.START or Gravity.TOP))
+            addView(buttonGroup, FrameLayout.LayoutParams(px(150), px(38), Gravity.END or Gravity.TOP))
+            addView(address, FrameLayout.LayoutParams(px(150), px(38), Gravity.START or Gravity.TOP))
             addOnLayoutChangeListener { _, l, _, r, _, _, _, _, _ -> sizeTopRow(r - l) }
         }
         val top = LinearLayout(this).apply {
@@ -222,8 +222,8 @@ class MainActivity : Activity() {
         }
         // The progress line runs along the bottom edge of the row, so it takes no height of its own.
         progress = ThinProgress(this).apply { visibility = View.INVISIBLE }
-        bar.addView(progress, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(8), Gravity.BOTTOM))
-        top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(46)))
+        bar.addView(progress, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(6), Gravity.BOTTOM))
+        top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(42)))
         topBar = top
         root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
