@@ -38,3 +38,4 @@ Maps session, decision and roadmap phase to a date. Append only; never edit a pa
 | 32 | 55 | 4 | 2026-11-16 | Reader mode (twilight and paper themes); released as 1.0.9; fixes, justify option, lazy-text loading and author/date line in 1.1.0 to 1.1.3; top row redesign in 1.1.4; reader fixes in 1.1.5 and 1.1.6, menu motion, cookies switch; reader report in 1.1.7; paragraphs, cookies default, settle in 1.1.9; navigation feedback in 1.2.0; compact top row and update button in 1.2.1; Readability in 1.2.2 |
 | 33 | 63, 64, 65 | 4 | 2026-11-17 | Honest progress bar, browser-like page layout, top row gap; released as 1.2.3 |
 | 34 | 66 | 4 | 2026-11-17 | DP33 passed on 1.2.3; page counts as finished when its document is parsed and the engine is at 90%; released as 1.2.4 |
+| 35 | 67, 68, 69 | 4 | 2026-11-17 | Address pill as one button, thin animated loading line, redesigned edit actions; released as 1.2.5 |

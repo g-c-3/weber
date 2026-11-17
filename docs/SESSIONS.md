@@ -2,6 +2,11 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 35
+- Built (release 1.2.5, decisions 67 to 69): address pill takes the touch itself while idle and opens the editor with the cursor already after the site name; page loading line now 2 dp with glide, sheen, leading glow and a fade-out; Copy, Paste, Clear and Go redrawn with icons, state-aware dimming, entry motion and a Copied confirmation.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,229,235 bytes at 1.2.5 (about 16 KB more than 1.2.4). Not run on a device: all of 1.2.5 (DP35); the build passed but the code was not compiled outside CI before the push.
+- Next start: owner's DP35 results. Still open, not to be started unasked: Phase 4 close-out checks (DP17 stop while loading; DP20 next, previous, no-match text), the Phase 3 checkbox, Phase 5.
+
 ## 34
 - Built (release 1.2.4, decision 66): the bar and stop button end once the page's document is parsed and the engine is at 90%, instead of waiting for late ads and tracking frames.
 - Owner check of 1.2.3: all of DP33 passed; recordings showed Chrome finishing at content time and Ardour waiting for ads.
