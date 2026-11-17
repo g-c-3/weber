@@ -36,6 +36,9 @@ interface PageListener {
     fun onLoading(loading: Boolean)
     fun onNavigate(url: String)
     fun onFind(active: Int, total: Int)
+
+    // The new page is on screen: nothing left over from the previous page is drawn any more.
+    fun onCommitVisible() {}
 }
 
 // The only file that calls android.webkit or androidx.webkit (DECISIONS.md 26). An engine API change is fixed here.
@@ -406,6 +409,10 @@ object EngineAdapter {
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
             }
 
+            override fun onPageCommitVisible(view: WebView, url: String?) {
+                listener.onCommitVisible()
+            }
+
             override fun onPageFinished(view: WebView, url: String?) {
                 if (forceZoomOn) view.evaluateJavascript(FORCE_ZOOM_JS, null)
                 listener.onLoading(false)
@@ -669,7 +676,12 @@ object EngineAdapter {
 
     fun load(url: String) = webView?.loadUrl(url)
 
-    fun reload() = webView?.reload()
+    // Stops whatever still loads in the background first, so a reload tap always restarts the page at once.
+    fun reload() {
+        val view = webView ?: return
+        view.stopLoading()
+        view.reload()
+    }
 
     fun stop() = webView?.stopLoading()
 

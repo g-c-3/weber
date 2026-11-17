@@ -1,5 +1,7 @@
 package io.github.g_c_3.ardour
 
+import android.animation.ArgbEvaluator
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
@@ -13,7 +15,9 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.animation.PathInterpolator
 import android.view.inputmethod.InputMethodManager
+import android.widget.FrameLayout
 import android.widget.EditText
 import android.widget.LinearLayout
 import kotlin.math.cos
@@ -108,21 +112,29 @@ class IconButton(context: Context, kind: Kind) : View(context) {
 
 // Pill-shaped address field: host while idle, full address while editing (cursor after the site name), ember rim when focused.
 class AddressField(context: Context, private val onSubmit: (String) -> Unit, private val onFocus: (Boolean) -> Unit) :
-    LinearLayout(context) {
+    FrameLayout(context) {
     val input = EditText(context)
+
+    // Page loading line, inside the pill along its bottom straight edge; it widens with the pill (DECISIONS.md 70).
+    val progress = PageProgress(context)
     private var url: String? = null
     private val rim = GradientDrawable().apply {
         setColor(Ui.CARD)
         cornerRadius = Ui.dp(context, 26).toFloat()
         setStroke(Ui.dp(context, 1), Ui.LINE)
     }
+    private var focusedNow = false
+    private var loadingNow = false
+    private var rimAmount = 0f
+    private var rimAnim: ValueAnimator? = null
+    private val rimBlend = ArgbEvaluator()
 
     init {
-        gravity = Gravity.CENTER_VERTICAL
         background = rim
         clipChildren = false
-        setGlow(false)
+        applyRim(0f)
         input.apply {
+            gravity = Gravity.CENTER_VERTICAL or Gravity.START
             background = null
             hint = "Search or enter address"
             setHintTextColor(0xFF9A9CA6.toInt())
@@ -139,8 +151,8 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
                 true
             }
             setOnFocusChangeListener { _, focused ->
-                rim.setStroke(Ui.dp(context, if (focused) 2 else 1), if (focused) Ui.EMBER else Ui.LINE)
-                setGlow(focused)
+                focusedNow = focused
+                updateRim()
                 if (focused) {
                     setText(url ?: "")
                     placeCursor()
@@ -151,7 +163,52 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             }
         }
         addView(input, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        progress.visibility = View.INVISIBLE
+        addView(
+            progress,
+            LayoutParams(LayoutParams.MATCH_PARENT, Ui.dp(context, 6), Gravity.BOTTOM).apply {
+                marginStart = Ui.dp(context, 16)
+                marginEnd = Ui.dp(context, 16)
+                bottomMargin = Ui.dp(context, 3)
+            },
+        )
         isClickable = true
+    }
+
+    // The ember rim and the loading line never show together: while a page loads, the editor has the plain rim and
+    // the line; when the load ends the ember rim fades in over the plain one (DECISIONS.md 70).
+    fun setLoading(on: Boolean) {
+        if (loadingNow == on) return
+        loadingNow = on
+        updateRim()
+    }
+
+    private fun updateRim() {
+        val target = if (focusedNow && !loadingNow) 1f else 0f
+        rimAnim?.cancel()
+        rimAnim = null
+        if (target == rimAmount) return
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            applyRim(target)
+            return
+        }
+        rimAnim = ValueAnimator.ofFloat(rimAmount, target).apply {
+            duration = if (target > rimAmount) 460L else 240L
+            interpolator = PathInterpolator(0.2f, 0f, 0f, 1f)
+            addUpdateListener { applyRim(it.animatedValue as Float) }
+            start()
+        }
+    }
+
+    // amount 0: plain rim, quiet glow. 1: ember rim, 2 dp, stronger glow.
+    private fun applyRim(amount: Float) {
+        rimAmount = amount
+        val width = Ui.dp(context, 1) + (Ui.dp(context, 1) * amount).toInt()
+        rim.setStroke(width, rimBlend.evaluate(amount, Ui.LINE, Ui.EMBER) as Int)
+        elevation = Ui.dp(context, 4) + Ui.dp(context, 3) * amount
+        val alpha = (0x59 + (0x99 - 0x59) * amount).toInt()
+        outlineSpotShadowColor = (alpha shl 24) or (Ui.EMBER and 0x00FFFFFF)
+        outlineAmbientShadowColor = 0x22000000
     }
 
     // While idle the whole pill is one button (DECISIONS.md 69): the field takes no touch of its own, so a tap never
@@ -183,13 +240,6 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(input, 0)
         }
         return super.performClick()
-    }
-
-    // Slight ember glow around the pill; a little stronger while editing.
-    private fun setGlow(focused: Boolean) {
-        elevation = Ui.dp(context, if (focused) 7 else 4).toFloat()
-        outlineSpotShadowColor = ((if (focused) 0x99 else 0x59) shl 24) or (Ui.EMBER and 0x00FFFFFF)
-        outlineAmbientShadowColor = 0x22000000
     }
 
     // Cursor after the site name, set when the editor opens; no touch of the text follows it.

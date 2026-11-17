@@ -1,16 +1,20 @@
 package io.github.g_c_3.ardour
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
+import android.view.animation.LinearInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -29,6 +33,23 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
             invalidate()
         }
 
+    // Go only: while on, the arrow's shaft slowly fills like a tiny progress line, the head lights at the end, then it
+    // fades and starts again (DECISIONS.md 71). Off: a dim static arrow.
+    var flow: Boolean = false
+        set(value) {
+            field = value
+            updateFlow()
+        }
+    private var phase = 0f
+    private var flowAnim: ValueAnimator? = null
+    private var shownNow = false
+    private val flowLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    private val flowTip = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
     private val u = Ui.dp(context, 1).toFloat()
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -44,9 +65,89 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
     private val rect = RectF()
     private val path = Path()
 
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        flowLine.shader = LinearGradient(w / 2f - 9f * u, 0f, w / 2f + 8f * u, 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
+    }
+
+    override fun onVisibilityAggregated(isVisible: Boolean) {
+        super.onVisibilityAggregated(isVisible)
+        shownNow = isVisible
+        updateFlow()
+    }
+
+    override fun onDetachedFromWindow() {
+        flowAnim?.cancel()
+        flowAnim = null
+        super.onDetachedFromWindow()
+    }
+
+    private fun updateFlow() {
+        val run = flow && shownNow && kind == Kind.GO
+        if (run && ValueAnimator.areAnimatorsEnabled()) {
+            if (flowAnim == null) {
+                flowAnim = ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 2800
+                    repeatCount = ValueAnimator.INFINITE
+                    interpolator = LinearInterpolator()
+                    addUpdateListener {
+                        phase = it.animatedValue as Float
+                        invalidate()
+                    }
+                    start()
+                }
+            }
+        } else {
+            flowAnim?.cancel()
+            flowAnim = null
+            phase = if (flow) 0.8f else 0f
+            invalidate()
+        }
+    }
+
+    // The arrow: a faint amber track with a fill that glides along the shaft, the head lighting once it arrives.
+    private fun drawFlowArrow(canvas: Canvas, cx: Float, cy: Float) {
+        val x0 = cx - 9f * u
+        val x1 = cx + 7f * u
+        val head = 4.6f * u
+        flowLine.strokeWidth = u * 1.9f
+        flowTip.color = Ui.AMBER
+        val fillAmount = (phase / 0.68f).coerceIn(0f, 1f)
+        val eased = 1f - (1f - fillAmount) * (1f - fillAmount)
+        val fade = if (phase > 0.86f) ((1f - phase) / 0.14f).coerceIn(0f, 1f) else 1f
+        val headLit = ((phase - 0.6f) / 0.12f).coerceIn(0f, 1f) * fade
+        // Faint track.
+        line.color = Ui.AMBER
+        line.alpha = 70
+        line.strokeWidth = u * 1.9f
+        canvas.drawLine(x0, cy, x1, cy, line)
+        path.reset()
+        path.moveTo(x1 - head, cy - head)
+        path.lineTo(x1, cy)
+        path.lineTo(x1 - head, cy + head)
+        canvas.drawPath(path, line)
+        // Fill and the lit head.
+        flowLine.alpha = (255 * fade).toInt()
+        val tip = x0 + (x1 - x0) * eased
+        if (tip > x0) canvas.drawLine(x0, cy, tip, cy, flowLine)
+        if (headLit > 0f) {
+            flowLine.alpha = (255 * headLit).toInt()
+            canvas.drawPath(path, flowLine)
+        }
+        // Soft spark at the front of the fill while it travels.
+        if (fillAmount < 1f && fade > 0f) {
+            flowTip.alpha = (150 * fade).toInt()
+            canvas.drawCircle(tip, cy, 2.2f * u, flowTip)
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
+        if (kind == Kind.GO && flow) {
+            drawFlowArrow(canvas, cx, cy)
+            return
+        }
+        line.alpha = 255
         line.color = tint
         solid.color = tint
         when (kind) {
@@ -71,11 +172,13 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
                 canvas.drawLine(cx + 2.5f * u, cy - 2.5f * u, cx - 2.5f * u, cy + 2.5f * u, line)
             }
             Kind.GO -> {
-                canvas.drawLine(cx - 6f * u, cy, cx + 6f * u, cy, line)
+                line.color = tint
+                line.alpha = 90
+                canvas.drawLine(cx - 9f * u, cy, cx + 7f * u, cy, line)
                 path.reset()
-                path.moveTo(cx + 1.5f * u, cy - 4.5f * u)
-                path.lineTo(cx + 6f * u, cy)
-                path.lineTo(cx + 1.5f * u, cy + 4.5f * u)
+                path.moveTo(cx + 7f * u - 4.6f * u, cy - 4.6f * u)
+                path.lineTo(cx + 7f * u, cy)
+                path.lineTo(cx + 7f * u - 4.6f * u, cy + 4.6f * u)
                 canvas.drawPath(path, line)
             }
             Kind.CHECK -> {
@@ -91,13 +194,10 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
 
 private class Chip(context: Context, val icon: EditIcon, label: String, private val primary: Boolean) : LinearLayout(context) {
     val text = TextView(context)
-    private val activeBg: GradientDrawable
-    private val idleBg: GradientDrawable
-
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER
-        val pad = Ui.dp(context, if (primary) 14 else 9)
+        val pad = Ui.dp(context, if (primary) 8 else 9)
         setPadding(pad, 0, pad, 0)
         text.apply {
             this.text = label
@@ -107,16 +207,12 @@ private class Chip(context: Context, val icon: EditIcon, label: String, private 
             includeFontPadding = false
             isSingleLine = true
         }
-        addView(icon, LayoutParams(Ui.dp(context, 15), Ui.dp(context, 15)))
+        addView(icon, LayoutParams(Ui.dp(context, if (primary) 28 else 15), Ui.dp(context, if (primary) 20 else 15)))
         addView(text, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { marginStart = Ui.dp(context, 4) })
+        if (primary) text.visibility = GONE
         val radius = Ui.dp(context, 20).toFloat()
-        activeBg = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Ui.EMBER, Ui.AMBER)).apply { cornerRadius = radius }
-        idleBg = GradientDrawable().apply {
-            cornerRadius = radius
-            setColor(0x14242630)
-        }
         if (primary) {
-            background = idleBg
+            contentDescription = label
         } else {
             background = StateListDrawable().apply {
                 addState(
@@ -136,14 +232,7 @@ private class Chip(context: Context, val icon: EditIcon, label: String, private 
     fun setActive(on: Boolean) {
         isEnabled = on
         animate().alpha(if (on) 1f else 0.4f).setDuration(160).start()
-        if (primary) {
-            background = if (on) activeBg else idleBg
-            val c = if (on) 0xFFFFFFFF.toInt() else Ui.INK
-            text.setTextColor(c)
-            icon.tint = c
-            elevation = if (on) Ui.dp(context, 4).toFloat() else 0f
-            outlineSpotShadowColor = 0xB0E8451D.toInt()
-        }
+        if (primary) icon.flow = on
     }
 }
 

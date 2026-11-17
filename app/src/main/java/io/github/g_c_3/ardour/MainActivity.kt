@@ -34,7 +34,7 @@ import kotlin.math.max
 
 class MainActivity : Activity() {
     private lateinit var address: AddressField
-    private lateinit var progress: PageProgress
+    private val progress: PageProgress get() = address.progress
     private lateinit var startView: View
     private lateinit var errorView: LinearLayout
     private lateinit var errorTitle: TextView
@@ -69,6 +69,14 @@ class MainActivity : Activity() {
     // tracking frames keep it loading. At 90% or more the page's document state is checked until it is parsed; no timer
     // decides it (DECISIONS.md 66). Whatever still loads carries on quietly.
     private var readyPollId = -1
+    private var lastPercent = 0
+    private var committedId = -1
+
+    // Only once the new page is on screen (never the page being left, whose document is long complete), the engine
+    // is at 90% or more, and this load has not been polled yet.
+    private fun maybePollDocument() {
+        if (loading && lastPercent >= 90 && committedId == loadId && readyPollId != loadId) pollDocument(loadId)
+    }
 
     private fun pollDocument(id: Int) {
         readyPollId = id
@@ -101,19 +109,29 @@ class MainActivity : Activity() {
         override fun onProgress(percent: Int) {
             // The bar shows the engine's own progress. It leaves when the engine reports the load finished, or earlier
             // when the engine is at 90% or more and the page's document is parsed (DECISIONS.md 66).
+            lastPercent = percent
             progress.update(percent / 100f)
-            if (percent >= 90 && this@MainActivity.loading && readyPollId != loadId) pollDocument(loadId)
+            maybePollDocument()
+        }
+
+        override fun onCommitVisible() {
+            committedId = loadId
+            maybePollDocument()
         }
 
         override fun onLoading(loading: Boolean) {
             this@MainActivity.loading = loading
-            if (loading) loadId++
+            if (loading) {
+                loadId++
+                lastPercent = 0
+            }
             if (loading) errorView.visibility = View.GONE
             if (loading && finding) closeFind()
             if (!loading) pageArea.finish()
             reloadButton.kind = if (loading) IconButton.Kind.STOP else IconButton.Kind.RELOAD
             // Until the engine reports its first progress the bar sweeps, so a slow connection looks alive.
             if (loading) progress.start() else progress.finish()
+            address.setLoading(loading)
         }
     }
 
@@ -217,14 +235,8 @@ class MainActivity : Activity() {
             clipChildren = false
             setPadding(px(10), px(2), px(10), 0)
         }
-        // The progress line has its own strip under the pill and buttons (a few dp clear of them) and is drawn above
-        // the pill's shadow, so it never runs under the pill.
-        progress = PageProgress(this).apply {
-            visibility = View.INVISIBLE
-            elevation = px(9).toFloat()
-        }
-        bar.addView(progress, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(6), Gravity.BOTTOM))
-        top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(42)))
+        // The loading line lives inside the pill, so the row is only as tall as the pill plus room for its glow.
+        top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(ROW_HEIGHT + 2)))
         topBar = top
         root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
