@@ -3,24 +3,11 @@
 Numbered, never dated. Dates live in TRACK.md.
 
 ## 32
-- Checked: docs, INDEX ranges and sizes (all under 60 KB); remote head and run 108 green; `androidx.webkit` 1.18.0 still the newest stable (released October 21, 2026).
-- Built (run 109 green, released as 1.0.9, decision 55): reader mode with twilight and paper themes, text size, progress line. Extraction script tested on sample pages in a test DOM; not yet seen on a device.
-- Engine: `androidx.webkit` 1.18.0. APK size: 3,147,356 bytes (3.00 MiB) at 1.0.9; 33,248 bytes more than 1.0.8.
-- Device check of 1.0.9 (screenshots) found clipped headings, a cut-off no-article screen and a front page read as an article; fixed in run 110, released as 1.1.0 (3,147,808 bytes).
-- Second device check: article and no-article screens work; text still clipped at the right edge; padding order fixed in run 111, released as 1.1.1 (3,147,680 bytes).
-- Third device check: clipping fixed. Added justified text with a toggle (run 112, released as 1.1.2, 3,149,000 bytes). A lazily loaded article can show short; not yet understood.
-- DP24 passed on 1.1.2 (lazy loading confirmed as the cause of short results).
-- Built (run 113, red once on a library download, re-run green, released as 1.1.3): reader loads lazily loaded text first, shows author and date, opens at once over the whole window. Not run on a device.
-- Built (run 114, released as 1.1.4, decision 56): top row replaces the bottom bar, expanding address with floating Copy/Paste/Clear/Go bar, cursor after site name, address glow; reader text cached per page load, preparing time shortened. Not run on a device. gsmarena slow loading: open question, cause not found.
-- 1.2.2 (run 122 green, decision 62): Mozilla Readability adopted with the built-in finder as fallback (+19,043 bytes), top row 4 dp tighter. Owner confirmed 1.2.1 top row and Settings. Not run on a device.
-- 1.2.1 (run 121 green, decision 61): compact top row, Settings trimmed, update button beside the version with the amber download line. Owner confirmed 1.2.0 navigation feedback works. Reader decision (Readability or remove) still open. Not run on a device.
-- 1.2.0 (run 120 green, decision 60): instant address and sweeping bar on navigation, cookies off by default again. Reader: owner asked for a different reader or removal; Mozilla Readability proposed, awaiting approval. Not run on a device.
-- 1.1.9 (run 119 green; run 118 failed to compile on a type loop, fixed): reader paragraphs split on unusual elements, cookies on by default (owner decision), page treated as ready when its bar is full. Loading cause still open. Not run on a device.
-- 1.1.7 (run 117, green): reader fix after the Times of India author-box result, plus a long-press report (page structure, slow requests). Cookies on/off timings read from screenshots: no difference (about 35 to 40 s).
-- 1.1.5 reader still failed on the Times of India article; 1.1.6 (run 116, green) adds a fallback ladder, stepwise harvest, animated menu close, and a third-party cookies switch to test the slow loading. Timings read from screenshots: at least 18 s (Times of India), more than 35 s (gsmarena, Desktop site on). Not run on a device.
-- DP26 (1.1.4) looks right in screenshots; reader failed on a Times of India article (text outside paragraph tags): fixed in run 115, released as 1.1.5 (3,172,896 bytes). Chrome loads gsmarena quickly, so the slow loading is specific to Ardour or the system web view; two tests proposed.
-- DP25 passed (screenshots and a recording): preparing screen seen, about 2.1 s first open and 0.7 s second; page position kept after closing.
-- Next start: Phase 4 close-out: owner checks the unseen items (DP17 stop while loading, keyboard hiding the bottom bar; DP20 next and previous, no-match text, close and back), then Phase 5; or: load the rest of an article before reading, or author/date line, or the Phase 4 close-out check; then the Phase 4 close-out check against the roadmap.
+- Built (releases 1.0.9 to 1.2.2, decisions 55 to 62): reader mode with twilight and paper themes, justified text, author and date, long-press report, and Mozilla Readability as the main finder with the built-in finder as fallback; one top row (address left, buttons right, expanding address with Copy, Paste, Clear, Go) replacing the bottom bar; instant address and sweeping bar on navigation; page treated as ready 2.5 s after the bar fills; Settings trimmed, with Update Check beside the version and the amber download line.
+- Fixed or learned: reader clipping, paragraph splitting and several Times of India page structures; slow "finished" signal on ad-heavy sites is not solved (third-party cookies and Desktop site made no difference; default stays off).
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,211,987 bytes at 1.2.2. Passed on the device: DP24, DP25, DP31. Not yet run on a device: Readability and the 4 dp tighter top row (1.2.2).
+- Next start: DO NOTHING from the roadmap. Wait for the owner's reply on the three DP32 checks: (1) the Times of India articles that failed before (Lakshmi Venu / TVS, Hello Doctor, Sachin Tendulkar) in Reader mode; (2) a pasted long-press report for any that still fail; (3) a screenshot of the top row. Act only on that reply.
+- Still open afterwards, not to be started unasked: Phase 4 close-out checks (DP17 stop while loading; DP20 next, previous, no-match text), the Phase 3 checkbox, Phase 5, and the download path of Update Check (needs a newer release).
 
 ## 31
 - Checked: docs, INDEX ranges and sizes (all under 60 KB); remote head and run 99 green; `androidx.webkit` 1.18.0 still the newest stable seen (search snapshots differ in age).
