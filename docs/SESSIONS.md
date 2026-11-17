@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 34
+- Built (release 1.2.4, decision 66): the bar and stop button end once the page's document is parsed and the engine is at 90%, instead of waiting for late ads and tracking frames.
+- Owner check of 1.2.3: all of DP33 passed; recordings showed Chrome finishing at content time and Ardour waiting for ads.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,213,051 bytes at 1.2.4. Not run on a device: 1.2.4 (DP34).
+- Next start: owner's DP34 result. Still open, not to be started unasked: Phase 4 close-out checks (DP17 stop while loading; DP20 next, previous, no-match text), the Phase 3 checkbox, Phase 5.
+
 ## 33
 - Built (release 1.2.3, decisions 63 to 65): progress bar stays until the engine reports the page finished (settle rule removed); pages laid out like a full browser, so desktop-built pages fit the screen without the Desktop site switch; pill and buttons 34 dp with a clear strip for the progress line.
 - Owner check of 1.2.2: reader passed on the Times of India articles; top row showed the progress line under the pill.
