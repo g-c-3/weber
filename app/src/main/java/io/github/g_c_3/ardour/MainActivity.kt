@@ -114,6 +114,17 @@ class MainActivity : Activity() {
             maybePollDocument()
         }
 
+        override fun onExternal(url: String): Boolean {
+            val uri = android.net.Uri.parse(url)
+            if (ExternalLinks.isStorePage(uri)) return ExternalLinks.openInStore(this@MainActivity, url)
+            val outcome = ExternalLinks.open(this@MainActivity, url)
+            if (!outcome.opened) {
+                val next = outcome.loadInstead
+                if (next != null) root.post { submit(next) } else root.post { showNotice("No app can open this link") }
+            }
+            return outcome.opened
+        }
+
         override fun onCommitVisible() {
             committedId = loadId
             maybePollDocument()
@@ -298,6 +309,41 @@ class MainActivity : Activity() {
         val text = address.input.text.toString()
         if (text.isEmpty()) return
         (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("address", text))
+    }
+
+    private var noticeView: TextView? = null
+
+    // A short pill at the bottom of the page, for example when a link has no app to open it.
+    private fun showNotice(text: String) {
+        val v = noticeView ?: TextView(this).apply {
+            textSize = 14f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            setTextColor(Ui.INK)
+            gravity = Gravity.CENTER
+            setPadding(px(18), px(10), px(18), px(10))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xF2FFFFFF.toInt())
+                cornerRadius = px(22).toFloat()
+                setStroke(px(1), 0x40E8451D)
+            }
+            elevation = px(8).toFloat()
+            outlineSpotShadowColor = 0x70E8451D
+            visibility = View.GONE
+            pageArea.addView(this, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = px(56) })
+        }.also { noticeView = it }
+        v.text = text
+        v.animate().cancel()
+        v.removeCallbacks(hideNotice)
+        v.visibility = View.VISIBLE
+        v.alpha = 0f
+        v.translationY = px(12).toFloat()
+        v.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(SpringInterpolator()).withEndAction {
+            v.postDelayed(hideNotice, 1800)
+        }.start()
+    }
+
+    private val hideNotice = Runnable {
+        noticeView?.animate()?.alpha(0f)?.setDuration(260)?.withEndAction { noticeView?.visibility = View.GONE }?.start()
     }
 
     // Whether the clipboard holds text; reads only its type, never its content.

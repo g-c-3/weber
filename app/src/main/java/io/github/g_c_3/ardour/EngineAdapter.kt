@@ -23,6 +23,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.Profile
 import androidx.webkit.ScriptHandler
+import androidx.webkit.UserAgentMetadata
+import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 
@@ -39,6 +41,9 @@ interface PageListener {
 
     // The new page is on screen: nothing left over from the previous page is drawn any more.
     fun onCommitVisible() {}
+
+    // A tapped link that leaves the page: another app's address, or a Play Store page. True when it was handled.
+    fun onExternal(url: String): Boolean = false
 }
 
 // The only file that calls android.webkit or androidx.webkit (DECISIONS.md 26). An engine API change is fixed here.
@@ -52,6 +57,8 @@ object EngineAdapter {
     private const val ERROR_FAILED_SSL_HANDSHAKE = WebViewClient.ERROR_FAILED_SSL_HANDSHAKE
     private var webView: WebView? = null
     private var defaultAgent: String? = null
+    private var defaultMetadata: UserAgentMetadata? = null
+    private var bypassCache = false
     private var forceZoomScript: ScriptHandler? = null
     private var forceZoomOn = false
     private var textScale = 100f
@@ -387,6 +394,9 @@ object EngineAdapter {
             layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
         }
         defaultAgent = view.settings.userAgentString
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) {
+            defaultMetadata = WebSettingsCompat.getUserAgentMetadata(view.settings)
+        }
         applyDesktop(view)
         view.setBackgroundColor(Ui.PAPER)
         view.webChromeClient = object : WebChromeClient() {
@@ -399,12 +409,20 @@ object EngineAdapter {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val scheme = request.url.scheme
                 val web = scheme == "http" || scheme == "https"
+                val tapped = request.isForMainFrame && request.hasGesture()
+                // A Play Store page opens in the Play Store app when there is one.
+                if (web && tapped && ExternalLinks.isStorePage(request.url) && listener.onExternal(request.url.toString())) return true
                 // A tapped link: the app shows where it goes before the engine reports the page started.
                 if (web && request.isForMainFrame && !request.isRedirect) listener.onNavigate(request.url.toString())
+                // Any other address is never loaded here; with a tap behind it, another app may take it (DECISIONS.md 73).
+                if (!web && tapped) listener.onExternal(request.url.toString())
                 return !web
             }
 
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                // Only web pages count as loading; an address handed to another app must not leave the bar running.
+                val scheme = url?.substringBefore(':', "")
+                if (scheme != null && scheme != "http" && scheme != "https" && scheme != "about") return
                 listener.onLoading(true)
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
             }
@@ -414,6 +432,10 @@ object EngineAdapter {
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
+                if (bypassCache) {
+                    bypassCache = false
+                    view.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                }
                 if (forceZoomOn) view.evaluateJavascript(FORCE_ZOOM_JS, null)
                 listener.onLoading(false)
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
@@ -460,24 +482,48 @@ object EngineAdapter {
     private fun desktopAgent(mobile: String): String =
         mobile.replace(Regex("\\(Linux; Android[^)]*\\)"), "(X11; Linux x86_64)").replace(" Mobile", "")
 
+    // The user-agent string and the client hints sent with every request (mobile or not, platform) must agree: many
+    // sites decide on the hints, not the string (DECISIONS.md 74).
     private fun applyDesktop(view: WebView) {
         val base = defaultAgent
         view.settings.apply {
             userAgentString = if (desktopSite && base != null) desktopAgent(base) else base
         }
+        val original = defaultMetadata ?: return
+        try {
+            WebSettingsCompat.setUserAgentMetadata(view.settings, if (desktopSite) desktopMetadata(original) else original)
+        } catch (e: Exception) {
+            // Hints stay as they were; the user-agent string still changed.
+        }
+    }
+
+    private fun desktopMetadata(o: UserAgentMetadata): UserAgentMetadata {
+        val b = UserAgentMetadata.Builder()
+            .setBrandVersionList(o.brandVersionList)
+            .setPlatform("Linux")
+            .setPlatformVersion("6.8.0")
+            .setArchitecture("x86")
+            .setBitness(64)
+            .setModel("")
+            .setMobile(false)
+            .setWow64(false)
+        o.fullVersion?.let { b.setFullVersion(it) }
+        return b.build()
     }
 
     fun setDesktopSite(on: Boolean, reloadPage: Boolean) {
         desktopSite = on
-        webView?.let {
-            applyDesktop(it)
-            if (reloadPage) {
-                // A reload keeps the page's old zoom; a fresh load of the same address lets overview mode fit the width.
-                val address = it.url
-                it.setInitialScale(0)
-                if (address != null) it.loadUrl(address) else it.reload()
-            }
-        }
+        val view = webView ?: return
+        view.stopLoading()
+        applyDesktop(view)
+        if (!reloadPage) return
+        // A reload keeps the page's old zoom; a fresh load of the same address lets overview mode fit the width. The
+        // cache is skipped for this one load: a cached copy would be the page made for the other kind of device.
+        val address = view.url
+        view.setInitialScale(0)
+        view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
+        bypassCache = true
+        if (address != null) view.loadUrl(address) else view.reload()
     }
 
     // True once the open page's document is parsed ("interactive" or "complete"); images, ads and frames may still load

@@ -13,8 +13,12 @@ import android.graphics.drawable.GradientDrawable
 import android.text.Layout
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -22,6 +26,7 @@ import android.widget.TextView
 import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -94,12 +99,14 @@ private val PAPER = Look(
     light = true,
 )
 
-private val SIZES = floatArrayOf(15f, 16f, 17f, 18f, 20f, 22f, 25f)
-private const val DEFAULT_STEP = 3
+// Body text size in sp: pinch sets any value in the range; the A button returns to the original (DECISIONS.md 72).
+private const val DEFAULT_SIZE = 18f
+private const val MIN_SIZE = 12f
+private const val MAX_SIZE = 34f
 
 // Round control in the reader's top bar, drawn by hand: close, smaller text, bigger text, theme.
 private class ReaderButton(context: Context, private val kind: Kind) : View(context) {
-    enum class Kind { CLOSE, SMALLER, BIGGER, THEME, JUSTIFY }
+    enum class Kind { CLOSE, SIZE, THEME, JUSTIFY }
 
     var look: Look = TWILIGHT
         set(value) {
@@ -156,9 +163,10 @@ private class ReaderButton(context: Context, private val kind: Kind) : View(cont
                 canvas.drawLine(cx - s, cy - s, cx + s, cy + s, line)
                 canvas.drawLine(cx - s, cy + s, cx + s, cy - s, line)
             }
-            Kind.SMALLER, Kind.BIGGER -> {
-                letter.color = look.text
-                letter.textSize = sp(if (kind == Kind.SMALLER) 14f else 21f)
+            Kind.SIZE -> {
+                // Ember while the size differs from the original (the button is then live), plain when it is not.
+                letter.color = if (isEnabled) Ui.EMBER else look.text
+                letter.textSize = sp(19f)
                 canvas.drawText("A", cx, cy - (letter.descent() + letter.ascent()) / 2f, letter)
             }
             Kind.JUSTIFY -> {
@@ -231,9 +239,37 @@ class ReaderView(
 ) : FrameLayout(context) {
     private var paper = Prefs.get(context, Prefs.READER_PAPER)
     private var leftAligned = Prefs.get(context, Prefs.READER_LEFT)
-    private var step = Prefs.getInt(context, Prefs.READER_SIZE, DEFAULT_STEP).coerceIn(0, SIZES.size - 1)
+    private var bodySize = (Prefs.getInt(context, Prefs.READER_TEXT, (DEFAULT_SIZE * 10).toInt()) / 10f).coerceIn(MIN_SIZE, MAX_SIZE)
     private val look: Look get() = if (paper) PAPER else TWILIGHT
-    private val body: Float get() = SIZES[step]
+    private val body: Float get() = bodySize
+    private var sizeAnim: ValueAnimator? = null
+    private var pendingFraction: Float? = null
+    private var pinching = false
+    private var pinchSent = false
+    private val hideBadge = Runnable {
+        notice.animate().alpha(0f).setDuration(240).withEndAction { notice.visibility = GONE }.start()
+    }
+    private val pinch = ScaleGestureDetector(
+        context,
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                sizeAnim?.cancel()
+                pinching = true
+                return true
+            }
+
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                setSize(bodySize * detector.scaleFactor)
+                showBadge()
+                return true
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                pinching = false
+                saveSize()
+            }
+        },
+    )
     private val restyle = ArrayList<() -> Unit>()
     private val serif = Typeface.create("serif", Typeface.NORMAL)
     private val serifBold = Typeface.create("serif", Typeface.BOLD)
@@ -250,8 +286,7 @@ class ReaderView(
     }
     private val readLine = ReadLine(context)
     private val closeButton = ReaderButton(context, ReaderButton.Kind.CLOSE)
-    private val smallerButton = ReaderButton(context, ReaderButton.Kind.SMALLER)
-    private val biggerButton = ReaderButton(context, ReaderButton.Kind.BIGGER)
+    private val sizeButton = ReaderButton(context, ReaderButton.Kind.SIZE)
     private val themeButton = ReaderButton(context, ReaderButton.Kind.THEME)
     private val justifyButton = ReaderButton(context, ReaderButton.Kind.JUSTIFY)
     private var readable = false
@@ -274,13 +309,13 @@ class ReaderView(
     init {
         isClickable = true
         closeButton.contentDescription = "Close reader"
-        smallerButton.contentDescription = "Smaller text"
-        biggerButton.contentDescription = "Bigger text"
+        sizeButton.contentDescription = "Reset text size"
+        sizeButton.isEnabled = false
+        sizeButton.alpha = 0.35f
         themeButton.contentDescription = "Switch theme"
         justifyButton.contentDescription = "Justify text"
         closeButton.setOnClickListener { onClose() }
-        smallerButton.setOnClickListener { changeSize(-1) }
-        biggerButton.setOnClickListener { changeSize(1) }
+        sizeButton.setOnClickListener { resetSize() }
         themeButton.setOnClickListener { toggleTheme() }
         justifyButton.setOnClickListener { toggleJustify() }
         val size = Ui.dp(context, 44)
@@ -288,12 +323,18 @@ class ReaderView(
         bar.addView(closeButton, LinearLayout.LayoutParams(size, size))
         bar.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
         bar.addView(justifyButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
-        bar.addView(smallerButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
-        bar.addView(biggerButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
-        for (b in listOf(justifyButton, smallerButton, biggerButton)) b.visibility = GONE
+        bar.addView(sizeButton, LinearLayout.LayoutParams(size, size).apply { marginEnd = gap })
+        for (b in listOf(justifyButton, sizeButton)) b.visibility = GONE
         bar.addView(themeButton, LinearLayout.LayoutParams(size, size))
 
         scroll.addView(column, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        // After a size change the text reflows; the reading position is put back by its fraction of the article.
+        column.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            pendingFraction?.let { f ->
+                pendingFraction = null
+                scroll.scrollTo(0, (f * max(0, column.height - scroll.height)).toInt())
+            }
+        }
         scroll.setOnScrollChangeListener { _, _, y, _, _ ->
             val range = column.height - scroll.height
             readLine.fraction = if (range > 0) y.toFloat() / range else 0f
@@ -324,7 +365,7 @@ class ReaderView(
         column.removeAllViews()
         emptyBox.removeAllViews()
         readable = a != null && a.readable
-        for (b in listOf(justifyButton, smallerButton, biggerButton)) b.visibility = if (readable) VISIBLE else GONE
+        for (b in listOf(justifyButton, sizeButton)) b.visibility = if (readable) VISIBLE else GONE
         scroll.visibility = if (readable) VISIBLE else GONE
         emptyBox.visibility = if (readable) GONE else VISIBLE
         scroll.scrollTo(0, 0)
@@ -349,6 +390,7 @@ class ReaderView(
 
     override fun onDetachedFromWindow() {
         pulse?.cancel()
+        sizeAnim?.cancel()
         super.onDetachedFromWindow()
     }
 
@@ -358,12 +400,78 @@ class ReaderView(
         Ui.enter(listOf(bar, content))
     }
 
-    private fun changeSize(delta: Int) {
-        val next = (step + delta).coerceIn(0, SIZES.size - 1)
-        if (next == step) return
-        step = next
-        Prefs.setInt(context, Prefs.READER_SIZE, step)
-        applyLook()
+    // Pinch gestures drive the text size directly; the page below never sees them.
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (!readable) return super.dispatchTouchEvent(ev)
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) pinchSent = false
+        pinch.onTouchEvent(ev)
+        if (pinching) {
+            if (!pinchSent) {
+                pinchSent = true
+                val cancel = MotionEvent.obtain(ev)
+                cancel.action = MotionEvent.ACTION_CANCEL
+                super.dispatchTouchEvent(cancel)
+                cancel.recycle()
+            }
+            return true
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    // Sets the body size and reflows the article in place, keeping the reading position.
+    private fun setSize(value: Float) {
+        val next = value.coerceIn(MIN_SIZE, MAX_SIZE)
+        if (next == bodySize) return
+        val range = column.height - scroll.height
+        pendingFraction = if (range > 0) scroll.scrollY.toFloat() / range else 0f
+        bodySize = next
+        for (r in restyle) r()
+        val changed = abs(bodySize - DEFAULT_SIZE) > 0.05f
+        if (sizeButton.isEnabled != changed) {
+            sizeButton.isEnabled = changed
+            sizeButton.animate().alpha(if (changed) 1f else 0.35f).setDuration(200).start()
+            sizeButton.invalidate()
+        }
+    }
+
+    private fun saveSize() = Prefs.setInt(context, Prefs.READER_TEXT, (bodySize * 10).toInt())
+
+    // The percentage pill shows while the size moves and fades shortly after.
+    private fun showBadge() {
+        notice.text = "${(bodySize / DEFAULT_SIZE * 100).toInt()}%"
+        notice.animate().cancel()
+        notice.removeCallbacks(hideBadge)
+        notice.visibility = VISIBLE
+        notice.alpha = 1f
+        notice.postDelayed(hideBadge, 800)
+    }
+
+    // Back to the original size: the text glides there, shrinking from a large size or growing from a small one.
+    private fun resetSize() {
+        if (!sizeButton.isEnabled) return
+        sizeButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        sizeAnim?.cancel()
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            setSize(DEFAULT_SIZE)
+            saveSize()
+            showBadge()
+            return
+        }
+        val distance = abs(bodySize - DEFAULT_SIZE) / (MAX_SIZE - MIN_SIZE)
+        sizeAnim = ValueAnimator.ofFloat(bodySize, DEFAULT_SIZE).apply {
+            duration = (380 + 420 * distance).toLong()
+            interpolator = PathInterpolator(0.2f, 0f, 0f, 1f)
+            addUpdateListener {
+                setSize(it.animatedValue as Float)
+                showBadge()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    saveSize()
+                }
+            })
+            start()
+        }
     }
 
     private fun toggleJustify() {
@@ -389,12 +497,8 @@ class ReaderView(
         val l = look
         setBackgroundColor(l.bg)
         readLine.look = l
-        for (b in listOf(closeButton, smallerButton, biggerButton, themeButton, justifyButton)) b.look = l
+        for (b in listOf(closeButton, sizeButton, themeButton, justifyButton)) b.look = l
         justifyButton.justified = !leftAligned
-        smallerButton.alpha = if (step == 0) 0.35f else 1f
-        biggerButton.alpha = if (step == SIZES.size - 1) 0.35f else 1f
-        smallerButton.isEnabled = step > 0
-        biggerButton.isEnabled = step < SIZES.size - 1
         notice.setTextColor(l.text)
         notice.background = GradientDrawable().apply {
             setColor(l.chip)
