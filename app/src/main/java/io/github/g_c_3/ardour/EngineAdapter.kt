@@ -10,6 +10,7 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.SystemClock
 import android.webkit.CookieManager
+import android.webkit.GeolocationPermissions
 import android.webkit.WebStorage
 import android.webkit.RenderProcessGoneDetail
 import org.json.JSONException
@@ -736,14 +737,31 @@ object EngineAdapter {
         CookieManager.getInstance().setAcceptThirdPartyCookies(view, allow)
     }
 
-    // Clears what one site keeps on the phone (DECISIONS.md 81): its cookies, including those it shares with its parent
-    // domains (a sign-in kept on google.com for mail.google.com), and its saved data (local storage, databases). The
-    // cache, history and bookmarks are not touched. Cookies are found by name for this address and expired for the
-    // host, each parent domain and each path of the address; cookies of other hosts, and of paths this address does
-    // not reach, stay.
-    fun clearSiteData(url: String) {
+    // Clears what the user ticked (DECISIONS.md 81, 82). Login details: the site's cookies, including those it shares
+    // with its parent domains (a sign-in kept on google.com for mail.google.com). Saved site data: local storage and
+    // databases for the host, and its saved location permission. Cache: the engine's whole cache, since it cannot clear
+    // one site's (it is per application). History and bookmarks are not touched.
+    fun clearSiteData(url: String, logins: Boolean, siteData: Boolean, cache: Boolean) {
+        val view = webView ?: return
         val uri = Uri.parse(url)
-        val host = uri.host ?: return
+        val host = uri.host
+        if (host != null && logins) clearCookies(url, uri, host)
+        if (host != null && siteData) {
+            val port = if (uri.port != -1) ":" + uri.port else ""
+            val storage = WebStorage.getInstance()
+            val locations = GeolocationPermissions.getInstance()
+            for (scheme in listOf("https", "http")) {
+                val origin = "$scheme://$host$port"
+                storage.deleteOrigin(origin)
+                locations.clear(origin)
+            }
+        }
+        if (cache) view.clearCache(true)
+    }
+
+    // Cookies are found by name for this address and expired for the host, each parent domain and each path of the
+    // address; cookies of other hosts, and of paths this address does not reach, stay.
+    private fun clearCookies(url: String, uri: Uri, host: String) {
         val secure = uri.scheme == "https"
         val manager = CookieManager.getInstance()
         val labels = host.split('.')
@@ -759,9 +777,6 @@ object EngineAdapter {
             }
         }
         manager.flush()
-        val port = if (uri.port != -1) ":" + uri.port else ""
-        val storage = WebStorage.getInstance()
-        for (scheme in listOf("https", "http")) storage.deleteOrigin("$scheme://$host$port")
     }
 
     // Loads the open page again from the network, skipping the cache for this one load.
