@@ -51,6 +51,7 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
     private val flowTip = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
     private val u = Ui.dp(context, 1).toFloat()
+    private val k = 1.6f // the Go arrow is drawn larger than the other icons
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = u * 1.6f
@@ -66,7 +67,7 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
     private val path = Path()
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        flowLine.shader = LinearGradient(w / 2f - 9f * u, 0f, w / 2f + 8f * u, 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
+        flowLine.shader = LinearGradient(w / 2f - 9f * u * k, 0f, w / 2f + 8f * u * k, 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
     }
 
     override fun onVisibilityAggregated(isVisible: Boolean) {
@@ -106,10 +107,10 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
 
     // The arrow: a faint amber track with a fill that glides along the shaft, the head lighting once it arrives.
     private fun drawFlowArrow(canvas: Canvas, cx: Float, cy: Float) {
-        val x0 = cx - 9f * u
-        val x1 = cx + 7f * u
-        val head = 4.6f * u
-        flowLine.strokeWidth = u * 1.9f
+        val x0 = cx - 9f * u * k
+        val x1 = cx + 7f * u * k
+        val head = 4.6f * u * k
+        flowLine.strokeWidth = u * 3.2f
         flowTip.color = Ui.AMBER
         val fillAmount = (phase / 0.68f).coerceIn(0f, 1f)
         val eased = 1f - (1f - fillAmount) * (1f - fillAmount)
@@ -118,7 +119,7 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         // Faint track.
         line.color = Ui.AMBER
         line.alpha = 70
-        line.strokeWidth = u * 1.9f
+        line.strokeWidth = u * 3.2f
         canvas.drawLine(x0, cy, x1, cy, line)
         path.reset()
         path.moveTo(x1 - head, cy - head)
@@ -136,7 +137,7 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         // Soft spark at the front of the fill while it travels.
         if (fillAmount < 1f && fade > 0f) {
             flowTip.alpha = (150 * fade).toInt()
-            canvas.drawCircle(tip, cy, 2.2f * u, flowTip)
+            canvas.drawCircle(tip, cy, 3.2f * u, flowTip)
         }
     }
 
@@ -174,12 +175,14 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
             Kind.GO -> {
                 line.color = tint
                 line.alpha = 90
-                canvas.drawLine(cx - 9f * u, cy, cx + 7f * u, cy, line)
+                line.strokeWidth = u * 3.2f
+                canvas.drawLine(cx - 9f * u * k, cy, cx + 7f * u * k, cy, line)
                 path.reset()
-                path.moveTo(cx + 7f * u - 4.6f * u, cy - 4.6f * u)
-                path.lineTo(cx + 7f * u, cy)
-                path.lineTo(cx + 7f * u - 4.6f * u, cy + 4.6f * u)
+                path.moveTo(cx + 7f * u * k - 4.6f * u * k, cy - 4.6f * u * k)
+                path.lineTo(cx + 7f * u * k, cy)
+                path.lineTo(cx + 7f * u * k - 4.6f * u * k, cy + 4.6f * u * k)
                 canvas.drawPath(path, line)
+                line.strokeWidth = u * 1.6f
             }
             Kind.CHECK -> {
                 path.reset()
@@ -207,7 +210,7 @@ private class Chip(context: Context, val icon: EditIcon, label: String, private 
             includeFontPadding = false
             isSingleLine = true
         }
-        addView(icon, LayoutParams(Ui.dp(context, if (primary) 28 else 15), Ui.dp(context, if (primary) 20 else 15)))
+        addView(icon, LayoutParams(Ui.dp(context, if (primary) 48 else 15), Ui.dp(context, if (primary) 30 else 15)))
         addView(text, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { marginStart = Ui.dp(context, 4) })
         if (primary) text.visibility = GONE
         val radius = Ui.dp(context, 20).toFloat()

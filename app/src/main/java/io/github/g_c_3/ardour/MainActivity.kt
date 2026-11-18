@@ -88,7 +88,7 @@ class MainActivity : Activity() {
 
     private val listener: PageListener = object : PageListener {
         override fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean) {
-            if (url != null && url != "about:blank") {
+            if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
                 address.showUrl(url)
                 revealPage()
             }
@@ -141,7 +141,6 @@ class MainActivity : Activity() {
             if (!loading) pageArea.finish()
             reloadButton.kind = if (loading) IconButton.Kind.STOP else IconButton.Kind.RELOAD
             // Until the engine reports its first progress the bar sweeps, so a slow connection looks alive.
-            if (loading) progress.start() else progress.finish()
             address.setLoading(loading)
         }
     }

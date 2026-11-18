@@ -44,10 +44,37 @@ class IconButton(context: Context, kind: Kind) : View(context) {
     private val path = Path()
     private val arc = RectF()
 
+    // Touch response: the icon turns ember at once and eases back to ink a moment after the finger lifts.
+    private var warmth = 0f
+    private var warmAnim: ValueAnimator? = null
+    private val blend = ArgbEvaluator()
+
+    private fun warm(on: Boolean) {
+        warmAnim?.cancel()
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            applyWarmth(if (on) 1f else 0f)
+            return
+        }
+        warmAnim = ValueAnimator.ofFloat(warmth, if (on) 1f else 0f).apply {
+            duration = if (on) 90L else 460L
+            startDelay = if (on) 0L else 130L
+            addUpdateListener { applyWarmth(it.animatedValue as Float) }
+            start()
+        }
+    }
+
+    private fun applyWarmth(w: Float) {
+        warmth = w
+        val c = blend.evaluate(w, Ui.INK, Ui.EMBER) as Int
+        stroke.color = c
+        dot.color = c
+        invalidate()
+    }
+
     init {
         isClickable = true
         isFocusable = true
-        Ui.springPress(this)
+        Ui.springPress(this) { warm(it) }
     }
 
     override fun setEnabled(enabled: Boolean) {
@@ -177,13 +204,28 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
 
     // The ember rim and the loading line never show together: while a page loads, the editor has the plain rim and
     // the line; when the load ends the ember rim fades in over the plain one (DECISIONS.md 70).
+    // Order: a load starts, the rim leaves and the line appears; the load ends, the line fills and fades away
+    // completely, and only then does the ember rim fade in, slowly.
+    private var loadGen = 0
+
     fun setLoading(on: Boolean) {
-        if (loadingNow == on) return
-        loadingNow = on
-        updateRim()
+        if (on) {
+            loadGen++
+            loadingNow = true
+            progress.start()
+            updateRim(0L, 240L)
+        } else {
+            val gen = loadGen
+            progress.finish {
+                if (gen == loadGen) {
+                    loadingNow = false
+                    updateRim(140L, 760L)
+                }
+            }
+        }
     }
 
-    private fun updateRim() {
+    private fun updateRim(delayMs: Long = 0L, fadeInMs: Long = 520L) {
         val target = if (focusedNow && !loadingNow) 1f else 0f
         rimAnim?.cancel()
         rimAnim = null
@@ -193,7 +235,8 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             return
         }
         rimAnim = ValueAnimator.ofFloat(rimAmount, target).apply {
-            duration = if (target > rimAmount) 460L else 240L
+            duration = if (target > rimAmount) fadeInMs else 240L
+            startDelay = if (target > rimAmount) delayMs else 0L
             interpolator = PathInterpolator(0.2f, 0f, 0f, 1f)
             addUpdateListener { applyRim(it.animatedValue as Float) }
             start()

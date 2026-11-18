@@ -6,7 +6,9 @@ import android.print.PrintDocumentAdapter
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
+import android.net.Uri
 import android.net.http.SslError
+import android.os.SystemClock
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import org.json.JSONException
@@ -59,11 +61,47 @@ object EngineAdapter {
     private var defaultAgent: String? = null
     private var defaultMetadata: UserAgentMetadata? = null
     private var bypassCache = false
+    private var userNavAt = 0L
+    private var desktopViewportScript: ScriptHandler? = null
     private var forceZoomScript: ScriptHandler? = null
     private var forceZoomOn = false
     private var textScale = 100f
 
     // Viewport rewrite for "Force zoom": drops user-scalable=no and any maximum-scale, now and when the page changes it.
+    // Desktop site: pages are laid out 1024 px wide, as other browsers do, so the whole page fits the screen at first.
+    // The engine always obeys a page's own viewport tag, so the tag is replaced (and kept replaced) (DECISIONS.md 76).
+    private const val DESKTOP_VIEWPORT_JS = """
+(function () {
+  var W = 'width=1024';
+  function fix() {
+    var m = document.querySelector('meta[name="viewport"]');
+    if (!m) {
+      var host = document.head || document.documentElement;
+      if (!host) return;
+      m = document.createElement('meta');
+      m.setAttribute('name', 'viewport');
+      host.appendChild(m);
+    }
+    if (m.getAttribute('content') !== W) m.setAttribute('content', W);
+    obs.observe(m, { attributes: true, attributeFilter: ['content', 'name'] });
+  }
+  var obs = new MutationObserver(function () {
+    fix();
+    if (document.head) obs.observe(document.head, { childList: true });
+  });
+  function setup() {
+    if (!document.documentElement) return false;
+    fix();
+    obs.observe(document.documentElement, { childList: true });
+    if (document.head) obs.observe(document.head, { childList: true });
+    return true;
+  }
+  if (!setup()) {
+    new MutationObserver(function (muts, o) { if (setup()) o.disconnect(); }).observe(document, { childList: true });
+  }
+})();
+"""
+
     private const val FORCE_ZOOM_JS = """
         (function () {
           if (window.__ardourZoomFix) { window.__ardourZoomFix(); return; }
@@ -409,13 +447,22 @@ object EngineAdapter {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val scheme = request.url.scheme
                 val web = scheme == "http" || scheme == "https"
-                val tapped = request.isForMainFrame && request.hasGesture()
+                val now = SystemClock.uptimeMillis()
+                if (web && request.isForMainFrame && request.hasGesture()) userNavAt = now
+                // A tap, or a redirect within a few seconds of one (a link that goes through the site's own address
+                // before it reaches the app), may open another app. Anything else never does.
+                val tapped = request.isForMainFrame && (request.hasGesture() || (request.isRedirect && now - userNavAt < 8000L))
                 // A Play Store page opens in the Play Store app when there is one.
                 if (web && tapped && ExternalLinks.isStorePage(request.url) && listener.onExternal(request.url.toString())) return true
                 // A tapped link: the app shows where it goes before the engine reports the page started.
                 if (web && request.isForMainFrame && !request.isRedirect) listener.onNavigate(request.url.toString())
-                // Any other address is never loaded here; with a tap behind it, another app may take it (DECISIONS.md 73).
-                if (!web && tapped) listener.onExternal(request.url.toString())
+                if (!web && request.isForMainFrame) {
+                    // Another app may take it (DECISIONS.md 73). The view never loads it, so the cancelled navigation must
+                    // not leave its address or the loading bar behind.
+                    if (tapped) listener.onExternal(request.url.toString())
+                    listener.onPage(view.url, view.canGoBack(), view.canGoForward())
+                    listener.onLoading(false)
+                }
                 return !web
             }
 
@@ -489,12 +536,37 @@ object EngineAdapter {
         view.settings.apply {
             userAgentString = if (desktopSite && base != null) desktopAgent(base) else base
         }
+        desktopViewportScript?.remove()
+        desktopViewportScript = null
+        if (desktopSite && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            try {
+                desktopViewportScript = WebViewCompat.addDocumentStartJavaScript(view, DESKTOP_VIEWPORT_JS, setOf("*"))
+            } catch (_: IllegalArgumentException) {
+                // The origin rule was refused; pages keep their own viewport.
+            }
+        }
         val original = defaultMetadata ?: return
         try {
             WebSettingsCompat.setUserAgentMetadata(view.settings, if (desktopSite) desktopMetadata(original) else original)
         } catch (e: Exception) {
             // Hints stay as they were; the user-agent string still changed.
         }
+    }
+
+    // A page's mobile address (m.example.com, en.m.example.org, mobile.example.com) becomes its normal address when the
+    // desktop switch goes on, so the site is not asked for its phone version by name (DECISIONS.md 76).
+    private fun desktopAddress(url: String): String {
+        val uri = Uri.parse(url)
+        val host = uri.host ?: return url
+        val plain = when {
+            host.startsWith("m.") -> host.removePrefix("m.")
+            host.startsWith("mobile.") -> host.removePrefix("mobile.")
+            host.contains(".m.") -> host.replaceFirst(".m.", ".")
+            else -> return url
+        }
+        if (!plain.contains('.')) return url
+        val authority = if (uri.port != -1) plain + ":" + uri.port else plain
+        return uri.buildUpon().authority(authority).build().toString()
     }
 
     private fun desktopMetadata(o: UserAgentMetadata): UserAgentMetadata {
@@ -519,7 +591,7 @@ object EngineAdapter {
         if (!reloadPage) return
         // A reload keeps the page's old zoom; a fresh load of the same address lets overview mode fit the width. The
         // cache is skipped for this one load: a cached copy would be the page made for the other kind of device.
-        val address = view.url
+        val address = view.url?.let { if (on) desktopAddress(it) else it }
         view.setInitialScale(0)
         view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         bypassCache = true
