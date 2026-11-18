@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 38
+- Built (release 1.3.0, decision 79): desktop viewport script rewrites every viewport tag of the page and adds none, the cause of pages still showing zoomed in.
+- Owner check of 1.2.9: line then rim, larger Go arrow and the Amazon Open banner passed. Unresolved: Gmail in desktop mode showed the new address with the old page still on screen; cause not found, needs a recording on 1.3.0.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,249,483 bytes at 1.3.0. Not run on a device: 1.3.0 (DP38).
+- Next start: owner's DP38 results. Still open, not to be started unasked: per-site data clear (needs approval), Phase 4 close-out checks (DP17, DP20), the Phase 3 checkbox, Phase 5.
+
 ## 37
 - Built (release 1.2.9, decisions 76 to 78): rim fades in only after the loading line has completely gone; Go arrow larger and bolder; back, forward and reload turn ember on touch; links to apps work through redirects and a cancelled one no longer leaves the bar running; desktop site keeps a 1024 px viewport so pages fit, and mobile addresses (m.) become normal ones when it goes on.
 - Owner check of 1.2.8: refresh fix and reader passed; line, Go, app links and desktop partly. Gmail returning to mobile after "use web version" is Gmail's own saved choice; offered a per-site data clear as a later item.
