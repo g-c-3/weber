@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 39
+- Built (release 1.3.1, decision 80): desktop pages fitted by an explicit initial scale (view pixel width over 1024), set before the toggle load and on width changes.
+- Owner check of 1.3.0: failed (gsmarena still zoomed in, Gmail did not show its desktop page). The documentation on the scale's density handling gave the new approach; the earlier cause is still not known.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,250,043 bytes at 1.3.1. Not run on a device: 1.3.1 (DP39).
+- Next start: owner's DP39 results. Still open, not to be started unasked: per-site data clear (needs approval), Phase 4 close-out checks (DP17, DP20), the Phase 3 checkbox, Phase 5.
+
 ## 38
 - Built (release 1.3.0, decision 79): desktop viewport script rewrites every viewport tag of the page and adds none, the cause of pages still showing zoomed in.
 - Owner check of 1.2.9: line then rim, larger Go arrow and the Amazon Open banner passed. Unresolved: Gmail in desktop mode showed the new address with the old page still on screen; cause not found, needs a recording on 1.3.0.
