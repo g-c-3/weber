@@ -69,31 +69,29 @@ object EngineAdapter {
 
     // Viewport rewrite for "Force zoom": drops user-scalable=no and any maximum-scale, now and when the page changes it.
     // Desktop site: pages are laid out 1024 px wide, as other browsers do, so the whole page fits the screen at first.
-    // The engine always obeys a page's own viewport tag, so the tag is replaced (and kept replaced) (DECISIONS.md 76).
+    // The engine always obeys a page's own viewport tags (the last one wins), so every one is rewritten as it appears and
+    // kept that way; a page without one already gets a wide layout, so none is added (DECISIONS.md 76, 79).
     private const val DESKTOP_VIEWPORT_JS = """
 (function () {
   var W = 'width=1024';
+  var obs;
   function fix() {
-    var m = document.querySelector('meta[name="viewport"]');
-    if (!m) {
-      var host = document.head || document.documentElement;
-      if (!host) return;
-      m = document.createElement('meta');
-      m.setAttribute('name', 'viewport');
-      host.appendChild(m);
+    var list = document.querySelectorAll('meta[name="viewport" i]');
+    for (var i = 0; i < list.length; i++) {
+      var m = list[i];
+      if (m.getAttribute('content') !== W) m.setAttribute('content', W);
+      obs.observe(m, { attributes: true, attributeFilter: ['content'] });
     }
-    if (m.getAttribute('content') !== W) m.setAttribute('content', W);
-    obs.observe(m, { attributes: true, attributeFilter: ['content', 'name'] });
   }
-  var obs = new MutationObserver(function () {
+  obs = new MutationObserver(function () {
     fix();
     if (document.head) obs.observe(document.head, { childList: true });
   });
   function setup() {
     if (!document.documentElement) return false;
-    fix();
     obs.observe(document.documentElement, { childList: true });
     if (document.head) obs.observe(document.head, { childList: true });
+    fix();
     return true;
   }
   if (!setup()) {
