@@ -177,15 +177,19 @@ object Ui {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    fun springPress(view: View) {
+    fun springPress(view: View, onPress: ((Boolean) -> Unit)? = null) {
         view.setOnTouchListener { v, event ->
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN ->
+                MotionEvent.ACTION_DOWN -> {
+                    onPress?.invoke(true)
                     v.animate().scaleX(0.96f).scaleY(0.96f).setDuration(90)
                         .setInterpolator(DecelerateInterpolator()).start()
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    onPress?.invoke(false)
                     v.animate().scaleX(1f).scaleY(1f).setDuration(420)
                         .setInterpolator(SpringInterpolator()).start()
+                }
             }
             false
         }

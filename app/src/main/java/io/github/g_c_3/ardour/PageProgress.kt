@@ -50,6 +50,7 @@ class PageProgress(context: Context) : View(context) {
 
     // A load begins: visible at once, sweeping until the engine reports real progress.
     fun start() {
+        finishing = false
         animate().cancel()
         glide?.cancel()
         alpha = 1f
@@ -69,16 +70,26 @@ class PageProgress(context: Context) : View(context) {
         glideTo(target, (160 + 520 * (target - shown)).toLong().coerceIn(160L, 640L), DecelerateInterpolator(1.6f)) {}
     }
 
-    // The load ended: fill to the end, then fade out.
-    fun finish() {
-        if (visibility != VISIBLE) return
+    // The load ended: fill to the end, then fade out. onGone runs once the line is completely gone (at once when it was
+    // not showing); a new start() before that also runs it, so the caller checks that it is still current.
+    private var finishing = false
+
+    fun finish(onGone: (() -> Unit)? = null) {
+        if (visibility != VISIBLE) {
+            onGone?.invoke()
+            return
+        }
+        if (finishing) return
+        finishing = true
         indeterminate = false
         glideTo(1f, 240L, AccelerateDecelerateInterpolator()) {
             animate().alpha(0f).setStartDelay(80).setDuration(340).withEndAction {
+                finishing = false
                 visibility = INVISIBLE
                 alpha = 1f
                 shown = 0f
                 stopLoop()
+                onGone?.invoke()
             }.start()
         }
     }
