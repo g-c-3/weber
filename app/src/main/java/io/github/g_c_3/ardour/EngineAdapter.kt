@@ -71,6 +71,9 @@ object EngineAdapter {
     // Desktop site: pages are laid out 1024 px wide, as other browsers do, so the whole page fits the screen at first.
     // The engine always obeys a page's own viewport tags (the last one wins), so every one is rewritten as it appears and
     // kept that way; a page without one already gets a wide layout, so none is added (DECISIONS.md 76, 79).
+    // The layout width in css px; the script below uses the same number.
+    private const val DESKTOP_WIDTH = 1024
+
     private const val DESKTOP_VIEWPORT_JS = """
 (function () {
   var W = 'width=1024';
@@ -434,6 +437,10 @@ object EngineAdapter {
             defaultMetadata = WebSettingsCompat.getUserAgentMetadata(view.settings)
         }
         applyDesktop(view)
+        // The fit scale follows the view's width (first layout, rotation); it applies to the next page loaded.
+        view.addOnLayoutChangeListener { v, left, _, right, _, oldLeft, _, oldRight, _ ->
+            if (desktopSite && right - left != oldRight - oldLeft && v is WebView) v.setInitialScale(desktopFitPercent(v))
+        }
         view.setBackgroundColor(Ui.PAPER)
         view.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, newProgress: Int) = listener.onProgress(newProgress)
@@ -551,6 +558,12 @@ object EngineAdapter {
         }
     }
 
+    // The explicit initial scale ignores the screen density, so fitting a page DESKTOP_WIDTH css px wide into the view is
+    // the view's pixel width over that width (720 px wide: 70%). Without it the engine's own choice left desktop pages
+    // zoomed in and cut off (DECISIONS.md 80).
+    private fun desktopFitPercent(view: WebView): Int =
+        if (view.width <= 0) 0 else (view.width * 100 / DESKTOP_WIDTH).coerceAtLeast(10)
+
     // A page's mobile address (m.example.com, en.m.example.org, mobile.example.com) becomes its normal address when the
     // desktop switch goes on, so the site is not asked for its phone version by name (DECISIONS.md 76).
     private fun desktopAddress(url: String): String {
@@ -590,7 +603,7 @@ object EngineAdapter {
         // A reload keeps the page's old zoom; a fresh load of the same address lets overview mode fit the width. The
         // cache is skipped for this one load: a cached copy would be the page made for the other kind of device.
         val address = view.url?.let { if (on) desktopAddress(it) else it }
-        view.setInitialScale(0)
+        view.setInitialScale(if (on) desktopFitPercent(view) else 0)
         view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         bypassCache = true
         if (address != null) view.loadUrl(address) else view.reload()
