@@ -40,3 +40,4 @@ Maps session, decision and roadmap phase to a date. Append only; never edit a pa
 | 34 | 66 | 4 | 2026-11-17 | DP33 passed on 1.2.3; page counts as finished when its document is parsed and the engine is at 90%; released as 1.2.4 |
 | 35 | 67, 68, 69 | 4 | 2026-11-17 | Address pill as one button, thin animated loading line, redesigned edit actions; released as 1.2.5 |
 | 36 | 70-75 | 4 | 2026-11-17 | Loading line inside the pill, Go arrow, reader pinch size, app links, desktop site hints; released as 1.2.6 and 1.2.8 |
+| 37 | 76-78 | 4 | 2026-11-18 | Line then rim, larger Go, touch response, app links through redirects, desktop viewport; released as 1.2.9 |

@@ -374,3 +374,12 @@ Owner reports: mobile to desktop did not switch on some sites (gsmarena), deskto
 
 ## 75. Finish check reads only the new page; reload stops background loads
 Cause of the refresh button not responding after the bar ended (and a slow navigation ending early): the finish check of 66 read the page still on screen, which is already complete, before the new page had been committed. Now the check starts only after the engine reports the new page is on screen (onPageCommitVisible, API 23) and progress is 90% or more. Reload now first stops anything still loading in the background, then reloads. Amends 66.
+
+## 76. Desktop site layout and mobile addresses
+Owner report (1.2.8): after the switch, Chrome and Opera fit the whole desktop page and Ardour needed pinching; sites with a mobile address (m.gsmarena.com) stayed mobile until the m. was removed by hand. Cause of the first: the engine always obeys a page's own viewport tag, which many sites set to the device width. Fix (1.2.9): while the switch is on, a start-of-page script keeps the viewport at 1024 px wide (replacing or adding the tag and watching it), so overview mode fits the page. When the switch goes on, a mobile address (m., mobile. or .m. in the host) is changed to the normal one before the load. Gmail's "use web version" choice is remembered by Gmail itself in its cookies; the switch cannot undo it (a per-site data clear would). Not run on a device.
+
+## 77. Line, then rim; Go larger; touch response
+Owner request: the ember rim must wait until the loading line has completely gone, then fade in slowly (amends 70): the line fills and fades, then after a short pause the rim fades in over 0.76 s. Go arrow drawn 1.6 times larger with a 3.2 dp stroke (amends 71). Back, forward and reload icons turn ember the moment they are touched and ease back to ink shortly after release.
+
+## 78. App links through redirects (amends 73)
+Cause of the Amazon "Open" banner still doing nothing: the tap leads to a web address that redirects to the app address, and the redirect was treated as having no tap behind it; the cancelled navigation then left the loading bar running and the address showing the app address. Now a redirect within 8 s of a tapped navigation counts as tapped. Whenever the main page is asked for an address that is not a web page, the view restores the current page's address and ends the loading state. The address bar shows web addresses only. Not run on a device; if the banner still does nothing, the next step is to record which address it asks for.
