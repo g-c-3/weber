@@ -6,7 +6,8 @@ Numbered, never dated. Dates live in TRACK.md.
 - Built (release 1.3.3, decision 82): Clear site data as a card with three ticked choices (login details, saved site data, cache for all sites); hand-drawn tick boxes; Clear dims while none is ticked; the notice names what was cleared.
 - Verified in the documentation: `GeolocationPermissions.clear(origin)` and `WebView.clearCache(boolean)`. Not verified: DP39 and DP40 still unchecked by the owner.
 - Engine: `androidx.webkit` 1.18.0 (newest stable, checked on developer.android.com). APK size: 3,265,571 bytes at 1.3.3. Not run on a device: 1.3.3 (DP41); compiled only in CI. `DECISIONS.md` is 60,266 bytes: archive proposed, not done.
-- Next start: owner's DP39, DP40 and DP41 results. Still open, not to be started unasked: the archive of `DECISIONS.md`, Phase 4 close-out checks (DP17, DP20), the Phase 3 checkbox, Phase 5.
+- Fixed (release 1.3.4, decision 83): loading line left full width under the pill (late progress report cancelled the fade); Desktop site and Clear site data did nothing on Gmail (same-document reload of an address with a fragment). Owner recordings read frame by frame. APK size at 1.3.4: see the release page. Not run on a device (DP42).
+- Next start: owner's DP39, DP40, DP41 and DP42 results. Still open, not to be started unasked: the archive of `DECISIONS.md`, Phase 4 close-out checks (DP17, DP20), the Phase 3 checkbox, Phase 5.
 
 ## 40
 - Built (release 1.3.2, decision 81): Clear site data in the menu, with a confirmation card (cookies for the host, parent domains and address paths; saved site data for the host), then a fresh reload and a notice.

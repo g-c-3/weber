@@ -46,3 +46,4 @@ Maps session, decision and roadmap phase to a date. Append only; never edit a pa
 | 40 | 81 | 4 | 2026-11-18 | Clear site data with a confirmation card; released as 1.3.2 |
 | 40 (cont.) | 82 | 4 | 2026-11-18 | Plan approved: Clear site data as three choices |
 | 41 | 82 | 4 | 2026-11-19 | Clear site data as three choices; released as 1.3.3 |
+| 41 (cont.) | 83 | 4 | 2026-11-19 | Loading line fade fix; reload without fragment; released as 1.3.4 |
