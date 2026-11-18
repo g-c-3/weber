@@ -6,7 +6,7 @@ Numbered, never dated. Dates live in TRACK.md.
 - Built (release 1.3.2, decision 81): Clear site data in the menu, with a confirmation card (cookies for the host, parent domains and address paths; saved site data for the host), then a fresh reload and a notice.
 - Owner approved the feature; Gmail in desktop mode and the 1.3.1 desktop fit (DP39) are still unchecked.
 - Engine: `androidx.webkit` 1.18.0. APK size: 3,258,111 bytes at 1.3.2. Not run on a device: 1.3.2 (DP40).
-- Next start: owner's DP39 and DP40 results. Still open, not to be started unasked: Phase 4 close-out checks (DP17, DP20), the Phase 3 checkbox, Phase 5.
+- Planned next, approved (decision 82): Clear site data as three choices; build it first in the next session. Then owner's DP39 and DP40 results. Still open, not to be started unasked: Phase 4 close-out checks (DP17, DP20), the Phase 3 checkbox, Phase 5.
 
 ## 39
 - Built (release 1.3.1, decision 80): desktop pages fitted by an explicit initial scale (view pixel width over 1024), set before the toggle load and on width changes.
