@@ -2,6 +2,12 @@
 
 Numbered, never dated. Dates live in TRACK.md.
 
+## 37
+- Built (release 1.2.9, decisions 76 to 78): rim fades in only after the loading line has completely gone; Go arrow larger and bolder; back, forward and reload turn ember on touch; links to apps work through redirects and a cancelled one no longer leaves the bar running; desktop site keeps a 1024 px viewport so pages fit, and mobile addresses (m.) become normal ones when it goes on.
+- Owner check of 1.2.8: refresh fix and reader passed; line, Go, app links and desktop partly. Gmail returning to mobile after "use web version" is Gmail's own saved choice; offered a per-site data clear as a later item.
+- Engine: `androidx.webkit` 1.18.0. APK size: 3,249,635 bytes at 1.2.9. Not run on a device: 1.2.9 (DP37).
+- Next start: owner's DP37 results. Still open, not to be started unasked: per-site data clear (needs approval), Phase 4 close-out checks (DP17, DP20), the Phase 3 checkbox, Phase 5.
+
 ## 36
 - Built (releases 1.2.6 and 1.2.8, decisions 70 to 75): loading line inside the address pill with the ember rim never shown with it, and the old strip returned to the page; Go as an amber arrow with a slow fill; finish check reads only the newly committed page, and reload stops background loads; reader with one A button, pinch sizing and a smooth reset; links open other apps and the Play Store app; desktop site sends matching client hints and skips the cache once.
 - Owner check of 1.2.5: pill tap, thin line and edit actions passed. Run 126 failed once on a library download and passed on its single re-run (1.2.6); run 127 failed to compile (a wrong reference) and was fixed in run 128 (1.2.8; 1.2.7 was not released).
