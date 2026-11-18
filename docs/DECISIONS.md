@@ -383,3 +383,6 @@ Owner request: the ember rim must wait until the loading line has completely gon
 
 ## 78. App links through redirects (amends 73)
 Cause of the Amazon "Open" banner still doing nothing: the tap leads to a web address that redirects to the app address, and the redirect was treated as having no tap behind it; the cancelled navigation then left the loading bar running and the address showing the app address. Now a redirect within 8 s of a tapped navigation counts as tapped. Whenever the main page is asked for an address that is not a web page, the view restores the current page's address and ends the loading state. The address bar shows web addresses only. Not run on a device; if the banner still does nothing, the next step is to record which address it asks for.
+
+## 79. Desktop viewport script rewrites every tag and adds none
+Owner recordings of 1.2.9: the desktop page still showed zoomed in and cut off. Cause: the script of 76 changed only the first viewport tag, and a page's later tag (usually the device width) won, since the last tag in the page is the one the engine obeys. Fix (1.3.0): every viewport tag is rewritten to 1024 px as it appears and kept that way; no tag is added to a page that has none (such a page already gets a wide layout), which also keeps the script from touching the page structure. Amends 76. Not run on a device.
