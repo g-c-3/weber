@@ -596,6 +596,12 @@ object EngineAdapter {
         return b.build()
     }
 
+    // Loading the open address again, fragment included, is a same-document navigation: the page stays as it is (a page
+    // such as Gmail, whose address ends in #inbox, then ignored the desktop switch and Clear site data). Without the
+    // fragment the load is a new document. DECISIONS.md 83.
+    private fun fetchAgain(current: String, next: String): String =
+        if (next == current && '#' in next) next.substringBefore('#') else next
+
     fun setDesktopSite(on: Boolean, reloadPage: Boolean) {
         desktopSite = on
         val view = webView ?: return
@@ -604,7 +610,7 @@ object EngineAdapter {
         if (!reloadPage) return
         // A reload keeps the page's old zoom; a fresh load of the same address lets overview mode fit the width. The
         // cache is skipped for this one load: a cached copy would be the page made for the other kind of device.
-        val address = view.url?.let { if (on) desktopAddress(it) else it }
+        val address = view.url?.let { fetchAgain(it, if (on) desktopAddress(it) else it) }
         view.setInitialScale(if (on) desktopFitPercent(view) else 0)
         view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         bypassCache = true
@@ -782,7 +788,7 @@ object EngineAdapter {
     // Loads the open page again from the network, skipping the cache for this one load.
     fun reloadFresh() {
         val view = webView ?: return
-        val address = view.url ?: return
+        val address = view.url?.let { fetchAgain(it, it) } ?: return
         view.stopLoading()
         view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         bypassCache = true

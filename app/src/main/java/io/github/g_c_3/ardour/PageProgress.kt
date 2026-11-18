@@ -62,8 +62,9 @@ class PageProgress(context: Context) : View(context) {
     }
 
     // The engine's reported progress, 0 to 1. The fill glides to it instead of jumping.
+    // Ignored while finishing: a late report would cancel the fill that starts the fade, and the line would stay.
     fun update(fraction: Float) {
-        if (visibility != VISIBLE) return
+        if (visibility != VISIBLE || finishing) return
         indeterminate = false
         val target = fraction.coerceIn(0.06f, 1f)
         if (target <= shown) return
