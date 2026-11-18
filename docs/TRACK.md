@@ -43,3 +43,4 @@ Maps session, decision and roadmap phase to a date. Append only; never edit a pa
 | 37 | 76-78 | 4 | 2026-11-18 | Line then rim, larger Go, touch response, app links through redirects, desktop viewport; released as 1.2.9 |
 | 38 | 79 | 4 | 2026-11-18 | Desktop viewport script rewrites every viewport tag; DP37 partly passed; released as 1.3.0 |
 | 39 | 80 | 4 | 2026-11-18 | Explicit fit scale for desktop pages; DP38 failed; released as 1.3.1 |
+| 40 | 81 | 4 | 2026-11-18 | Clear site data with a confirmation card; released as 1.3.2 |
