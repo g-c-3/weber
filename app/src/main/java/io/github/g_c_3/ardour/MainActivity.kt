@@ -541,9 +541,33 @@ class MainActivity : Activity() {
                     EngineAdapter.setDesktopSite(!EngineAdapter.desktopSite, hasPage)
                 },
                 *resetItems(),
+                MenuItem("Clear site data", enabled = hasPage && siteHost() != null) { confirmClearSite() },
                 MenuItem("Settings") { startActivity(Intent(this, SettingsActivity::class.java)) },
             ),
         )
+    }
+
+    private val sheet = ConfirmSheet(this) { refreshBack() }
+
+    // The open page's host when it is a web address, else null.
+    private fun siteHost(): String? {
+        val uri = android.net.Uri.parse(EngineAdapter.currentUrl() ?: return null)
+        return if (uri.scheme == "http" || uri.scheme == "https") uri.host else null
+    }
+
+    // Asks first: clearing signs the user out of the site (DECISIONS.md 81).
+    private fun confirmClearSite() {
+        val url = EngineAdapter.currentUrl() ?: return
+        val host = siteHost() ?: return
+        sheet.show(
+            "Clear data for $host?",
+            "Removes the cookies and saved data this site keeps on your phone, so you are signed out of it. Sites that share its sign-in, such as other Google services, are signed out too. History and bookmarks stay.",
+            "Clear",
+        ) {
+            EngineAdapter.clearSiteData(url)
+            EngineAdapter.reloadFresh()
+            showNotice("Cleared data for $host")
+        }
     }
 
     // "Reset text size" appears only when Wrap text is on and the text size was changed by pinching.
@@ -694,6 +718,10 @@ class MainActivity : Activity() {
 
     // True when back was used: closes the editor first, then walks the page history.
     private fun handleBack(): Boolean {
+        if (sheet.showing) {
+            sheet.dismiss()
+            return true
+        }
         if (reader != null) {
             closeReader()
             return true
@@ -717,7 +745,7 @@ class MainActivity : Activity() {
     // while Ardour has something to go back to, so the system still plays its normal exit when it has not.
     private fun refreshBack() {
         if (Build.VERSION.SDK_INT < 33) return
-        val needed = EngineAdapter.canGoBack() || address.input.hasFocus() || finding || reader != null
+        val needed = EngineAdapter.canGoBack() || address.input.hasFocus() || finding || reader != null || sheet.showing
         if (needed && backCallback == null) registerBack() else if (!needed && backCallback != null) unregisterBack()
     }
 

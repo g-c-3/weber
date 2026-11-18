@@ -10,6 +10,7 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.SystemClock
 import android.webkit.CookieManager
+import android.webkit.WebStorage
 import android.webkit.RenderProcessGoneDetail
 import org.json.JSONException
 import org.json.JSONObject
@@ -733,6 +734,44 @@ object EngineAdapter {
     fun setThirdPartyCookies(allow: Boolean) {
         val view = webView ?: return
         CookieManager.getInstance().setAcceptThirdPartyCookies(view, allow)
+    }
+
+    // Clears what one site keeps on the phone (DECISIONS.md 81): its cookies, including those it shares with its parent
+    // domains (a sign-in kept on google.com for mail.google.com), and its saved data (local storage, databases). The
+    // cache, history and bookmarks are not touched. Cookies are found by name for this address and expired for the
+    // host, each parent domain and each path of the address; cookies of other hosts, and of paths this address does
+    // not reach, stay.
+    fun clearSiteData(url: String) {
+        val uri = Uri.parse(url)
+        val host = uri.host ?: return
+        val secure = uri.scheme == "https"
+        val manager = CookieManager.getInstance()
+        val labels = host.split('.')
+        val domains = (0..(labels.size - 2).coerceAtLeast(0)).map { labels.drop(it).joinToString(".") }
+        val segments = (uri.path ?: "/").split('/').filter { it.isNotEmpty() }
+        val paths = listOf("/") + (1..segments.size).map { "/" + segments.take(it).joinToString("/") }
+        val names = manager.getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() }?.distinct().orEmpty()
+        val expired = "=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT" + if (secure) "; Secure" else ""
+        for (name in names) {
+            for (path in paths) {
+                manager.setCookie(url, "$name$expired; Path=$path")
+                for (domain in domains) manager.setCookie(url, "$name$expired; Domain=$domain; Path=$path")
+            }
+        }
+        manager.flush()
+        val port = if (uri.port != -1) ":" + uri.port else ""
+        val storage = WebStorage.getInstance()
+        for (scheme in listOf("https", "http")) storage.deleteOrigin("$scheme://$host$port")
+    }
+
+    // Loads the open page again from the network, skipping the cache for this one load.
+    fun reloadFresh() {
+        val view = webView ?: return
+        val address = view.url ?: return
+        view.stopLoading()
+        view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
+        bypassCache = true
+        view.loadUrl(address)
     }
 
     fun currentUrl(): String? = webView?.url
