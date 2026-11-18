@@ -555,18 +555,31 @@ class MainActivity : Activity() {
         return if (uri.scheme == "http" || uri.scheme == "https") uri.host else null
     }
 
-    // Asks first: clearing signs the user out of the site (DECISIONS.md 81).
+    // Asks first, with three choices (DECISIONS.md 81, 82). Login details and saved site data start ticked, cache not.
     private fun confirmClearSite() {
         val url = EngineAdapter.currentUrl() ?: return
         val host = siteHost() ?: return
         sheet.show(
             "Clear data for $host?",
-            "Removes the cookies and saved data this site keeps on your phone, so you are signed out of it. Sites that share its sign-in, such as other Google services, are signed out too. History and bookmarks stay.",
+            "Choose what to remove. The page reloads afterwards. History and bookmarks stay.",
             "Clear",
-        ) {
-            EngineAdapter.clearSiteData(url)
+            listOf(
+                Choice("Login details", "Cookies. You are signed out; sites sharing its sign-in, such as other Google services, too.", true),
+                Choice("Saved site data", "Local storage, databases and the saved location permission.", true),
+                Choice("Cache", "Saved page files. Applies to all sites, not only this one.", false),
+            ),
+        ) { ticked ->
+            val (logins, siteData, cache) = ticked
+            EngineAdapter.clearSiteData(url, logins, siteData, cache)
             EngineAdapter.reloadFresh()
-            showNotice("Cleared data for $host")
+            val site = listOfNotNull("login details".takeIf { logins }, "saved site data".takeIf { siteData }).joinToString(" and ")
+            showNotice(
+                when {
+                    site.isEmpty() -> "Cleared the cache"
+                    cache -> "Cleared $site for $host, and the cache"
+                    else -> "Cleared $site for $host"
+                },
+            )
         }
     }
 

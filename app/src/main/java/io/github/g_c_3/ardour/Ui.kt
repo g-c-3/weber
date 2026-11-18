@@ -41,6 +41,8 @@ object Ui {
 
     fun dp(context: Context, n: Int): Int = (n * context.resources.displayMetrics.density + 0.5f).toInt()
 
+    fun dp(context: Context, n: Float): Float = n * context.resources.displayMetrics.density
+
     private fun medium(): Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
     fun title(context: Context, text: String) = TextView(context).apply {
