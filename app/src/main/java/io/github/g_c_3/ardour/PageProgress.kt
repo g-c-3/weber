@@ -17,7 +17,8 @@ import android.view.animation.LinearInterpolator
 
 // Page loading line (DECISIONS.md 67): 2 dp, a faint track, an ember-to-amber fill that glides to each reported
 // value, a soft sheen travelling along the fill, and a small glow at the leading edge that fades as the load
-// completes. Finishing fills to the end and fades out. Before the first real progress a light sweeps the track.
+// completes. Finishing fills to the end and fades out. Until the engine passes 20% (its value while it waits for the
+// server) a light sweeps the track, so the wait does not look like a stall (DECISIONS.md 91).
 class PageProgress(context: Context) : View(context) {
     private val barHeight = Ui.dp(context, 2).toFloat()
     private val glowRadius = Ui.dp(context, 7).toFloat()
@@ -65,6 +66,7 @@ class PageProgress(context: Context) : View(context) {
     // Ignored while finishing: a late report would cancel the fill that starts the fade, and the line would stay.
     fun update(fraction: Float) {
         if (visibility != VISIBLE || finishing) return
+        if (indeterminate && fraction <= 0.2f) return
         indeterminate = false
         val target = fraction.coerceIn(0.06f, 1f)
         if (target <= shown) return
