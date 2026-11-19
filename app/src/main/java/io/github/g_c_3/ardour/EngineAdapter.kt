@@ -425,7 +425,10 @@ object EngineAdapter {
 
     @SuppressLint("SetJavaScriptEnabled")
     @Suppress("DEPRECATION")
+    private var pageListener: PageListener? = null
+
     fun createView(context: Context, listener: PageListener, onEngineLost: () -> Unit): View {
+        pageListener = listener
         appContext = context.applicationContext
         val view = WebView(context)
         // Profile first: no other call on the view before it (ROADMAP 2). Named Space profiles arrive in Phase 12.
@@ -672,6 +675,8 @@ object EngineAdapter {
         bypassCache = true
         Trace.progressReset()
         Trace.log("ACTION", "load for switch: ${if (address != null) Trace.safe(address) else "reload of open page"} cache=no-cache scale=${if (on) desktopFitPercent(view) else 0}")
+        // The engine reports the start only when the server answers, which can take seconds; the bar starts now.
+        pageListener?.onLoading(true)
         if (address != null) view.loadUrl(address) else view.reload()
     }
 
