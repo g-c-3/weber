@@ -83,6 +83,8 @@ object EngineAdapter {
 
     private const val DESKTOP_VIEWPORT_JS = """
 (function () {
+  // Phone agents say Mobile; a script left over from the desktop switch then does nothing (DECISIONS.md 90).
+  if (/Mobile/i.test(navigator.userAgent)) return;
   var W = 'width=1024';
   var obs;
   var n = 0;
