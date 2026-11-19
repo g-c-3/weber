@@ -151,11 +151,20 @@ class SettingsActivity : Activity() {
             addView(save, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = Ui.dp(ctx, 6) })
             addView(clear, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 6) })
         }
+        fun scriptLabel() = if (Prefs.get(ctx, Prefs.DIAG_NO_DESKTOP_SCRIPT)) "Desktop viewport script: off" else "Desktop viewport script: on"
+        val script = Ui.secondaryButton(ctx, scriptLabel())
+        script.setOnClickListener {
+            Prefs.set(ctx, Prefs.DIAG_NO_DESKTOP_SCRIPT, !Prefs.get(ctx, Prefs.DIAG_NO_DESKTOP_SCRIPT))
+            script.text = scriptLabel()
+        }
         return Ui.card(ctx).apply {
             addView(Ui.row(ctx, "Page load trace", "Addresses, progress, redirects and errors of the last page loads."))
             addView(status)
             addView(buttons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = Ui.dp(ctx, 12)
+                bottomMargin = Ui.dp(ctx, 8)
+            })
+            addView(script, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 bottomMargin = Ui.dp(ctx, 8)
             })
         }
