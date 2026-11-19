@@ -8,9 +8,13 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.provider.Settings
+import android.view.GestureDetector
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -22,6 +26,9 @@ class SettingsActivity : Activity() {
     }
 
     private var awaitingDefaults = false
+    private var content: LinearLayout? = null
+    private var scroller: ScrollView? = null
+    private var diagnosticsShown = false
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,8 +44,17 @@ class SettingsActivity : Activity() {
             setOnClickListener { finish() }
         }
         column.addView(back, LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)))
+        content = column
         column.addView(Ui.title(this, "Settings").apply {
             setPadding(Ui.dp(this@SettingsActivity, 4), Ui.dp(this@SettingsActivity, 20), 0, 0)
+            val taps = GestureDetector(this@SettingsActivity, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent) = true
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    revealDiagnostics()
+                    return true
+                }
+            })
+            setOnTouchListener { _, event -> taps.onTouchEvent(event) }
         })
         column.addView(Ui.sectionLabel(this, "About"))
         // Version row with the update button beside it (sideload build only); the line under it becomes the download bar.
@@ -80,10 +96,7 @@ class SettingsActivity : Activity() {
             })
         }
 
-        column.addView(Ui.sectionLabel(this, "Diagnostics"))
-        column.addView(traceCard(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-        val scroll = ScrollView(this).apply {
+        val scroll = ScrollView(this).also { scroller = it }.apply {
             isVerticalScrollBarEnabled = false
             addView(column, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             // Edge to edge at target SDK 36: keep content clear of the system bars.
@@ -99,6 +112,24 @@ class SettingsActivity : Activity() {
         }
         setContentView(scroll)
         if (savedInstanceState == null) Ui.enter((0 until column.childCount).map { column.getChildAt(it) })
+    }
+
+    // Diagnostics stay out of sight (DECISIONS.md 84): a double tap on the title adds them at the end of the page.
+    private fun revealDiagnostics() {
+        val column = content ?: return
+        if (diagnosticsShown) return
+        diagnosticsShown = true
+        val label = Ui.sectionLabel(this, "Diagnostics")
+        val card = traceCard()
+        column.addView(label)
+        column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        for (view in listOf(label, card)) {
+            view.alpha = 0f
+            view.translationY = Ui.dp(this, 14).toFloat()
+            view.animate().alpha(1f).translationY(0f).setDuration(280).setInterpolator(DecelerateInterpolator()).start()
+        }
+        card.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+        scroller?.post { scroller?.fullScroll(View.FOCUS_DOWN) }
     }
 
     // Page load trace (DECISIONS.md 84): kept in memory, written to Downloads only on Save.

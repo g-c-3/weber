@@ -66,6 +66,7 @@ object EngineAdapter {
     private var defaultMetadata: UserAgentMetadata? = null
     private var bypassCache = false
     private var httpErrorsLogged = 0
+    private var resourcesLogged = 0
     private var userNavAt = 0L
     private var desktopViewportScript: ScriptHandler? = null
     private var forceZoomScript: ScriptHandler? = null
@@ -491,6 +492,7 @@ object EngineAdapter {
                 val scheme = url?.substringBefore(':', "")
                 Trace.log("STARTED", "${Trace.safe(url)} back=${view.canGoBack()}")
                 httpErrorsLogged = 0
+                resourcesLogged = 0
                 if (scheme != null && scheme != "http" && scheme != "https" && scheme != "about") return
                 listener.onLoading(true)
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
@@ -533,6 +535,14 @@ object EngineAdapter {
                 Trace.log("SSLERR", "primary=${error.primaryError} ${Trace.safe(error.url)}")
                 handler.cancel()
                 listener.onError(error.url, PageError.SECURITY)
+            }
+
+            // Trace only: the resources a page asks for, up to 80 per page; the last ones before a stall show what it waits on.
+            override fun onLoadResource(view: WebView, url: String?) {
+                if (resourcesLogged < 80) {
+                    resourcesLogged++
+                    Trace.log("RES", Trace.safe(url))
+                }
             }
 
             // Reported for every resource that fails with an HTTP status of 400 or more; the trace keeps a few per page.

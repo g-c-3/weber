@@ -93,12 +93,13 @@ object Trace {
         - UI: the app's loading flag. loading=true shows the stop button and the loading line; loading=false shows reload.
         - POLL: after 90 percent the app asks the page whether its document is parsed (decision 66).
         - HEARTBEAT: every 2 s while loading: progress, the address the engine reports now and the one it was asked for first.
+        - RES: a resource the page asks the engine to load (up to 80 per page, no result). The last RES lines before a stall show what the page waits on.
         - HTTPERR: HTTP status 400 or more (main frame always; other resources up to 30 per page).
         - ERROR / SSLERR: load failures. RENDERER: the engine process ended.
         - CONSOLE: page script error messages (addresses reduced, 160 characters).
         - COOKIES: cookie names for the open address (values never recorded).
         A normal load reads: ACTION, UI loading=true, STARTED, NAV redirects, PROGRESS ..., COMMIT, PROGRESS 100, FINISHED, UI loading=false.
-        Look for: STARTED with no COMMIT or FINISHED after it (a stall), the same addresses repeating (a redirect loop), HEARTBEAT lines with a progress value that never changes, an ERROR code, or a load the engine never reported at all (ACTION without STARTED).
+        Look for: STARTED with no COMMIT or FINISHED after it (a stall; then read the last RES lines), the same addresses repeating (a redirect loop), HEARTBEAT lines with a progress value that never changes, an ERROR code, or a load the engine never reported at all (ACTION without STARTED).
 
         ## Privacy
         Addresses are host and path only: query values and long path parts are removed; fragments are kept only when short. No cookie values, no page content, no titles. Created only because Save was tapped; nothing is sent anywhere.
