@@ -944,6 +944,16 @@ object EngineAdapter {
     }
 
     // One line for the trace while a page loads: what the engine reports and what it was first asked for.
+    // Trace only: the page's document state, or the engine's answer text; no answer means the page's own thread is busy.
+    fun probe(onResult: (String) -> Unit) {
+        val view = webView
+        if (view == null) {
+            onResult("no view")
+            return
+        }
+        view.evaluateJavascript("document.readyState") { raw -> onResult(raw ?: "null") }
+    }
+
     fun heartbeat(): String {
         val view = webView ?: return "no view"
         return "progress=${view.progress} url=${Trace.safe(view.url)} asked=${Trace.safe(view.originalUrl)}"
