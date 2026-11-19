@@ -24,7 +24,7 @@ def run():
                 if re.search(pat, line):
                     out.append(Finding("error", NAME, f"{rel(p)}:{n}", why))
             if MARKER.search(line):
-                out.append(Finding("warn", NAME, f"{rel(p)}:{n}", "open TODO/FIXME marker"))
+                out.append(Finding("warn", NAME, f"{rel(p)}:{n}", "open work marker left in the text"))
     files = kotlin_files()
     allcode = "\n".join(strip_comments(read(p)) for p in files)
     for p in files:

@@ -16,7 +16,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Repository checks
+        # Errors stop the run before any build (annotated on the run page and on the line); warnings only annotate
+        # (DECISIONS.md 86, 87). The decision-number check needs the docs and runs in the assistant's sandbox.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/check.py --github --no-info
+
   build:
+    needs: checks
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -1,0 +1,93 @@
+name: cleanup
+
+# Old workflow runs and old releases (DECISIONS.md 87). Weekly: finished runs only, newest 40 kept. By hand: choose how
+# many runs and releases to keep; "delete" off lists what would go and removes nothing. Tags are never deleted, the
+# latest release and the protected tags always stay.
+on:
+  workflow_dispatch:
+    inputs:
+      keep_runs:
+        description: Newest finished workflow runs to keep
+        default: '40'
+        required: false
+      keep_releases:
+        description: Newest releases to keep (at least 3)
+        default: '8'
+        required: false
+      delete:
+        description: Really delete (off lists only)
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 3 * * 0'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      KEEP_RUNS: ${{ inputs.keep_runs || '40' }}
+      KEEP_RELEASES: ${{ inputs.keep_releases || '8' }}
+      DELETE_RUNS: ${{ github.event_name == 'schedule' || inputs.delete }}
+      DELETE_RELEASES: ${{ github.event_name == 'workflow_dispatch' && inputs.delete }}
+      # Carry the retired engine (DECISIONS.md 3, 26) and stay.
+      PROTECTED: v0.0.4 v0.0.5
+    steps:
+      - name: Check the numbers
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$KEEP_RUNS" =~ ^[0-9]+$ && "$KEEP_RUNS" -ge 10 ]] || { echo "::error::keep_runs must be a number of at least 10"; exit 1; }
+          [[ "$KEEP_RELEASES" =~ ^[0-9]+$ && "$KEEP_RELEASES" -ge 3 ]] || { echo "::error::keep_releases must be a number of at least 3"; exit 1; }
+
+      - name: Old workflow runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100&status=completed" \
+            --jq '.workflow_runs[] | "\(.run_number) \(.id)"' | sort -rn | awk -v k="$KEEP_RUNS" 'NR>k {print $2}' > old-runs.txt
+          COUNT=$(wc -l < old-runs.txt)
+          echo "### Workflow runs: $COUNT older than the newest $KEEP_RUNS" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$DELETE_RUNS" = "true" ]; then
+            while read -r id; do
+              [ -n "$id" ] && gh api -X DELETE "repos/$REPO/actions/runs/$id" --silent || true
+            done < old-runs.txt
+            echo "Deleted $COUNT runs." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Dry run: nothing deleted." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Old releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release list --limit 300 --json tagName,isLatest --jq '.[] | "\(.tagName) \(.isLatest)"' > releases.txt
+          sort -V -r releases.txt > sorted.txt
+          : > old-releases.txt
+          N=0
+          while read -r tag latest; do
+            N=$((N + 1))
+            if [ "$N" -le "$KEEP_RELEASES" ] || [ "$latest" = "true" ]; then continue; fi
+            case " $PROTECTED " in *" $tag "*) continue ;; esac
+            echo "$tag" >> old-releases.txt
+          done < sorted.txt
+          COUNT=$(wc -l < old-releases.txt)
+          echo "### Releases: $COUNT older than the newest $KEEP_RELEASES" >> "$GITHUB_STEP_SUMMARY"
+          cat old-releases.txt >> "$GITHUB_STEP_SUMMARY"
+          if [ "$DELETE_RELEASES" = "true" ]; then
+            while read -r tag; do
+              [ -n "$tag" ] && gh release delete "$tag" --yes
+            done < old-releases.txt
+            echo "Deleted $COUNT releases (their tags stay)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Dry run: nothing deleted." >> "$GITHUB_STEP_SUMMARY"
+          fi
