@@ -4,7 +4,7 @@ from .common import Finding, ROOT, SRC, kotlin_files, read, rel, strip_comments
 
 NAME = "pageload"
 CALLBACKS = ["onPageStarted", "onPageFinished", "onPageCommitVisible", "onReceivedError", "onReceivedHttpError", "onReceivedSslError",
-             "onRenderProcessGone", "doUpdateVisitedHistory", "shouldOverrideUrlLoading", "onProgressChanged"]
+             "onRenderProcessGone", "doUpdateVisitedHistory", "shouldOverrideUrlLoading", "onProgressChanged", "onLoadResource"]
 
 
 def block_after(text, marker):
