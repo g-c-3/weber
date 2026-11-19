@@ -12,6 +12,9 @@ object Prefs {
     const val READER_TEXT = "reader_text_tenths"
     const val READER_LEFT = "reader_left_aligned"
 
+    // Diagnostics only (hidden card in Settings): the desktop viewport script stays off, to test the Gmail stall.
+    const val DIAG_NO_DESKTOP_SCRIPT = "diag_no_desktop_script"
+
     private fun store(context: Context) = context.getSharedPreferences("ardour_options", Context.MODE_PRIVATE)
 
     // `default` applies until the user flips the switch; most switches start off.

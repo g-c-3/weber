@@ -585,7 +585,7 @@ object EngineAdapter {
         }
         desktopViewportScript?.remove()
         desktopViewportScript = null
-        if (desktopSite && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+        if (desktopSite && !Prefs.get(view.context, Prefs.DIAG_NO_DESKTOP_SCRIPT) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             try {
                 desktopViewportScript = WebViewCompat.addDocumentStartJavaScript(view, DESKTOP_VIEWPORT_JS, setOf("*"))
             } catch (_: IllegalArgumentException) {
