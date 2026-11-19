@@ -141,6 +141,7 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         }
     }
 
+    // Draws this action's icon in its tint.
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f

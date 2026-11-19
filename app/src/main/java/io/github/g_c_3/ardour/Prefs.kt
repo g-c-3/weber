@@ -9,7 +9,6 @@ object Prefs {
     const val WRAP = "wrap_on_zoom"
     const val THIRD_PARTY = "third_party_cookies"
     const val READER_PAPER = "reader_paper"
-    const val READER_SIZE = "reader_size"
     const val READER_TEXT = "reader_text_tenths"
     const val READER_LEFT = "reader_left_aligned"
 

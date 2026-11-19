@@ -562,6 +562,7 @@ class ReaderView(
         for (b in a.blocks) addBlock(b)
     }
 
+    // Adds one article block (heading, quote or text) to the column in the current look.
     private fun addBlock(b: ReaderBlock) {
         when (b.kind) {
             '1', '2', '3' -> {

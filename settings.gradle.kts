@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Gecko"
+rootProject.name = "Ardour"
 include(":app")

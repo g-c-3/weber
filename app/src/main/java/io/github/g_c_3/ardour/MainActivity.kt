@@ -30,7 +30,6 @@ import android.widget.TextView
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import android.annotation.TargetApi
-import kotlin.math.max
 
 class MainActivity : Activity() {
     private lateinit var address: AddressField
@@ -222,6 +221,7 @@ class MainActivity : Activity() {
 
     private fun px(n: Int) = Ui.dp(this, n)
 
+    // Builds the browser screen: top row of address and buttons, page area, start and error views, find bar; wires the engine.
     private fun buildBrowser(root: LinearLayout) {
         rootLayout = root
         backButton = IconButton(this, IconButton.Kind.BACK).apply {

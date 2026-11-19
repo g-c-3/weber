@@ -29,6 +29,7 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
 
     val showing: Boolean get() = backdrop != null
 
+    // Builds the card and rises it in. Cancel, a tap outside and Back dismiss it; confirm hands back the ticked states.
     fun show(
         title: String,
         body: String,
