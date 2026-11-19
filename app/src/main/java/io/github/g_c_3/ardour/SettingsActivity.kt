@@ -80,6 +80,9 @@ class SettingsActivity : Activity() {
             })
         }
 
+        column.addView(Ui.sectionLabel(this, "Diagnostics"))
+        column.addView(traceCard(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
         val scroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             addView(column, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -97,6 +100,38 @@ class SettingsActivity : Activity() {
         setContentView(scroll)
         if (savedInstanceState == null) Ui.enter((0 until column.childCount).map { column.getChildAt(it) })
     }
+
+    // Page load trace (DECISIONS.md 84): kept in memory, written to Downloads only on Save.
+    private fun traceCard(): View {
+        val ctx = this
+        val status = Ui.body(ctx, traceNote()).apply { setPadding(0, Ui.dp(ctx, 2), 0, 0) }
+        val save = Ui.secondaryButton(ctx, "Save trace")
+        val clear = Ui.secondaryButton(ctx, "Clear")
+        save.setOnClickListener {
+            val name = Trace.save(ctx)
+            status.text = if (name != null) "Saved to Downloads: $name" else "Could not save the file."
+        }
+        clear.setOnClickListener {
+            Trace.clear()
+            status.text = traceNote()
+        }
+        val buttons = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(save, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = Ui.dp(ctx, 6) })
+            addView(clear, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 6) })
+        }
+        return Ui.card(ctx).apply {
+            addView(Ui.row(ctx, "Page load trace", "Addresses, progress, redirects and errors of the last page loads."))
+            addView(status)
+            addView(buttons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = Ui.dp(ctx, 12)
+                bottomMargin = Ui.dp(ctx, 8)
+            })
+        }
+    }
+
+    private fun traceNote(): String =
+        "${Trace.size()} events in memory. Save writes a text file with addresses reduced to host and path. Nothing is sent anywhere."
 
     // Default browser: the system role dialog where Android shows it, otherwise the phone's Default apps screen.
     // Ardour changes nothing itself (DECISIONS.md 54). Only the button is shown, and not once Ardour already holds the role.
