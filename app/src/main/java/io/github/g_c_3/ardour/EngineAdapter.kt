@@ -512,6 +512,8 @@ object EngineAdapter {
 
             override fun onPageFinished(view: WebView, url: String?) {
                 Trace.log("FINISHED", "${Trace.safe(url)} progress=${view.progress} bypassCache=$bypassCache")
+                // A Desktop switch makes the engine end the replaced page first (progress under 100): not the switch load, so the bar and the no-cache mode stay.
+                if (bypassCache && view.progress < 100) return
                 if (bypassCache) {
                     bypassCache = false
                     view.settings.cacheMode = WebSettings.LOAD_DEFAULT
