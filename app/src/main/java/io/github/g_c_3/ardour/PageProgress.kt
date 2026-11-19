@@ -18,7 +18,8 @@ import android.view.animation.LinearInterpolator
 // Page loading line (DECISIONS.md 67): 2 dp, a faint track, an ember-to-amber fill that glides to each reported
 // value, a soft sheen travelling along the fill, and a small glow at the leading edge that fades as the load
 // completes. Finishing fills to the end and fades out. Until the engine passes 20% (its value while it waits for the
-// server) a light sweeps the track, so the wait does not look like a stall (DECISIONS.md 91).
+// server) the fill creeps slowly towards 18%, so the wait does not look like a stall and the line only ever moves
+// forward (DECISIONS.md 91, 93).
 class PageProgress(context: Context) : View(context) {
     private val barHeight = Ui.dp(context, 2).toFloat()
     private val glowRadius = Ui.dp(context, 7).toFloat()
@@ -40,7 +41,7 @@ class PageProgress(context: Context) : View(context) {
     private val clip = Path()
 
     private var shown = 0f
-    private var indeterminate = false
+    private var waiting = false
     private var phase = 0f
     private var glide: ValueAnimator? = null
     private var loop: ValueAnimator? = null
@@ -49,16 +50,19 @@ class PageProgress(context: Context) : View(context) {
         fill.shader = LinearGradient(0f, 0f, w.toFloat(), 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
     }
 
-    // A load begins: visible at once, sweeping until the engine reports real progress.
+    // A load begins: visible at once, creeping until the engine reports real progress. A second start while still
+    // waiting (the Desktop switch, then the engine's own start) keeps the creep going.
     fun start() {
+        if (visibility == VISIBLE && !finishing && waiting) return
         finishing = false
         animate().cancel()
         glide?.cancel()
         alpha = 1f
         visibility = VISIBLE
-        shown = 0.04f
-        indeterminate = true
+        shown = 0.02f
+        waiting = true
         startLoop()
+        glideTo(0.18f, 6000L, DecelerateInterpolator(1.4f)) {}
         invalidate()
     }
 
@@ -66,8 +70,8 @@ class PageProgress(context: Context) : View(context) {
     // Ignored while finishing: a late report would cancel the fill that starts the fade, and the line would stay.
     fun update(fraction: Float) {
         if (visibility != VISIBLE || finishing) return
-        if (indeterminate && fraction <= 0.2f) return
-        indeterminate = false
+        if (waiting && fraction <= 0.2f) return
+        waiting = false
         val target = fraction.coerceIn(0.06f, 1f)
         if (target <= shown) return
         glideTo(target, (160 + 520 * (target - shown)).toLong().coerceIn(160L, 640L), DecelerateInterpolator(1.6f)) {}
@@ -84,7 +88,7 @@ class PageProgress(context: Context) : View(context) {
         }
         if (finishing) return
         finishing = true
-        indeterminate = false
+        waiting = false
         glideTo(1f, 240L, AccelerateDecelerateInterpolator()) {
             animate().alpha(0f).setStartDelay(80).setDuration(340).withEndAction {
                 finishing = false
@@ -168,18 +172,6 @@ class PageProgress(context: Context) : View(context) {
         val r = barHeight / 2f
         rect.set(0f, top, w, bottom)
         canvas.drawRoundRect(rect, r, r, track)
-        if (indeterminate) {
-            val seg = w * 0.3f
-            val x = -seg + (w + seg) * phase
-            clip.reset()
-            clip.addRoundRect(rect, r, r, Path.Direction.CW)
-            canvas.save()
-            canvas.clipPath(clip)
-            rect.set(x, top, x + seg, bottom)
-            canvas.drawRoundRect(rect, r, r, fill)
-            canvas.restore()
-            return
-        }
         val end = w * shown
         if (end <= 0f) return
         rect.set(0f, top, end, bottom)
