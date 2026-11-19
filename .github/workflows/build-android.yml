@@ -46,7 +46,17 @@ jobs:
       - run: chmod +x gradlew
       - name: Build debug APK
         shell: bash
-        run: ./gradlew --no-daemon :app:assembleSideloadDebug -PardourVersion="$ARDOUR_VERSION" 2>&1 | tee gradle.log
+        # One retry after a dependency download error; never after a checksum mismatch (DECISIONS.md 92).
+        run: |
+          build() { ./gradlew --no-daemon :app:assembleSideloadDebug -PardourVersion="$ARDOUR_VERSION" 2>&1 | tee gradle.log; }
+          if ! build; then
+            if grep -q "verification failed" gradle.log || ! grep -qE "Could not (find|resolve|GET|HEAD)|timed out|Connection reset" gradle.log; then
+              exit 1
+            fi
+            echo "Dependency download failed; retrying once in 20 s."
+            sleep 20
+            build
+          fi
       - name: Annotate build errors
         if: failure()
         run: sh .github/ci/annotate-errors.sh gradle.log
