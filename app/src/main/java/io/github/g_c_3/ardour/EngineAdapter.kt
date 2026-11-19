@@ -77,6 +77,7 @@ object EngineAdapter {
     // Desktop site: pages are laid out 1024 px wide, as other browsers do, so the whole page fits the screen at first.
     // The engine always obeys a page's own viewport tags (the last one wins), so every one is rewritten as it appears and
     // kept that way; a page without one already gets a wide layout, so none is added (DECISIONS.md 76, 79).
+    // After 20 rewrites the script stops: a page that sets its tag back each time would otherwise freeze it (DECISIONS.md 89).
     // The layout width in css px; the script below uses the same number.
     private const val DESKTOP_WIDTH = 1024
 
@@ -84,17 +85,23 @@ object EngineAdapter {
 (function () {
   var W = 'width=1024';
   var obs;
+  var n = 0;
+  var done = false;
   function fix() {
+    if (done) return;
     var list = document.querySelectorAll('meta[name="viewport" i]');
     for (var i = 0; i < list.length; i++) {
       var m = list[i];
-      if (m.getAttribute('content') !== W) m.setAttribute('content', W);
+      if (m.getAttribute('content') !== W) {
+        if (++n > 20) { done = true; obs.disconnect(); return; }
+        m.setAttribute('content', W);
+      }
       obs.observe(m, { attributes: true, attributeFilter: ['content'] });
     }
   }
   obs = new MutationObserver(function () {
     fix();
-    if (document.head) obs.observe(document.head, { childList: true });
+    if (!done && document.head) obs.observe(document.head, { childList: true });
   });
   function setup() {
     if (!document.documentElement) return false;
