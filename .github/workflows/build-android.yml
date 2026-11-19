@@ -106,7 +106,17 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         shell: bash
-        run: ./gradlew --no-daemon :app:assembleSideloadRelease -PardourVersion="$VERSION" 2>&1 | tee gradle-release.log
+        # One retry after a dependency download error; never after a checksum mismatch (DECISIONS.md 92).
+        run: |
+          build() { ./gradlew --no-daemon :app:assembleSideloadRelease -PardourVersion="$VERSION" 2>&1 | tee gradle-release.log; }
+          if ! build; then
+            if grep -q "verification failed" gradle-release.log || ! grep -qE "Could not (find|resolve|GET|HEAD)|timed out|Connection reset" gradle-release.log; then
+              exit 1
+            fi
+            echo "Dependency download failed; retrying once in 20 s."
+            sleep 20
+            build
+          fi
       - name: Annotate release build errors
         if: failure()
         run: sh .github/ci/annotate-errors.sh gradle-release.log
