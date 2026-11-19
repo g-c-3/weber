@@ -19,7 +19,6 @@ import android.view.animation.PathInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.EditText
-import android.widget.LinearLayout
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -82,6 +81,7 @@ class IconButton(context: Context, kind: Kind) : View(context) {
         alpha = if (enabled) 1f else 0.3f
     }
 
+    // Draws the icon of the current kind: arrows, stop cross, reload arc, menu dots, up and down chevrons.
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
