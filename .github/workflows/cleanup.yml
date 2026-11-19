@@ -35,6 +35,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
+      # The release commands run without a checkout and need the repository named.
+      GH_REPO: ${{ github.repository }}
       KEEP_RUNS: ${{ inputs.keep_runs || '40' }}
       KEEP_RELEASES: ${{ inputs.keep_releases || '8' }}
       DELETE_RUNS: ${{ github.event_name == 'schedule' || inputs.delete }}
