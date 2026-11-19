@@ -93,6 +93,7 @@ object Trace {
         - UI: the app's loading flag. loading=true shows the stop button and the loading line; loading=false shows reload.
         - POLL: after 90 percent the app asks the page whether its document is parsed (decision 66).
         - HEARTBEAT: every 2 s while loading: progress, the address the engine reports now and the one it was asked for first.
+        - PROBE: with each heartbeat the page is asked for its document state (loading, interactive, complete). "no answer" means the page's own thread is busy (a script); "loading" for many beats means it waits for the server.
         - RES: a resource the page asks the engine to load (up to 80 per page, no result). The last RES lines before a stall show what the page waits on.
         - HTTPERR: HTTP status 400 or more (main frame always; other resources up to 30 per page).
         - ERROR / SSLERR: load failures. RENDERER: the engine process ended.

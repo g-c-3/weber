@@ -83,6 +83,13 @@ class MainActivity : Activity() {
         override fun run() {
             if (!loading) return
             Trace.log("HEARTBEAT", "load=$loadId ${EngineAdapter.heartbeat()}")
+            val beat = beats
+            var answered = false
+            EngineAdapter.probe { state ->
+                answered = true
+                Trace.log("PROBE", "load=$loadId beat=$beat state=$state")
+            }
+            progress.postDelayed({ if (!answered) Trace.log("PROBE", "load=$loadId beat=$beat no answer after 1.5 s") }, 1500L)
             if (++beats < 90) progress.postDelayed(this, 2000L)
         }
     }
