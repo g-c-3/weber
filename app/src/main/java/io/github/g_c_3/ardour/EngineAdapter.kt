@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.net.Uri
 import android.net.http.SslError
 import android.os.SystemClock
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.WebStorage
@@ -22,6 +23,7 @@ import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -63,6 +65,7 @@ object EngineAdapter {
     private var defaultAgent: String? = null
     private var defaultMetadata: UserAgentMetadata? = null
     private var bypassCache = false
+    private var httpErrorsLogged = 0
     private var userNavAt = 0L
     private var desktopViewportScript: ScriptHandler? = null
     private var forceZoomScript: ScriptHandler? = null
@@ -445,7 +448,16 @@ object EngineAdapter {
         }
         view.setBackgroundColor(Ui.PAPER)
         view.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView, newProgress: Int) = listener.onProgress(newProgress)
+            override fun onProgressChanged(view: WebView, newProgress: Int) {
+                Trace.progress(newProgress)
+                listener.onProgress(newProgress)
+            }
+
+            // Page script errors go to the trace only (addresses reduced); the engine's own handling is kept.
+            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) Trace.log("CONSOLE", Trace.scrub(message.message()))
+                return super.onConsoleMessage(message)
+            }
         }
         // Find in page results: active match is 0-based, total is the match count.
         view.setFindListener { active, total, _ -> listener.onFind(active, total) }
@@ -455,6 +467,7 @@ object EngineAdapter {
                 val scheme = request.url.scheme
                 val web = scheme == "http" || scheme == "https"
                 val now = SystemClock.uptimeMillis()
+                Trace.log("NAV", "main=${request.isForMainFrame} redirect=${request.isRedirect} gesture=${request.hasGesture()} ${request.method} ${Trace.safe(request.url.toString())}")
                 if (web && request.isForMainFrame && request.hasGesture()) userNavAt = now
                 // A tap, or a redirect within a few seconds of one (a link that goes through the site's own address
                 // before it reaches the app), may open another app. Anything else never does.
@@ -476,16 +489,20 @@ object EngineAdapter {
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
                 // Only web pages count as loading; an address handed to another app must not leave the bar running.
                 val scheme = url?.substringBefore(':', "")
+                Trace.log("STARTED", "${Trace.safe(url)} back=${view.canGoBack()}")
+                httpErrorsLogged = 0
                 if (scheme != null && scheme != "http" && scheme != "https" && scheme != "about") return
                 listener.onLoading(true)
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
             }
 
             override fun onPageCommitVisible(view: WebView, url: String?) {
+                Trace.log("COMMIT", Trace.safe(url))
                 listener.onCommitVisible()
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
+                Trace.log("FINISHED", "${Trace.safe(url)} progress=${view.progress} bypassCache=$bypassCache")
                 if (bypassCache) {
                     bypassCache = false
                     view.settings.cacheMode = WebSettings.LOAD_DEFAULT
@@ -497,6 +514,7 @@ object EngineAdapter {
 
             // Main-frame failures only; the screen shows its own page instead of the engine's (DECISIONS.md 46).
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                Trace.log("ERROR", "main=${request.isForMainFrame} code=${error.errorCode} ${error.description} ${Trace.safe(request.url.toString())}")
                 if (!request.isForMainFrame) return
                 val text = error.description?.toString().orEmpty()
                 val kind = when {
@@ -512,15 +530,27 @@ object EngineAdapter {
 
             // Certificate problems are never bypassed: the load is cancelled.
             override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+                Trace.log("SSLERR", "primary=${error.primaryError} ${Trace.safe(error.url)}")
                 handler.cancel()
                 listener.onError(error.url, PageError.SECURITY)
             }
 
-            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) =
+            // Reported for every resource that fails with an HTTP status of 400 or more; the trace keeps a few per page.
+            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
+                if (request.isForMainFrame || httpErrorsLogged < 30) {
+                    if (!request.isForMainFrame) httpErrorsLogged++
+                    Trace.log("HTTPERR", "main=${request.isForMainFrame} status=${errorResponse.statusCode} ${Trace.safe(request.url.toString())}")
+                }
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+                Trace.log("HISTORY", "${Trace.safe(url)} reload=$isReload back=${view.canGoBack()} forward=${view.canGoForward()}")
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
+            }
 
             // Renderer ended: drop the view and let the app build a new one; returning false would end the app.
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                Trace.log("RENDERER", "ended, crashed=${detail.didCrash()}")
                 (view.parent as? ViewGroup)?.removeView(view)
                 view.destroy()
                 if (webView === view) webView = null
@@ -550,13 +580,16 @@ object EngineAdapter {
                 desktopViewportScript = WebViewCompat.addDocumentStartJavaScript(view, DESKTOP_VIEWPORT_JS, setOf("*"))
             } catch (_: IllegalArgumentException) {
                 // The origin rule was refused; pages keep their own viewport.
+                Trace.log("ENGINE", "desktop viewport script refused")
             }
         }
+        Trace.log("ENGINE", "applied desktop=$desktopSite script=${desktopViewportScript != null} agent=${view.settings.userAgentString}")
         val original = defaultMetadata ?: return
         try {
             WebSettingsCompat.setUserAgentMetadata(view.settings, if (desktopSite) desktopMetadata(original) else original)
         } catch (e: Exception) {
             // Hints stay as they were; the user-agent string still changed.
+            Trace.log("ENGINE", "client hints not changed: ${e.javaClass.simpleName}")
         }
     }
 
@@ -605,6 +638,8 @@ object EngineAdapter {
     fun setDesktopSite(on: Boolean, reloadPage: Boolean) {
         desktopSite = on
         val view = webView ?: return
+        Trace.log("ACTION", "desktop site ${if (on) "on" else "off"} reload=$reloadPage open=${Trace.safe(view.url)} progress=${view.progress}")
+        Trace.log("COOKIES", cookieNames(view.url))
         view.stopLoading()
         applyDesktop(view)
         if (!reloadPage) return
@@ -614,6 +649,8 @@ object EngineAdapter {
         view.setInitialScale(if (on) desktopFitPercent(view) else 0)
         view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         bypassCache = true
+        Trace.progressReset()
+        Trace.log("ACTION", "load for switch: ${if (address != null) Trace.safe(address) else "reload of open page"} cache=no-cache scale=${if (on) desktopFitPercent(view) else 0}")
         if (address != null) view.loadUrl(address) else view.reload()
     }
 
@@ -751,6 +788,7 @@ object EngineAdapter {
         val view = webView ?: return
         val uri = Uri.parse(url)
         val host = uri.host
+        Trace.log("ACTION", "clear site data logins=$logins siteData=$siteData cache=$cache ${Trace.safe(url)}")
         if (host != null && logins) clearCookies(url, uri, host)
         if (host != null && siteData) {
             val port = if (uri.port != -1) ":" + uri.port else ""
@@ -792,6 +830,8 @@ object EngineAdapter {
         view.stopLoading()
         view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         bypassCache = true
+        Trace.progressReset()
+        Trace.log("ACTION", "fresh load ${Trace.safe(address)} cache=no-cache")
         view.loadUrl(address)
     }
 
@@ -863,20 +903,69 @@ object EngineAdapter {
 
     fun clearFind() = webView?.clearMatches()
 
-    fun load(url: String) = webView?.loadUrl(url)
+    fun load(url: String) {
+        Trace.progressReset()
+        Trace.log("ACTION", "load typed ${Trace.safe(url)}")
+        webView?.loadUrl(url)
+    }
 
     // Stops whatever still loads in the background first, so a reload tap always restarts the page at once.
     fun reload() {
         val view = webView ?: return
+        Trace.progressReset()
+        Trace.log("ACTION", "reload ${Trace.safe(view.url)}")
         view.stopLoading()
         view.reload()
     }
 
-    fun stop() = webView?.stopLoading()
+    fun stop() {
+        Trace.log("ACTION", "stop ${Trace.safe(webView?.url)} progress=${webView?.progress}")
+        webView?.stopLoading()
+    }
 
-    fun goBack() = webView?.goBack()
+    fun goBack() {
+        Trace.log("ACTION", "back from ${Trace.safe(webView?.url)}")
+        webView?.goBack()
+    }
 
-    fun goForward() = webView?.goForward()
+    fun goForward() {
+        Trace.log("ACTION", "forward from ${Trace.safe(webView?.url)}")
+        webView?.goForward()
+    }
+
+    // One line for the trace while a page loads: what the engine reports and what it was first asked for.
+    fun heartbeat(): String {
+        val view = webView ?: return "no view"
+        return "progress=${view.progress} url=${Trace.safe(view.url)} asked=${Trace.safe(view.originalUrl)}"
+    }
+
+    // Cookie names (never values) the engine would send for this address.
+    private fun cookieNames(url: String?): String {
+        if (url == null) return "-"
+        val names = CookieManager.getInstance().getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() }.orEmpty()
+        return "${names.size} for ${Trace.safe(url)}: ${names.joinToString(", ")}"
+    }
+
+    // The engine's state for the top of a saved trace.
+    fun traceState(): String {
+        val view = webView ?: return "No page view exists."
+        val b = StringBuilder()
+        b.append("url=${Trace.safe(view.url)}\n")
+        b.append("asked=${Trace.safe(view.originalUrl)}\n")
+        b.append("progress=${view.progress} back=${view.canGoBack()} forward=${view.canGoForward()}\n")
+        b.append("desktopSite=$desktopSite bypassCache=$bypassCache cacheMode=${view.settings.cacheMode} (-1 default, 1 cache else network, 2 no cache, 3 cache only)\n")
+        b.append("view size ${view.width} x ${view.height} px\n")
+        b.append("default agent=$defaultAgent\n")
+        b.append("agent now=${view.settings.userAgentString}\n")
+        b.append("cookies ${cookieNames(view.url)}\n")
+        val list = view.copyBackForwardList()
+        b.append("history (${list.size} entries, > marks the current one):\n")
+        for (i in 0 until list.size) {
+            val item = list.getItemAtIndex(i)
+            b.append(if (i == list.currentIndex) "> " else "  ").append(i).append(' ').append(Trace.safe(item.url)).append('\n')
+        }
+        return b.toString()
+    }
 
     fun canGoBack(): Boolean = webView?.canGoBack() == true
 

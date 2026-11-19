@@ -78,9 +78,20 @@ class MainActivity : Activity() {
         if (loading && lastPercent >= 90 && committedId == loadId && readyPollId != loadId) pollDocument(loadId)
     }
 
+    // Trace only (DECISIONS.md 84): a line every 2 s while a page loads, at most 90 per load.
+    private var beats = 0
+    private val heartbeat = object : Runnable {
+        override fun run() {
+            if (!loading) return
+            Trace.log("HEARTBEAT", "load=$loadId ${EngineAdapter.heartbeat()}")
+            if (++beats < 90) progress.postDelayed(this, 2000L)
+        }
+    }
+
     private fun pollDocument(id: Int) {
         readyPollId = id
         EngineAdapter.documentParsed { parsed ->
+            Trace.log("POLL", "load=$id parsed=$parsed current=${loadId == id && loading}")
             if (!loading || loadId != id) return@documentParsed
             if (parsed) listener.onLoading(false) else progress.postDelayed({ if (loading && loadId == id) pollDocument(id) }, 300L)
         }
@@ -127,6 +138,7 @@ class MainActivity : Activity() {
 
         override fun onCommitVisible() {
             committedId = loadId
+            Trace.log("UI", "commit load=$loadId")
             maybePollDocument()
         }
 
@@ -135,6 +147,12 @@ class MainActivity : Activity() {
             if (loading) {
                 loadId++
                 lastPercent = 0
+            }
+            Trace.log("UI", "loading=$loading load=$loadId")
+            progress.removeCallbacks(heartbeat)
+            if (loading) {
+                beats = 0
+                progress.postDelayed(heartbeat, 2000L)
             }
             if (loading) errorView.visibility = View.GONE
             if (loading && finding) closeFind()
@@ -679,6 +697,7 @@ class MainActivity : Activity() {
 
     private fun submit(text: String) {
         val target = UrlInput.resolve(text) ?: return
+        Trace.log("ACTION", "submit ${text.length} characters typed")
         EngineAdapter.load(target)
         leaveAddress()
         beginNavigation(target)
