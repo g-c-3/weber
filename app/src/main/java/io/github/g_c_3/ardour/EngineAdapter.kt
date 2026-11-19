@@ -423,10 +423,10 @@ object EngineAdapter {
     fun webViewVersion(context: Context): String? =
         WebViewCompat.getCurrentWebViewPackage(context)?.let { "${it.versionName} (${it.packageName})" }
 
-    @SuppressLint("SetJavaScriptEnabled")
-    @Suppress("DEPRECATION")
     private var pageListener: PageListener? = null
 
+    @SuppressLint("SetJavaScriptEnabled")
+    @Suppress("DEPRECATION")
     fun createView(context: Context, listener: PageListener, onEngineLost: () -> Unit): View {
         pageListener = listener
         appContext = context.applicationContext
