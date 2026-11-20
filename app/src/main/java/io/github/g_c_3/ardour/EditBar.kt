@@ -17,6 +17,8 @@ import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
+import kotlin.math.PI
+import kotlin.math.cos
 
 // Hand-drawn line icons for the address actions.
 class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context) {
@@ -33,8 +35,8 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
             invalidate()
         }
 
-    // Go only: while on, the arrow's shaft slowly fills like a tiny progress line, the head lights at the end, then it
-    // fades and starts again (DECISIONS.md 71). Off: a dim static arrow.
+    // Go only: while on, the arrow is fully amber and its glow and brightness slowly pulse in and out (DECISIONS.md 71,
+    // 102). Off: a dim static arrow.
     var flow: Boolean = false
         set(value) {
             field = value
@@ -48,7 +50,6 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
-    private val flowTip = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
     private val u = Ui.dp(context, 1).toFloat()
     private val k = 1.6f // the Go arrow is drawn larger than the other icons
@@ -87,7 +88,7 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         if (run && ValueAnimator.areAnimatorsEnabled()) {
             if (flowAnim == null) {
                 flowAnim = ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 2800
+                    duration = 2400
                     repeatCount = ValueAnimator.INFINITE
                     interpolator = LinearInterpolator()
                     addUpdateListener {
@@ -100,45 +101,33 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         } else {
             flowAnim?.cancel()
             flowAnim = null
-            phase = if (flow) 0.8f else 0f
+            phase = if (flow) 0.5f else 0f
             invalidate()
         }
     }
 
-    // The arrow: a faint amber track with a fill that glides along the shaft, the head lighting once it arrives.
+    // The arrow: full ember-to-amber, with a soft glow and a slight change in brightness that breathe in and out.
     private fun drawFlowArrow(canvas: Canvas, cx: Float, cy: Float) {
         val x0 = cx - 9f * u * k
         val x1 = cx + 7f * u * k
         val head = 4.6f * u * k
-        flowLine.strokeWidth = u * 3.2f
-        flowTip.color = Ui.AMBER
-        val fillAmount = (phase / 0.68f).coerceIn(0f, 1f)
-        val eased = 1f - (1f - fillAmount) * (1f - fillAmount)
-        val fade = if (phase > 0.86f) ((1f - phase) / 0.14f).coerceIn(0f, 1f) else 1f
-        val headLit = ((phase - 0.6f) / 0.12f).coerceIn(0f, 1f) * fade
-        // Faint track.
-        line.color = Ui.AMBER
-        line.alpha = 70
-        line.strokeWidth = u * 3.2f
-        canvas.drawLine(x0, cy, x1, cy, line)
+        val s = 0.5f - 0.5f * cos(2f * PI.toFloat() * phase)
         path.reset()
         path.moveTo(x1 - head, cy - head)
         path.lineTo(x1, cy)
         path.lineTo(x1 - head, cy + head)
-        canvas.drawPath(path, line)
-        // Fill and the lit head.
-        flowLine.alpha = (255 * fade).toInt()
-        val tip = x0 + (x1 - x0) * eased
-        if (tip > x0) canvas.drawLine(x0, cy, tip, cy, flowLine)
-        if (headLit > 0f) {
-            flowLine.alpha = (255 * headLit).toInt()
-            canvas.drawPath(path, flowLine)
+        line.color = Ui.AMBER
+        for ((width, base, swing) in listOf(Triple(7.6f, 10f, 22f), Triple(5.4f, 16f, 30f))) {
+            line.strokeWidth = u * width
+            line.alpha = (base + swing * s).toInt()
+            canvas.drawLine(x0, cy, x1, cy, line)
+            canvas.drawPath(path, line)
         }
-        // Soft spark at the front of the fill while it travels.
-        if (fillAmount < 1f && fade > 0f) {
-            flowTip.alpha = (150 * fade).toInt()
-            canvas.drawCircle(tip, cy, 3.2f * u, flowTip)
-        }
+        flowLine.strokeWidth = u * 3.2f
+        flowLine.alpha = (205 + 50 * s).toInt()
+        canvas.drawLine(x0, cy, x1, cy, flowLine)
+        canvas.drawPath(path, flowLine)
+        line.strokeWidth = u * 1.6f
     }
 
     // Draws this action's icon in its tint.
