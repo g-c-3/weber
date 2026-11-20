@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$KEEP_RUNS" =~ ^[0-9]+$ && "$KEEP_RUNS" -ge 10 ]] || { echo "::error::keep_runs must be a number of at least 10"; exit 1; }
+          [[ "$KEEP_RUNS" =~ ^[0-9]+$ && "$KEEP_RUNS" -ge 1 ]] || { echo "::error::keep_runs must be a number of at least 1"; exit 1; }
           [[ "$KEEP_RELEASES" =~ ^[0-9]+$ && "$KEEP_RELEASES" -ge 1 ]] || { echo "::error::keep_releases must be a number of at least 1"; exit 1; }
 
       - name: Old workflow runs
