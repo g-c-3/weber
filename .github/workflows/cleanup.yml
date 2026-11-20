@@ -2,7 +2,7 @@ name: cleanup
 
 # Old workflow runs and old releases (DECISIONS.md 87). Weekly: finished runs only, newest 40 kept. By hand: choose how
 # many runs and releases to keep; "delete" off lists what would go and removes nothing. Tags are never deleted, the
-# latest release and the protected tags always stay.
+# latest release always stays; no release is protected (DECISIONS.md 99).
 on:
   workflow_dispatch:
     inputs:
@@ -41,8 +41,6 @@ jobs:
       KEEP_RELEASES: ${{ inputs.keep_releases || '8' }}
       DELETE_RUNS: ${{ github.event_name == 'schedule' || inputs.delete }}
       DELETE_RELEASES: ${{ github.event_name == 'workflow_dispatch' && inputs.delete }}
-      # Carry the retired engine (DECISIONS.md 3, 26) and stay.
-      PROTECTED: v0.0.4 v0.0.5
     steps:
       - name: Check the numbers
         shell: bash
@@ -79,7 +77,6 @@ jobs:
           while read -r tag latest; do
             N=$((N + 1))
             if [ "$N" -le "$KEEP_RELEASES" ] || [ "$latest" = "true" ]; then continue; fi
-            case " $PROTECTED " in *" $tag "*) continue ;; esac
             echo "$tag" >> old-releases.txt
           done < sorted.txt
           COUNT=$(wc -l < old-releases.txt)

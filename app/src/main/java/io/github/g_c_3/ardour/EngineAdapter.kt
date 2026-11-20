@@ -425,6 +425,12 @@ object EngineAdapter {
 
     private var pageListener: PageListener? = null
 
+    // Host of the main-frame address last requested or started; tells the page's own certificate error from another site's.
+    private var mainFrameHost: String? = null
+
+    // A main-frame navigation was requested and the engine has not reported its start yet.
+    private var navPending = false
+
     @SuppressLint("SetJavaScriptEnabled")
     @Suppress("DEPRECATION")
     fun createView(context: Context, listener: PageListener, onEngineLost: () -> Unit): View {
@@ -480,6 +486,7 @@ object EngineAdapter {
                 val scheme = request.url.scheme
                 val web = scheme == "http" || scheme == "https"
                 val now = SystemClock.uptimeMillis()
+                if (web && request.isForMainFrame) mainFrameHost = request.url.host?.lowercase()
                 Trace.log("NAV", "main=${request.isForMainFrame} redirect=${request.isRedirect} gesture=${request.hasGesture()} ${request.method} ${Trace.safe(request.url.toString())}")
                 if (web && request.isForMainFrame && request.hasGesture()) userNavAt = now
                 // A tap, or a redirect within a few seconds of one (a link that goes through the site's own address
@@ -496,6 +503,7 @@ object EngineAdapter {
                     listener.onPage(view.url, view.canGoBack(), view.canGoForward())
                     listener.onLoading(false)
                 }
+                if (web && request.isForMainFrame) navPending = true
                 return !web
             }
 
@@ -503,8 +511,10 @@ object EngineAdapter {
                 // Only web pages count as loading; an address handed to another app must not leave the bar running.
                 val scheme = url?.substringBefore(':', "")
                 Trace.log("STARTED", "${Trace.safe(url)} back=${view.canGoBack()}")
+                navPending = false
                 httpErrorsLogged = 0
                 resourcesLogged = 0
+                if (scheme == "http" || scheme == "https") mainFrameHost = Uri.parse(url).host?.lowercase()
                 if (scheme != null && scheme != "http" && scheme != "https" && scheme != "about") return
                 listener.onLoading(true)
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
@@ -517,8 +527,8 @@ object EngineAdapter {
 
             override fun onPageFinished(view: WebView, url: String?) {
                 Trace.log("FINISHED", "${Trace.safe(url)} progress=${view.progress} bypassCache=$bypassCache")
-                // A Desktop switch makes the engine end the replaced page first (progress under 100): not the switch load, so the bar and the no-cache mode stay.
-                if (bypassCache && view.progress < 100) return
+                // A tap or a Desktop switch makes the engine end the replaced page first (progress under 100): not the new load, so the bar and the no-cache mode stay (DECISIONS.md 97).
+                if ((bypassCache || navPending) && view.progress < 100) return
                 if (bypassCache) {
                     bypassCache = false
                     view.settings.cacheMode = WebSettings.LOAD_DEFAULT
@@ -544,11 +554,15 @@ object EngineAdapter {
                 listener.onError(request.url.toString(), kind)
             }
 
-            // Certificate problems are never bypassed: the load is cancelled.
+            // Certificate problems are never bypassed: the load is cancelled. Only the page itself gets the error page;
+            // a frame or file of another site (an ad, say) is refused silently and the page stays (DECISIONS.md 96).
             override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
-                Trace.log("SSLERR", "primary=${error.primaryError} ${Trace.safe(error.url)}")
+                val host = Uri.parse(error.url).host?.lowercase()
+                val pageHosts = listOf(mainFrameHost, Uri.parse(view.url ?: "").host?.lowercase(), Uri.parse(view.originalUrl ?: "").host?.lowercase())
+                val main = host == null || host in pageHosts
+                Trace.log("SSLERR", "main=$main primary=${error.primaryError} ${Trace.safe(error.url)}")
                 handler.cancel()
-                listener.onError(error.url, PageError.SECURITY)
+                if (main) listener.onError(error.url, PageError.SECURITY)
             }
 
             // Trace only: the resources a page asks for, up to 80 per page; the last ones before a stall show what it waits on.
