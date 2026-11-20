@@ -14,6 +14,7 @@ import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.view.ViewGroup
@@ -27,10 +28,12 @@ class MenuItem(
     val label: String,
     val enabled: Boolean = true,
     val toggle: Boolean? = null,
+    val dividerBefore: Boolean = false,
     val onTap: () -> Unit,
 )
 
-// Card that opens from the menu button, drawn by Ardour (DECISIONS.md 38).
+// Card that grows out of the menu button, drawn by Ardour (DECISIONS.md 38, 104): the dots turn, the page dims softly, the
+// rows settle in one after another; closing reverses it. Thin lines separate the groups of rows.
 object MenuPopup {
     fun show(anchor: View, items: List<MenuItem>) {
         val context = anchor.context
@@ -61,9 +64,24 @@ object MenuPopup {
         // around it, closes it the same way.
         var closing = false
         var below = false
+        var dimAmount = 0f
+        // The page behind the card dims with the card's progress (the popup window's own dim).
+        fun setDim(amount: Float) {
+            dimAmount = amount
+            val root = holder.rootView
+            val lp = root.layoutParams as? WindowManager.LayoutParams ?: return
+            lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_DIM_BEHIND
+            lp.dimAmount = amount
+            (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).updateViewLayout(root, lp)
+        }
         fun close() {
             if (closing) return
             closing = true
+            ValueAnimator.ofFloat(dimAmount, 0f).apply {
+                duration = 150
+                addUpdateListener { if (popup.isShowing) setDim(it.animatedValue as Float) }
+                start()
+            }
             card.animate().cancel()
             card.animate().alpha(0f).scaleX(0.94f).scaleY(0.94f).translationY(if (below) -Ui.dp(context, 4).toFloat() else Ui.dp(context, 4).toFloat())
                 .setDuration(150).setInterpolator(AccelerateInterpolator()).withEndAction { popup.dismiss() }.start()
@@ -77,7 +95,13 @@ object MenuPopup {
                 false
             }
         }
-        for (item in items) card.addView(row(context, item, ::close))
+        for (item in items) {
+            if (item.dividerBefore) card.addView(divider(context))
+            card.addView(row(context, item, ::close))
+        }
+        // The menu button turns while the card is open and always turns back, however the card closes.
+        anchor.animate().rotation(90f).setDuration(420).setInterpolator(SpringInterpolator()).start()
+        popup.setOnDismissListener { anchor.animate().rotation(0f).setDuration(420).setInterpolator(SpringInterpolator()).start() }
 
         holder.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val loc = IntArray(2)
@@ -88,17 +112,40 @@ object MenuPopup {
         val y = if (below) loc[1] + anchor.height - margin else loc[1] - holder.measuredHeight + margin
         popup.showAtLocation(anchor.rootView, Gravity.NO_GRAVITY, x, y)
 
-        // Opens with a quick fade and a spring settle from the button's corner.
-        val lift = Ui.dp(context, 6).toFloat()
+        // Opens out of the button's corner with a spring, then the rows settle in one after another.
+        val lift = Ui.dp(context, 10).toFloat()
+        val finals = (0 until card.childCount).map { card.getChildAt(it).alpha }
+        for (i in 0 until card.childCount) {
+            card.getChildAt(i).apply {
+                alpha = 0f
+                translationY = if (below) -lift else lift
+            }
+        }
         card.alpha = 0f
-        card.scaleX = 0.92f
-        card.scaleY = 0.92f
-        card.translationY = if (below) -lift else lift
+        card.scaleX = 0.6f
+        card.scaleY = 0.6f
         card.post {
-            card.pivotX = card.width.toFloat()
+            card.pivotX = card.width - Ui.dp(context, 22).toFloat()
             card.pivotY = if (below) 0f else card.height.toFloat()
-            ObjectAnimator.ofFloat(card, View.ALPHA, 0f, 1f).setDuration(160).apply { interpolator = DecelerateInterpolator() }.start()
-            card.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(380).setInterpolator(SpringInterpolator()).start()
+            ObjectAnimator.ofFloat(card, View.ALPHA, 0f, 1f).setDuration(140).apply { interpolator = DecelerateInterpolator() }.start()
+            card.animate().scaleX(1f).scaleY(1f).setDuration(440).setInterpolator(SpringInterpolator()).start()
+            ValueAnimator.ofFloat(0f, 0.14f).apply {
+                duration = 220
+                addUpdateListener { if (!closing && popup.isShowing) setDim(it.animatedValue as Float) }
+                start()
+            }
+            for (i in 0 until card.childCount) {
+                card.getChildAt(i).animate().alpha(finals[i]).translationY(0f)
+                    .setStartDelay(60L + i * 34L).setDuration(380).setInterpolator(SpringInterpolator()).start()
+            }
+        }
+    }
+
+    // Thin line between groups of rows.
+    private fun divider(context: Context): View = View(context).apply {
+        setBackgroundColor(Ui.LINE)
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 1)).apply {
+            setMargins(Ui.dp(context, 18), Ui.dp(context, 4), Ui.dp(context, 18), Ui.dp(context, 4))
         }
     }
 

@@ -12,6 +12,7 @@ import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.text.TextUtils
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -19,7 +20,9 @@ import android.view.animation.PathInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.EditText
+import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.min
 import kotlin.math.sin
 
 // Toolbar icon drawn by hand; dimmed when disabled.
@@ -79,6 +82,52 @@ class IconButton(context: Context, kind: Kind) : View(context) {
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
         alpha = if (enabled) 1f else 0.3f
+    }
+
+    // A swipe down that starts on the button runs the same action as a tap (DECISIONS.md 104). The icon follows the
+    // finger a little, a tick confirms the swipe, and the icon springs back on release. A swipe never also taps.
+    var onSwipeDown: (() -> Unit)? = null
+    private var downX = 0f
+    private var downY = 0f
+    private var swiped = false
+    private val swipeDistance = Ui.dp(context, 26).toFloat()
+    private val followLimit = Ui.dp(context, 9).toFloat()
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val action = onSwipeDown
+        if (action == null || !isEnabled) return super.onTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.rawX
+                downY = event.rawY
+                swiped = false
+                parent?.requestDisallowInterceptTouchEvent(true)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = event.rawY - downY
+                val dx = event.rawX - downX
+                if (!swiped) {
+                    if (dy > 0f && dy > abs(dx)) translationY = min(dy * 0.35f, followLimit)
+                    if (dy >= swipeDistance && dy > abs(dx) * 1.2f) {
+                        swiped = true
+                        val cancel = MotionEvent.obtain(event)
+                        cancel.action = MotionEvent.ACTION_CANCEL
+                        super.onTouchEvent(cancel)
+                        cancel.recycle()
+                        performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        action()
+                    }
+                }
+                if (swiped) return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val was = swiped
+                swiped = false
+                animate().translationY(0f).setDuration(420).setInterpolator(SpringInterpolator()).start()
+                if (was) return true
+            }
+        }
+        return super.onTouchEvent(event)
     }
 
     // Draws the icon of the current kind: arrows, stop cross, reload arc, menu dots, up and down chevrons.

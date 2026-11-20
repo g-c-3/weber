@@ -236,20 +236,24 @@ class MainActivity : Activity() {
             contentDescription = "Back"
             isEnabled = false
             setOnClickListener { EngineAdapter.goBack() }
+            onSwipeDown = { EngineAdapter.goBack() }
         }
         forwardButton = IconButton(this, IconButton.Kind.FORWARD).apply {
             contentDescription = "Forward"
             isEnabled = false
             setOnClickListener { EngineAdapter.goForward() }
+            onSwipeDown = { EngineAdapter.goForward() }
         }
         reloadButton = IconButton(this, IconButton.Kind.RELOAD).apply {
             contentDescription = "Reload"
             isEnabled = false
             setOnClickListener { if (loading) EngineAdapter.stop() else EngineAdapter.reload() }
+            onSwipeDown = { if (loading) EngineAdapter.stop() else EngineAdapter.reload() }
         }
         val menuButton = IconButton(this, IconButton.Kind.MENU).apply {
             contentDescription = "Menu"
             setOnClickListener { showMenu(this) }
+            onSwipeDown = { showMenu(this) }
         }
         // One top row: the address pill takes the left half, the four buttons the right half. Editing the address
         // widens the pill over the buttons (setExpanded).
@@ -563,11 +567,11 @@ class MainActivity : Activity() {
                 MenuItem("Find in page", enabled = hasPage) { openFind() },
                 MenuItem("Reader mode", enabled = hasPage && errorView.visibility != View.VISIBLE) { openReader() },
                 MenuItem("Print or save as PDF", enabled = hasPage) { printPage() },
-                MenuItem("Desktop site", toggle = EngineAdapter.desktopSite) {
+                MenuItem("Desktop site", toggle = EngineAdapter.desktopSite, dividerBefore = true) {
                     EngineAdapter.setDesktopSite(!EngineAdapter.desktopSite, hasPage)
                 },
                 *resetItems(),
-                MenuItem("Clear site data", enabled = hasPage && siteHost() != null) { confirmClearSite() },
+                MenuItem("Clear site data", enabled = hasPage && siteHost() != null, dividerBefore = true) { confirmClearSite() },
                 MenuItem("Settings") { startActivity(Intent(this, SettingsActivity::class.java)) },
             ),
         )
