@@ -50,10 +50,11 @@ class PageProgress(context: Context) : View(context) {
         fill.shader = LinearGradient(0f, 0f, w.toFloat(), 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
     }
 
-    // A load begins: visible at once, creeping until the engine reports real progress. A second start while still
-    // waiting (the Desktop switch, then the engine's own start) keeps the creep going.
+    // A load begins: visible at once, creeping until the engine reports real progress. A start while a load is already
+    // showing (the Desktop switch, then the engine's own start; a page that navigates again at once) carries on, so the
+    // line never goes back (DECISIONS.md 97).
     fun start() {
-        if (visibility == VISIBLE && !finishing && waiting) return
+        if (visibility == VISIBLE && !finishing) return
         finishing = false
         animate().cancel()
         glide?.cancel()

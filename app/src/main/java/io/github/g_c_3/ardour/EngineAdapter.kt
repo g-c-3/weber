@@ -431,6 +431,9 @@ object EngineAdapter {
     // A main-frame navigation was requested and the engine has not reported its start yet.
     private var navPending = false
 
+    // When the engine last reported a page start.
+    private var startedAt = 0L
+
     @SuppressLint("SetJavaScriptEnabled")
     @Suppress("DEPRECATION")
     fun createView(context: Context, listener: PageListener, onEngineLost: () -> Unit): View {
@@ -512,6 +515,7 @@ object EngineAdapter {
                 val scheme = url?.substringBefore(':', "")
                 Trace.log("STARTED", "${Trace.safe(url)} back=${view.canGoBack()}")
                 navPending = false
+                startedAt = SystemClock.uptimeMillis()
                 httpErrorsLogged = 0
                 resourcesLogged = 0
                 if (scheme == "http" || scheme == "https") mainFrameHost = Uri.parse(url).host?.lowercase()
@@ -527,8 +531,8 @@ object EngineAdapter {
 
             override fun onPageFinished(view: WebView, url: String?) {
                 Trace.log("FINISHED", "${Trace.safe(url)} progress=${view.progress} bypassCache=$bypassCache")
-                // A tap or a Desktop switch makes the engine end the replaced page first (progress under 100): not the new load, so the bar and the no-cache mode stay (DECISIONS.md 97).
-                if ((bypassCache || navPending) && view.progress < 100) return
+                // A tap or a Desktop switch makes the engine end the replaced page (progress under 100), before or just after the new page starts: not the new load, so the bar and the no-cache mode stay (DECISIONS.md 97).
+                if ((bypassCache || navPending || SystemClock.uptimeMillis() - startedAt < 400L) && view.progress < 100) return
                 if (bypassCache) {
                     bypassCache = false
                     view.settings.cacheMode = WebSettings.LOAD_DEFAULT
