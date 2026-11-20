@@ -16,3 +16,7 @@ local.properties
 *.p12
 *.pem
 keystore.properties
+
+# Python bytecode
+__pycache__/
+*.pyc

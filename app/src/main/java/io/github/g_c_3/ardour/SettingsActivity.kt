@@ -121,9 +121,13 @@ class SettingsActivity : Activity() {
         diagnosticsShown = true
         val label = Ui.sectionLabel(this, "Diagnostics")
         val card = traceCard()
+        val crash = crashCard()
         column.addView(label)
         column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        for (view in listOf(label, card)) {
+        column.addView(crash, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = Ui.dp(this@SettingsActivity, 12)
+        })
+        for (view in listOf(label, card, crash)) {
             view.alpha = 0f
             view.translationY = Ui.dp(this, 14).toFloat()
             view.animate().alpha(1f).translationY(0f).setDuration(280).setInterpolator(DecelerateInterpolator()).start()
@@ -169,6 +173,41 @@ class SettingsActivity : Activity() {
             })
         }
     }
+
+    // Crash log (DECISIONS.md 103): records stay in the app's private folder, written to Downloads only on Save.
+    private fun crashCard(): View {
+        val ctx = this
+        val status = Ui.body(ctx, crashNote()).apply { setPadding(0, Ui.dp(ctx, 2), 0, 0) }
+        val save = Ui.secondaryButton(ctx, "Save crash log")
+        val clear = Ui.secondaryButton(ctx, "Clear")
+        save.setOnClickListener {
+            val name = CrashLog.save(ctx)
+            status.text = when {
+                name != null -> "Saved to Downloads: $name"
+                CrashLog.count(ctx) == 0 -> "No crash recorded."
+                else -> "Could not save the file."
+            }
+        }
+        clear.setOnClickListener {
+            CrashLog.clear(ctx)
+            status.text = crashNote()
+        }
+        val buttons = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(save, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = Ui.dp(ctx, 6) })
+            addView(clear, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 6) })
+        }
+        return Ui.card(ctx).apply {
+            addView(Ui.row(ctx, "Crash log", "Errors that ended the app, with the last page load events."))
+            addView(status)
+            addView(buttons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = Ui.dp(ctx, 12)
+                bottomMargin = Ui.dp(ctx, 8)
+            })
+        }
+    }
+
+    private fun crashNote(): String = "${CrashLog.summary(this)} Kept on this phone; Save writes a text file. Nothing is sent anywhere."
 
     private fun traceNote(): String =
         "${Trace.size()} events in memory. Save writes a text file with addresses reduced to host and path. Nothing is sent anywhere."

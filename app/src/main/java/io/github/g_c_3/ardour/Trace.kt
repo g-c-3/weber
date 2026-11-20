@@ -123,10 +123,11 @@ object Trace {
         return b.toString()
     }
 
-    // Writes the file to Downloads through the media store (no storage permission is needed). Returns its name, or null.
-    fun save(context: Context): String? {
-        val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        val name = "Ardour-trace-${versionName(context)}-$stamp.txt"
+    @Synchronized
+    fun tail(count: Int): List<String> = lines.toList().takeLast(count)
+
+    // Writes a text file to Downloads through the media store (no storage permission is needed). True when written.
+    fun writeDownload(context: Context, name: String, text: String): Boolean {
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, name)
             put(MediaStore.Downloads.MIME_TYPE, "text/plain")
@@ -134,16 +135,23 @@ object Trace {
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
         val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return false
         return try {
-            resolver.openOutputStream(uri)?.use { it.write(render(context).toByteArray(Charsets.UTF_8)) } ?: throw java.io.IOException("no stream")
+            resolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) } ?: throw java.io.IOException("no stream")
             values.clear()
             values.put(MediaStore.Downloads.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
-            name
+            true
         } catch (_: Exception) {
             resolver.delete(uri, null, null)
-            null
+            false
         }
+    }
+
+    // Saves the trace as a file in Downloads. Returns its name, or null.
+    fun save(context: Context): String? {
+        val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val name = "Ardour-trace-${versionName(context)}-$stamp.txt"
+        return if (writeDownload(context, name, render(context))) name else null
     }
 }
