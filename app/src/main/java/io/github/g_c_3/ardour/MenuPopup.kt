@@ -39,7 +39,6 @@ object MenuPopup {
         val context = anchor.context
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            minimumWidth = Ui.dp(context, 176)
             background = GradientDrawable().apply {
                 setColor(Ui.CARD)
                 cornerRadius = Ui.dp(context, 18).toFloat()
@@ -145,17 +144,17 @@ object MenuPopup {
     private fun divider(context: Context): View = View(context).apply {
         setBackgroundColor(Ui.LINE)
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 1)).apply {
-            setMargins(Ui.dp(context, 22), Ui.dp(context, 2), Ui.dp(context, 22), Ui.dp(context, 2))
+            setMargins(Ui.dp(context, 16), Ui.dp(context, 2), Ui.dp(context, 16), Ui.dp(context, 2))
         }
     }
 
-    // One centred row: a plain action, or a toggle shown as Off and On words (DECISIONS.md 106).
+    // One centred row: a plain action, or a toggle shown as an Off or On word beside its label (DECISIONS.md 106, 107).
     private fun row(context: Context, item: MenuItem, close: () -> Unit): View {
         val pressed = ColorDrawable(Ui.PAPER)
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(Ui.dp(context, 14), Ui.dp(context, 10), Ui.dp(context, 14), Ui.dp(context, 10))
+            setPadding(Ui.dp(context, 20), Ui.dp(context, 10), Ui.dp(context, 20), Ui.dp(context, 10))
             background = StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_pressed), pressed)
                 addState(intArrayOf(), ColorDrawable(0))
@@ -172,14 +171,15 @@ object MenuPopup {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(Ui.INK)
         }
-        // A toggle reads "Off  Label  On" in amber: the current state is lit, the other is dimmed; a tap swaps them.
+        // A toggle reads "Label  Off" in amber, centred as one group. Off and On share one slot as wide as the wider word,
+        // so the label never moves; a tap swaps the words in place.
         var state = item.toggle
         val off = stateWord(context, "Off")
         val on = stateWord(context, "On")
         fun paint(animate: Boolean) {
             for ((word, lit) in listOf(off to (state == false), on to (state == true))) {
-                val alpha = if (lit) 1f else 0.3f
-                val scale = if (lit) 1f else 0.92f
+                val alpha = if (lit) 1f else 0f
+                val scale = if (lit) 1f else 0.7f
                 if (animate) {
                     word.animate().alpha(alpha).scaleX(scale).scaleY(scale).setDuration(340).setInterpolator(SpringInterpolator()).start()
                 } else {
@@ -190,13 +190,14 @@ object MenuPopup {
             }
         }
         if (state != null) {
-            val gap = Ui.dp(context, 12)
-            row.addView(off)
-            row.addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                marginStart = gap
-                marginEnd = gap
+            val slot = FrameLayout(context).apply {
+                addView(off, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+                addView(on, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+            }
+            row.addView(label)
+            row.addView(slot, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = Ui.dp(context, 10)
             })
-            row.addView(on)
             paint(false)
         } else {
             row.addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -217,7 +218,7 @@ object MenuPopup {
 
     private fun stateWord(context: Context, text: String) = TextView(context).apply {
         this.text = text
-        textSize = 13f
+        textSize = 15f
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         setTextColor(Ui.AMBER)
     }
