@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.util.TypedValue
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
@@ -22,6 +23,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.TextView
+import kotlin.math.max
 
 // One row of the browser menu. `toggle` null means a plain action; otherwise it is the switch's current state.
 class MenuItem(
@@ -53,7 +55,7 @@ object MenuPopup {
         val holder = FrameLayout(context).apply {
             setPadding(margin, margin, margin, margin)
             clipToPadding = false
-            addView(card, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(card, FrameLayout.LayoutParams(naturalWidth(context, items), ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         val popup = PopupWindow(holder, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true).apply {
             setBackgroundDrawable(ColorDrawable(0))
@@ -64,6 +66,7 @@ object MenuPopup {
         var closing = false
         var below = false
         var dimAmount = 0f
+        var growFrom = 0f
         // The page behind the card dims with the card's progress (the popup window's own dim).
         fun setDim(amount: Float) {
             dimAmount = amount
@@ -105,7 +108,15 @@ object MenuPopup {
         holder.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val loc = IntArray(2)
         anchor.getLocationOnScreen(loc)
-        val x = context.resources.displayMetrics.widthPixels - holder.measuredWidth
+        // The card sits under the Reload and menu buttons: its right edge a little left of the menu button's centre,
+        // never closer than 8 dp to the screen's left edge. The card grows out of the menu button's centre.
+        val screenWidth = context.resources.displayMetrics.widthPixels
+        val anchorCentre = loc[0] + anchor.width / 2
+        val cardWidth = holder.measuredWidth - 2 * margin
+        val edge = Ui.dp(context, 8)
+        val cardLeft = max(edge, minOf(anchorCentre - Ui.dp(context, 36) - cardWidth, screenWidth - cardWidth - edge))
+        val x = cardLeft - margin
+        growFrom = (anchorCentre - cardLeft).toFloat()
         // Above the button when it sits low on the screen, below it when it sits at the top.
         below = loc[1] < context.resources.displayMetrics.heightPixels / 2
         val y = if (below) loc[1] + anchor.height - margin else loc[1] - holder.measuredHeight + margin
@@ -124,7 +135,7 @@ object MenuPopup {
         card.scaleX = 0.6f
         card.scaleY = 0.6f
         card.post {
-            card.pivotX = card.width - Ui.dp(context, 22).toFloat()
+            card.pivotX = growFrom
             card.pivotY = if (below) 0f else card.height.toFloat()
             ObjectAnimator.ofFloat(card, View.ALPHA, 0f, 1f).setDuration(140).apply { interpolator = DecelerateInterpolator() }.start()
             card.animate().scaleX(1f).scaleY(1f).setDuration(440).setInterpolator(SpringInterpolator()).start()
@@ -140,11 +151,27 @@ object MenuPopup {
         }
     }
 
+    // The card is exactly as wide as its longest row plus 26 dp each side, measured from the text itself so that nothing
+    // else can make it wider (DECISIONS.md 108).
+    private fun naturalWidth(context: Context, items: List<MenuItem>): Int {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 15f, context.resources.displayMetrics)
+        }
+        var widest = 0f
+        for (item in items) {
+            var w = paint.measureText(item.label)
+            if (item.toggle != null) w += Ui.dp(context, 10) + max(paint.measureText("Off"), paint.measureText("On"))
+            widest = max(widest, w)
+        }
+        return widest.toInt() + Ui.dp(context, 2 * 26 + 4)
+    }
+
     // Thin line between groups of rows.
     private fun divider(context: Context): View = View(context).apply {
         setBackgroundColor(Ui.LINE)
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 1)).apply {
-            setMargins(Ui.dp(context, 16), Ui.dp(context, 2), Ui.dp(context, 16), Ui.dp(context, 2))
+            setMargins(Ui.dp(context, 20), Ui.dp(context, 2), Ui.dp(context, 20), Ui.dp(context, 2))
         }
     }
 
@@ -154,7 +181,7 @@ object MenuPopup {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(Ui.dp(context, 20), Ui.dp(context, 10), Ui.dp(context, 20), Ui.dp(context, 10))
+            setPadding(Ui.dp(context, 26), Ui.dp(context, 10), Ui.dp(context, 26), Ui.dp(context, 10))
             background = StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_pressed), pressed)
                 addState(intArrayOf(), ColorDrawable(0))
