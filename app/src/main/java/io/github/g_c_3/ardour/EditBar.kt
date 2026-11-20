@@ -35,8 +35,8 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
             invalidate()
         }
 
-    // Go only: while on, the arrow is fully amber; its glow and brightness pulse and a soft ripple spreads out from it
-    // (DECISIONS.md 71, 102). Off: a dim static arrow.
+    // Go only: while on, the arrow is fully amber; its glow and brightness pulse and an arrow-shaped echo grows out
+    // from it and fades (DECISIONS.md 71, 102). Off: a dim static arrow.
     var flow: Boolean = false
         set(value) {
             field = value
@@ -113,19 +113,22 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         val head = 4.6f * u * k
         val s = 0.5f + 0.5f * cos(2f * PI.toFloat() * phase)
         if (flowAnim != null) {
-            // Ripple: a soft capsule leaves the arrow and widens outward while it fades, once per cycle.
+            // Echo: the arrow itself grows outward from its centre and fades out completely, once per cycle.
             val e = 1f - (1f - phase) * (1f - phase)
-            val w = (28f + 16f * e) * u
-            val h = (17f + 11f * e) * u
+            val f = 1f + 1.4f * e
             val a = (1f - phase) * (1f - phase)
-            rect.set(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f)
-            solid.color = Ui.AMBER
-            solid.alpha = (30 * a).toInt()
-            canvas.drawRoundRect(rect, h / 2f, h / 2f, solid)
+            path.reset()
+            path.moveTo(x1 - head, cy - head)
+            path.lineTo(x1, cy)
+            path.lineTo(x1 - head, cy + head)
+            canvas.save()
+            canvas.scale(f, f, cx, cy)
             line.color = Ui.AMBER
-            line.alpha = (120 * a).toInt()
-            line.strokeWidth = u * 1.4f
-            canvas.drawRoundRect(rect, h / 2f, h / 2f, line)
+            line.alpha = (150 * a).toInt()
+            line.strokeWidth = u * 2.2f / f
+            canvas.drawLine(x0, cy, x1, cy, line)
+            canvas.drawPath(path, line)
+            canvas.restore()
         }
         path.reset()
         path.moveTo(x1 - head, cy - head)
@@ -205,6 +208,8 @@ private class Chip(context: Context, val icon: EditIcon, label: String, private 
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER
+        clipChildren = false
+        clipToPadding = false
         val pad = Ui.dp(context, if (primary) 8 else 9)
         setPadding(pad, 0, pad, 0)
         text.apply {
