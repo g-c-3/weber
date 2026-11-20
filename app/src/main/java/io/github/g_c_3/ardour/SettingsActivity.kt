@@ -210,7 +210,7 @@ class SettingsActivity : Activity() {
     private fun crashNote(): String = "${CrashLog.summary(this)} Kept on this phone; Save writes a text file. Nothing is sent anywhere."
 
     private fun traceNote(): String =
-        "${Trace.size()} events in memory. Save writes a text file with addresses reduced to host and path. Nothing is sent anywhere."
+        "${Trace.size().let { if (it == 1) "1 event" else "$it events" }} in memory. Save writes a text file with addresses reduced to host and path. Nothing is sent anywhere."
 
     // Default browser: the system role dialog where Android shows it, otherwise the phone's Default apps screen.
     // Ardour changes nothing itself (DECISIONS.md 54). Only the button is shown, and not once Ardour already holds the role.

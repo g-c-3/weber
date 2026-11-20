@@ -35,8 +35,8 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
             invalidate()
         }
 
-    // Go only: while on, the arrow is fully amber and its glow and brightness slowly pulse in and out (DECISIONS.md 71,
-    // 102). Off: a dim static arrow.
+    // Go only: while on, the arrow is fully amber; its glow and brightness pulse and a soft ripple spreads out from it
+    // (DECISIONS.md 71, 102). Off: a dim static arrow.
     var flow: Boolean = false
         set(value) {
             field = value
@@ -101,7 +101,7 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         } else {
             flowAnim?.cancel()
             flowAnim = null
-            phase = if (flow) 0.5f else 0f
+            phase = 0f
             invalidate()
         }
     }
@@ -111,7 +111,22 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         val x0 = cx - 9f * u * k
         val x1 = cx + 7f * u * k
         val head = 4.6f * u * k
-        val s = 0.5f - 0.5f * cos(2f * PI.toFloat() * phase)
+        val s = 0.5f + 0.5f * cos(2f * PI.toFloat() * phase)
+        if (flowAnim != null) {
+            // Ripple: a soft capsule leaves the arrow and widens outward while it fades, once per cycle.
+            val e = 1f - (1f - phase) * (1f - phase)
+            val w = (28f + 16f * e) * u
+            val h = (17f + 11f * e) * u
+            val a = (1f - phase) * (1f - phase)
+            rect.set(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f)
+            solid.color = Ui.AMBER
+            solid.alpha = (30 * a).toInt()
+            canvas.drawRoundRect(rect, h / 2f, h / 2f, solid)
+            line.color = Ui.AMBER
+            line.alpha = (120 * a).toInt()
+            line.strokeWidth = u * 1.4f
+            canvas.drawRoundRect(rect, h / 2f, h / 2f, line)
+        }
         path.reset()
         path.moveTo(x1 - head, cy - head)
         path.lineTo(x1, cy)
