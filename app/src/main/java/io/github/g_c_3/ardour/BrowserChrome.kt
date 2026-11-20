@@ -82,6 +82,12 @@ class IconButton(context: Context, kind: Kind) : View(context) {
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
         alpha = if (enabled) 1f else 0.3f
+        if (!enabled && translationY != 0f) settle()
+    }
+
+    // Back to rest after a swipe, also when the swipe itself disabled the button (no more history).
+    private fun settle() {
+        animate().translationY(0f).setDuration(420).setInterpolator(SpringInterpolator()).start()
     }
 
     // A swipe down that starts on the button runs the same action as a tap (DECISIONS.md 104). The icon follows the
@@ -95,7 +101,11 @@ class IconButton(context: Context, kind: Kind) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val action = onSwipeDown
-        if (action == null || !isEnabled) return super.onTouchEvent(event)
+        if (action == null) return super.onTouchEvent(event)
+        if (!isEnabled) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) settle()
+            return super.onTouchEvent(event)
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = event.rawX
@@ -123,7 +133,7 @@ class IconButton(context: Context, kind: Kind) : View(context) {
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val was = swiped
                 swiped = false
-                animate().translationY(0f).setDuration(420).setInterpolator(SpringInterpolator()).start()
+                settle()
                 if (was) return true
             }
         }

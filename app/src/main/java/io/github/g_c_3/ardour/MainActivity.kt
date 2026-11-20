@@ -191,6 +191,7 @@ class MainActivity : Activity() {
             if (Build.VERSION.SDK_INT >= 30) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
                 v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                liftTopBar(bars.top)
             } else {
                 v.setPadding(
                     insets.systemWindowInsetLeft,
@@ -198,6 +199,7 @@ class MainActivity : Activity() {
                     insets.systemWindowInsetRight,
                     insets.systemWindowInsetBottom,
                 )
+                liftTopBar(insets.systemWindowInsetTop)
             }
             insets
         }
@@ -228,6 +230,19 @@ class MainActivity : Activity() {
     }
 
     private fun px(n: Int) = Ui.dp(this, n)
+
+    // The status bar's icons sit in the upper part of its height: lift the top row into the free strip below them
+    // (DECISIONS.md 105), never on a short status bar.
+    private fun liftTopBar(statusBarHeight: Int) {
+        if (!::topBar.isInitialized) return
+        val lift = if (statusBarHeight >= px(30)) px(7) else 0
+        (topBar.layoutParams as? LinearLayout.LayoutParams)?.let {
+            if (it.topMargin != -lift) {
+                it.topMargin = -lift
+                topBar.layoutParams = it
+            }
+        }
+    }
 
     // Builds the browser screen: top row of address and buttons, page area, start and error views, find bar; wires the engine.
     private fun buildBrowser(root: LinearLayout) {
@@ -273,11 +288,12 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
-            setPadding(px(10), px(2), px(10), 0)
+            setPadding(px(10), 0, px(10), 0)
         }
         // The loading line lives inside the pill, so the row is only as tall as the pill plus room for its glow.
         top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(ROW_HEIGHT + 2)))
         topBar = top
+        root.clipToPadding = false
         root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         val content = PullRefreshLayout(

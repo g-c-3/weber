@@ -39,15 +39,15 @@ object MenuPopup {
         val context = anchor.context
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            minimumWidth = Ui.dp(context, 232)
+            minimumWidth = Ui.dp(context, 208)
             background = GradientDrawable().apply {
                 setColor(Ui.CARD)
-                cornerRadius = Ui.dp(context, 20).toFloat()
+                cornerRadius = Ui.dp(context, 18).toFloat()
                 setStroke(Ui.dp(context, 1), Ui.LINE)
             }
             elevation = Ui.dp(context, 10).toFloat()
             outlineSpotShadowColor = 0x66000000
-            setPadding(0, Ui.dp(context, 6), 0, Ui.dp(context, 6))
+            setPadding(0, Ui.dp(context, 4), 0, Ui.dp(context, 4))
             isClickable = true
         }
         val margin = Ui.dp(context, 14)
@@ -145,7 +145,7 @@ object MenuPopup {
     private fun divider(context: Context): View = View(context).apply {
         setBackgroundColor(Ui.LINE)
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 1)).apply {
-            setMargins(Ui.dp(context, 18), Ui.dp(context, 4), Ui.dp(context, 18), Ui.dp(context, 4))
+            setMargins(Ui.dp(context, 16), Ui.dp(context, 2), Ui.dp(context, 16), Ui.dp(context, 2))
         }
     }
 
@@ -154,7 +154,7 @@ object MenuPopup {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(Ui.dp(context, 20), Ui.dp(context, 14), Ui.dp(context, 20), Ui.dp(context, 14))
+            setPadding(Ui.dp(context, 18), Ui.dp(context, 10), Ui.dp(context, 18), Ui.dp(context, 10))
             background = StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_pressed), pressed)
                 addState(intArrayOf(), ColorDrawable(0))
@@ -166,7 +166,7 @@ object MenuPopup {
         }
         row.addView(TextView(context).apply {
             text = item.label
-            textSize = 16f
+            textSize = 15f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(Ui.INK)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
