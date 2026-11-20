@@ -7,7 +7,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from checks import hygiene, privacy, pageload, features, updates, speed  # noqa: E402
+from checks import hygiene, privacy, pageload, features, updates, speed, docs  # noqa: E402
 from checks.common import Finding  # noqa: E402
 
 
@@ -37,6 +37,7 @@ def main():
         "features": lambda: features.run(a.docs),
         "updates": updates.run,
         "speed": lambda: speed.run(a.apk_budget),
+        "docs": lambda: docs.run(a.docs),
     }
     findings = []
     for name, fn in runs.items():
