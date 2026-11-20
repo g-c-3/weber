@@ -39,7 +39,7 @@ object MenuPopup {
         val context = anchor.context
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            minimumWidth = Ui.dp(context, 208)
+            minimumWidth = Ui.dp(context, 176)
             background = GradientDrawable().apply {
                 setColor(Ui.CARD)
                 cornerRadius = Ui.dp(context, 18).toFloat()
@@ -145,16 +145,17 @@ object MenuPopup {
     private fun divider(context: Context): View = View(context).apply {
         setBackgroundColor(Ui.LINE)
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 1)).apply {
-            setMargins(Ui.dp(context, 16), Ui.dp(context, 2), Ui.dp(context, 16), Ui.dp(context, 2))
+            setMargins(Ui.dp(context, 22), Ui.dp(context, 2), Ui.dp(context, 22), Ui.dp(context, 2))
         }
     }
 
+    // One centred row: a plain action, or a toggle shown as Off and On words (DECISIONS.md 106).
     private fun row(context: Context, item: MenuItem, close: () -> Unit): View {
         val pressed = ColorDrawable(Ui.PAPER)
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(Ui.dp(context, 18), Ui.dp(context, 10), Ui.dp(context, 18), Ui.dp(context, 10))
+            gravity = Gravity.CENTER
+            setPadding(Ui.dp(context, 14), Ui.dp(context, 10), Ui.dp(context, 14), Ui.dp(context, 10))
             background = StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_pressed), pressed)
                 addState(intArrayOf(), ColorDrawable(0))
@@ -164,29 +165,61 @@ object MenuPopup {
             isClickable = true
             isFocusable = true
         }
-        row.addView(TextView(context).apply {
+        val label = TextView(context).apply {
             text = item.label
             textSize = 15f
+            gravity = Gravity.CENTER
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(Ui.INK)
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val switch = item.toggle?.let { ToggleSwitch(context, it) }
-        if (switch != null) {
-            row.addView(switch, LinearLayout.LayoutParams(Ui.dp(context, 44), Ui.dp(context, 26)).apply {
-                marginStart = Ui.dp(context, 16)
+        }
+        // A toggle reads "Off  Label  On" in amber: the current state is lit, the other is dimmed; a tap swaps them.
+        var state = item.toggle
+        val off = stateWord(context, "Off")
+        val on = stateWord(context, "On")
+        fun paint(animate: Boolean) {
+            for ((word, lit) in listOf(off to (state == false), on to (state == true))) {
+                val alpha = if (lit) 1f else 0.3f
+                val scale = if (lit) 1f else 0.92f
+                if (animate) {
+                    word.animate().alpha(alpha).scaleX(scale).scaleY(scale).setDuration(340).setInterpolator(SpringInterpolator()).start()
+                } else {
+                    word.alpha = alpha
+                    word.scaleX = scale
+                    word.scaleY = scale
+                }
+            }
+        }
+        if (state != null) {
+            val gap = Ui.dp(context, 12)
+            row.addView(off)
+            row.addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = gap
+                marginEnd = gap
             })
+            row.addView(on)
+            paint(false)
+        } else {
+            row.addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         row.setOnClickListener {
-            if (switch != null) {
-                switch.on = !switch.on
+            if (state != null) {
+                state = !(state as Boolean)
+                paint(true)
                 item.onTap()
-                row.postDelayed({ close() }, 240)
+                row.postDelayed({ close() }, 320)
             } else {
                 close()
                 item.onTap()
             }
         }
         return row
+    }
+
+    private fun stateWord(context: Context, text: String) = TextView(context).apply {
+        this.text = text
+        textSize = 13f
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        setTextColor(Ui.AMBER)
     }
 }
 
