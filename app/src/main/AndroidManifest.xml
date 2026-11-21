@@ -4,6 +4,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Lets the app and the engine tell "offline" from "site not found" (DECISIONS.md 48). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Voice search listens only after a tap and stops when the app leaves the screen (DECISIONS.md 117). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="false"

@@ -25,4 +25,8 @@ object Prefs {
     fun getInt(context: Context, key: String, default: Int): Int = store(context).getInt(key, default)
 
     fun setInt(context: Context, key: String, value: Int) = store(context).edit().putInt(key, value).apply()
+
+    fun getString(context: Context, key: String, default: String): String = store(context).getString(key, default) ?: default
+
+    fun setString(context: Context, key: String, value: String) = store(context).edit().putString(key, value).apply()
 }

@@ -31,13 +31,15 @@ class MenuItem(
     val enabled: Boolean = true,
     val toggle: Boolean? = null,
     val dividerBefore: Boolean = false,
+    val note: String? = null,
     val onTap: () -> Unit,
 )
 
 // Card that grows out of the menu button, drawn by Ardour (DECISIONS.md 38, 104): the dots turn, the page dims softly, the
 // rows settle in one after another; closing reverses it. Thin lines separate the groups of rows.
 object MenuPopup {
-    fun show(anchor: View, items: List<MenuItem>) {
+    // turnAnchor: the menu button turns while its card is open; other anchors stay as they are.
+    fun show(anchor: View, items: List<MenuItem>, turnAnchor: Boolean = true) {
         val context = anchor.context
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -102,8 +104,10 @@ object MenuPopup {
             card.addView(row(context, item, ::close))
         }
         // The menu button turns while the card is open and always turns back, however the card closes.
-        anchor.animate().rotation(90f).setDuration(420).setInterpolator(SpringInterpolator()).start()
-        popup.setOnDismissListener { anchor.animate().rotation(0f).setDuration(420).setInterpolator(SpringInterpolator()).start() }
+        if (turnAnchor) {
+            anchor.animate().rotation(90f).setDuration(420).setInterpolator(SpringInterpolator()).start()
+            popup.setOnDismissListener { anchor.animate().rotation(0f).setDuration(420).setInterpolator(SpringInterpolator()).start() }
+        }
 
         holder.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val loc = IntArray(2)
@@ -162,6 +166,7 @@ object MenuPopup {
         for (item in items) {
             var w = paint.measureText(item.label)
             if (item.toggle != null) w += Ui.dp(context, 10) + max(paint.measureText("Off"), paint.measureText("On"))
+            if (item.note != null) w += Ui.dp(context, 10) + paint.measureText(item.note)
             widest = max(widest, w)
         }
         return widest.toInt() + Ui.dp(context, 2 * 26 + 4)
@@ -226,6 +231,11 @@ object MenuPopup {
                 marginStart = Ui.dp(context, 10)
             })
             paint(false)
+        } else if (item.note != null) {
+            row.addView(label)
+            row.addView(stateWord(context, item.note), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = Ui.dp(context, 10)
+            })
         } else {
             row.addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }

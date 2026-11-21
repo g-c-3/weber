@@ -7,6 +7,7 @@ import android.content.ClipboardManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.LinearGradient
 import android.graphics.drawable.GradientDrawable
@@ -36,6 +37,7 @@ class MainActivity : Activity() {
     private lateinit var address: AddressField
     private val progress: PageProgress get() = address.progress
     private lateinit var startView: View
+    private lateinit var startSearch: StartSearch
     private lateinit var errorView: LinearLayout
     private lateinit var errorTitle: TextView
     private lateinit var errorBody: TextView
@@ -174,6 +176,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CrashLog.install(this)
+        SearchEngines.load(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Ui.PAPER)
@@ -474,10 +477,17 @@ class MainActivity : Activity() {
     }
 
     // Wordmark in the ember gradient over a quiet hint; shown until the first page starts.
+    // Fresh page: the search block (box, voice language, mic, search engine) above the name (DECISIONS.md 117).
     private fun startScreen(): View = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
         setBackgroundColor(Ui.PAPER)
+        clipChildren = false
+        startSearch = StartSearch(this@MainActivity) { submit(it) }
+        addView(startSearch, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            marginStart = px(24)
+            marginEnd = px(24)
+        })
         addView(TextView(context).apply {
             text = "Ardour"
             textSize = 44f
@@ -485,9 +495,7 @@ class MainActivity : Activity() {
             letterSpacing = -0.03f
             setTextColor(Ui.EMBER)
             paint.shader = LinearGradient(0f, 0f, paint.measureText("Ardour"), 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
-        }, centered())
-        addView(Ui.body(context, "Search or enter an address above").apply {
-            setPadding(0, Ui.dp(context, 10), 0, Ui.dp(context, 64))
+            setPadding(0, Ui.dp(context, 28), 0, Ui.dp(context, 96))
         }, centered())
     }
 
@@ -772,6 +780,7 @@ class MainActivity : Activity() {
     private fun revealPage() {
         if (hasPage) return
         hasPage = true
+        startSearch.reset()
         startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
     }
 
@@ -880,6 +889,19 @@ class MainActivity : Activity() {
         } catch (_: ActivityNotFoundException) {
             // No app can open the link; the message above still tells the user what to do.
         }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == VoiceInput.REQUEST && ::startSearch.isInitialized) {
+            startSearch.onPermissionResult(grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED)
+        }
+    }
+
+    // The mic never keeps listening once the app leaves the screen.
+    override fun onPause() {
+        if (::startSearch.isInitialized) startSearch.stopVoice()
+        super.onPause()
     }
 
     override fun onDestroy() {

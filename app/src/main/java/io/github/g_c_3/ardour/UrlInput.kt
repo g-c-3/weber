@@ -4,8 +4,6 @@ import android.net.Uri
 
 // Turns what the user typed into a page address or a search. Pure text rules, nothing is sent from here.
 object UrlInput {
-    // Default search page (DECISIONS.md 43). The search is an ordinary page the user visits.
-    private const val SEARCH = "https://duckduckgo.com/?q="
     private val HOST = Regex("^([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}(:\\d{1,5})?([/?#].*)?$")
     private val LOCAL = Regex("^(localhost|(\\d{1,3}\\.){3}\\d{1,3})(:\\d{1,5})?([/?#].*)?$")
 
@@ -19,7 +17,8 @@ object UrlInput {
         return search(text)
     }
 
-    fun searchUrl(query: String) = SEARCH + Uri.encode(query)
+    // The search page of the engine in use (DECISIONS.md 43, 117). The search is an ordinary page the user visits.
+    fun searchUrl(query: String) = SearchEngines.active.base + Uri.encode(query)
 
     private fun search(query: String) = searchUrl(query)
 

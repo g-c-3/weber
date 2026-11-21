@@ -3,12 +3,17 @@ import re
 from .common import Finding, ROOT, SRC, kotlin_files, read, rel, strip_comments
 
 NAME = "privacy"
-# INTERNET for page loads; ACCESS_NETWORK_STATE tells an offline phone from an unreachable site; the install permission is sideload only.
-ALLOWED_PERMISSIONS = {"android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE", "android.permission.REQUEST_INSTALL_PACKAGES"}
+# INTERNET for page loads; ACCESS_NETWORK_STATE tells an offline phone from an unreachable site; the install permission is sideload only;
+# RECORD_AUDIO for voice search, asked on the first tap (DECISIONS.md 117).
+ALLOWED_PERMISSIONS = {
+    "android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE", "android.permission.REQUEST_INSTALL_PACKAGES",
+    "android.permission.RECORD_AUDIO",
+}
 ALLOWED_HOSTS = {
     "api.github.com", "github.com", "play.google.com", "market.android.com", "schemas.android.com", "www.w3.org",
     "developer.android.com", "example.com", "www.example.com", "localhost",
-    "duckduckgo.com",  # the search page the user opens when typing words; a page visit, not a connection of the app
+    # the search pages the user can pick (DECISIONS.md 117); page visits, not connections of the app
+    "duckduckgo.com", "www.google.com", "www.bing.com", "search.brave.com", "www.startpage.com",
 }
 FORBIDDEN = [
     (r"allowFileAccess\s*=\s*true|setAllowFileAccess\(\s*true", "file access must stay off"),
