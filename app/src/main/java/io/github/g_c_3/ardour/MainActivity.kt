@@ -281,8 +281,8 @@ class MainActivity : Activity() {
         address = AddressField(this, ::submit, ::onAddressFocus)
         val bar = FrameLayout(this).apply {
             clipChildren = false
-            addView(buttonGroup, FrameLayout.LayoutParams(px(150), px(ROW_HEIGHT), Gravity.END or Gravity.TOP))
-            addView(address, FrameLayout.LayoutParams(px(150), px(ROW_HEIGHT), Gravity.START or Gravity.TOP))
+            addView(buttonGroup, FrameLayout.LayoutParams(px(150), Ui.sdp(this@MainActivity, ROW_HEIGHT), Gravity.END or Gravity.TOP))
+            addView(address, FrameLayout.LayoutParams(px(150), Ui.sdp(this@MainActivity, ROW_HEIGHT), Gravity.START or Gravity.TOP))
             addOnLayoutChangeListener { _, l, _, r, _, _, _, _, _ -> sizeTopRow(r - l) }
         }
         val top = LinearLayout(this).apply {
@@ -291,7 +291,7 @@ class MainActivity : Activity() {
             setPadding(px(10), 0, px(10), 0)
         }
         // The loading line lives inside the pill, so the row is only as tall as the pill plus room for its glow.
-        top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(ROW_HEIGHT + 2)))
+        top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.sdp(this, ROW_HEIGHT) + px(2)))
         topBar = top
         root.clipToPadding = false
         root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))

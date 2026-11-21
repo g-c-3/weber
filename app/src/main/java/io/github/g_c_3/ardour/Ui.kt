@@ -43,6 +43,18 @@ object Ui {
 
     fun dp(context: Context, n: Float): Float = n * context.resources.displayMetrics.density
 
+    // The system font size, capped at 1.3 so the top row never takes the page (DECISIONS.md 111). Text follows it down
+    // to the phone's smallest size; sizes of icons and boxes only grow.
+    private fun textScale(context: Context): Float = minOf(context.resources.configuration.fontScale, 1.3f)
+
+    fun geoScale(context: Context): Float = maxOf(textScale(context), 1f)
+
+    // dp that grows with the system font size.
+    fun sdp(context: Context, n: Int): Int = (n * context.resources.displayMetrics.density * geoScale(context) + 0.5f).toInt()
+
+    // Text size in pixels for TextView.setTextSize(COMPLEX_UNIT_PX, ...), from an sp value, with the same cap.
+    fun textPx(context: Context, sp: Float): Float = sp * context.resources.displayMetrics.density * textScale(context)
+
     private fun medium(): Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
     fun title(context: Context, text: String) = TextView(context).apply {

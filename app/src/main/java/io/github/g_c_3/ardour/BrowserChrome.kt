@@ -11,6 +11,7 @@ import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.text.TextUtils
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -20,6 +21,7 @@ import android.view.animation.PathInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.EditText
+import android.widget.TextView
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
@@ -197,9 +199,22 @@ class IconButton(context: Context, kind: Kind) : View(context) {
 }
 
 // Pill-shaped address field: host while idle, full address while editing (cursor after the site name), ember rim when focused.
+// Idle: the host is centred between two thin curved lines inside the pill's ends and ends with an ellipsis if too long.
+// Editing: the lines fade, the text starts at the left (DECISIONS.md 111).
 class AddressField(context: Context, private val onSubmit: (String) -> Unit, private val onFocus: (Boolean) -> Unit) :
     FrameLayout(context) {
     val input = EditText(context)
+    private val label = TextView(context)
+    private val sidePad = Ui.dp(context, 18)
+    private val endLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = Ui.dp(context, 1).toFloat() * 1.2f
+        strokeCap = Paint.Cap.ROUND
+        color = Ui.LINE
+    }
+    private val endArc = RectF()
+    private var lineAmount = 1f
+    private var lineAnim: ValueAnimator? = null
 
     // Page loading line, inside the pill along its bottom straight edge; it widens with the pill (DECISIONS.md 70).
     val progress = PageProgress(context)
@@ -219,18 +234,29 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         background = rim
         clipChildren = false
         applyRim(0f)
+        label.apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.textPx(context, 15.5f))
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER
+            setPadding(sidePad, 0, sidePad, 0)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        addView(label, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        refreshLabel()
         input.apply {
+            alpha = 0f
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
             background = null
             hint = "Search or enter address"
             setHintTextColor(0xFF9A9CA6.toInt())
             setTextColor(Ui.INK)
-            textSize = 15.5f
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.textPx(context, 15.5f))
             isSingleLine = true
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             imeOptions = EditorInfo.IME_ACTION_GO or EditorInfo.IME_FLAG_NO_EXTRACT_UI
             highlightColor = 0x40E8451D
-            setPadding(Ui.dp(context, 16), 0, Ui.dp(context, 16), 0)
+            setPadding(sidePad, 0, sidePad, 0)
             ellipsize = TextUtils.TruncateAt.END
             setOnEditorActionListener { _, _, _ ->
                 onSubmit(text.toString())
@@ -244,7 +270,9 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
                     placeCursor()
                 } else {
                     setText(url?.let { UrlInput.display(it) } ?: "")
+                    refreshLabel()
                 }
+                glide(focused)
                 onFocus(focused)
             }
         }
@@ -259,6 +287,86 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             },
         )
         isClickable = true
+    }
+
+    // Host (or the hint) shown while idle.
+    private fun refreshLabel() {
+        val shown = url?.let { UrlInput.display(it) }
+        if (shown.isNullOrEmpty()) {
+            label.text = "Search or enter address"
+            label.setTextColor(0xFF9A9CA6.toInt())
+        } else {
+            label.text = shown
+            label.setTextColor(Ui.INK)
+        }
+    }
+
+    // Distance from the left start of the text to its centred place.
+    private fun centreShift(): Float {
+        val room = (width - 2 * sidePad).coerceAtLeast(0)
+        val text = label.paint.measureText(label.text.toString()).coerceAtMost(room.toFloat())
+        return (room - text) / 2f
+    }
+
+    // Editing starts: the centred host glides left and gives way to the editor; the end lines fade. Editing ends:
+    // the host glides back to the centre and the lines return.
+    private fun glide(editing: Boolean) {
+        label.animate().cancel()
+        input.animate().cancel()
+        lineAnim?.cancel()
+        val target = if (editing) 0f else 1f
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            label.alpha = if (editing) 0f else 1f
+            label.translationX = 0f
+            input.alpha = if (editing) 1f else 0f
+            setLine(target)
+            return
+        }
+        if (editing) {
+            label.animate().translationX(-centreShift()).alpha(0f).setDuration(220).setInterpolator(PathInterpolator(0.2f, 0f, 0f, 1f)).start()
+            input.animate().alpha(1f).setDuration(180).start()
+        } else {
+            label.translationX = -centreShift()
+            label.alpha = 0f
+            label.animate().translationX(0f).alpha(1f).setDuration(380).setInterpolator(SpringInterpolator()).start()
+            input.animate().alpha(0f).setDuration(140).start()
+        }
+        lineAnim = ValueAnimator.ofFloat(lineAmount, target).apply {
+            duration = if (editing) 160L else 320L
+            startDelay = if (editing) 0L else 140L
+            addUpdateListener { setLine(it.animatedValue as Float) }
+            start()
+        }
+    }
+
+    private fun setLine(amount: Float) {
+        lineAmount = amount
+        invalidate()
+    }
+
+    // Two thin arcs inside the pill's rounded ends, concentric with them.
+    override fun dispatchDraw(canvas: Canvas) {
+        super.dispatchDraw(canvas)
+        if (lineAmount < 0.01f || height <= 0) return
+        val inset = Ui.dp(context, 5).toFloat()
+        val d = height - 2 * inset
+        endLine.alpha = (255 * lineAmount).toInt()
+        endArc.set(inset, inset, inset + d, height - inset)
+        canvas.drawArc(endArc, 90f, 180f, false, endLine)
+        endArc.set(width - inset - d, inset, width - inset, height - inset)
+        canvas.drawArc(endArc, 270f, 180f, false, endLine)
+    }
+
+    // The loading line runs along the straight bottom edge, clear of the end arcs.
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        val m = h / 2 + Ui.dp(context, 3)
+        val lp = progress.layoutParams as LayoutParams
+        if (lp.marginStart != m || lp.marginEnd != m) {
+            lp.marginStart = m
+            lp.marginEnd = m
+            progress.layoutParams = lp
+        }
     }
 
     // The ember rim and the loading line never show together: while a page loads, the editor has the plain rim and
@@ -353,6 +461,9 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
 
     fun showUrl(value: String) {
         url = value
-        if (!input.hasFocus()) input.setText(UrlInput.display(value))
+        if (!input.hasFocus()) {
+            input.setText(UrlInput.display(value))
+            refreshLabel()
+        }
     }
 }

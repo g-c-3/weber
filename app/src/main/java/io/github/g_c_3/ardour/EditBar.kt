@@ -51,7 +51,7 @@ class EditIcon(context: Context, kind: EditIcon.Kind, tint: Int) : View(context)
         strokeJoin = Paint.Join.ROUND
     }
 
-    private val u = Ui.dp(context, 1).toFloat()
+    private val u = Ui.dp(context, 1).toFloat() * Ui.geoScale(context)
     private val k = 1.6f // the Go arrow is drawn larger than the other icons
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -214,16 +214,16 @@ private class Chip(context: Context, val icon: EditIcon, label: String, private 
         setPadding(pad, 0, pad, 0)
         text.apply {
             this.text = label
-            textSize = 13f
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.textPx(context, 13f))
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(Ui.INK)
             includeFontPadding = false
             isSingleLine = true
         }
-        addView(icon, LayoutParams(Ui.dp(context, if (primary) 48 else 15), Ui.dp(context, if (primary) 30 else 15)))
+        addView(icon, LayoutParams(Ui.sdp(context, if (primary) 48 else 15), Ui.sdp(context, if (primary) 30 else 15)))
         addView(text, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { marginStart = Ui.dp(context, 4) })
         if (primary) text.visibility = GONE
-        val radius = Ui.dp(context, 20).toFloat()
+        val radius = Ui.sdp(context, 20).toFloat()
         if (primary) {
             contentDescription = label
         } else {
@@ -279,7 +279,7 @@ class EditBar(
         clipToPadding = false
         background = GradientDrawable().apply {
             setColor(0xF2FFFFFF.toInt())
-            cornerRadius = Ui.dp(context, 28).toFloat()
+            cornerRadius = Ui.sdp(context, 30).toFloat()
             setStroke(Ui.dp(context, 1), 0x40E8451D)
         }
         elevation = Ui.dp(context, 8).toFloat()
@@ -287,8 +287,8 @@ class EditBar(
         outlineAmbientShadowColor = 0x22000000
         visibility = GONE
         alpha = 0f
-        copy.minimumWidth = (copy.paddingLeft * 2 + Ui.dp(context, 15) + Ui.dp(context, 4) + copy.text.paint.measureText("Copied")).toInt()
-        val h = Ui.dp(context, 36)
+        copy.minimumWidth = (copy.paddingLeft * 2 + Ui.sdp(context, 15) + Ui.dp(context, 4) + copy.text.paint.measureText("Copied")).toInt()
+        val h = Ui.sdp(context, 36)
         val gap = Ui.dp(context, 2)
         for ((i, chip) in listOf(copy, paste, clear, go).withIndex()) {
             addView(chip, LayoutParams(LayoutParams.WRAP_CONTENT, h).apply { if (i > 0) marginStart = gap })
