@@ -428,8 +428,8 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
     }
 }
 
-// Idle host label: centred when it fits; when longer it starts at the left and is cut mid-letter along the pill's end
-// curve moved in by the side padding, so the gaps at both ends are equal; no fade, no ellipsis (DECISIONS.md 114, 115).
+// Idle host label: centred when it fits; when longer it starts at the left and is cut mid-letter along a clearly curved
+// edge that is the side padding away from the pill's end at mid-height; no fade, no ellipsis (DECISIONS.md 114 to 116).
 private class HostLabel(context: Context) : TextView(context) {
     private val clip = Path()
 
@@ -448,9 +448,11 @@ private class HostLabel(context: Context) : TextView(context) {
             canvas.restore()
             return
         }
-        val radius = height / 2f
+        val right = (width - paddingRight).toFloat()
+        val reach = height * 1.4f
         clip.rewind()
-        clip.addRoundRect(-height.toFloat(), 0f, (width - paddingRight).toFloat(), height.toFloat(), radius, radius, Path.Direction.CW)
+        clip.addRect(-width.toFloat(), 0f, right - reach, height.toFloat(), Path.Direction.CW)
+        clip.addOval(right - 2f * reach, 0f, right, height.toFloat(), Path.Direction.CW)
         canvas.save()
         canvas.clipPath(clip)
         paint.color = currentTextColor
