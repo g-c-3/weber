@@ -270,6 +270,7 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
 // Pill search box with the ember rim while it has focus.
 class SearchBox(context: Context, private val onGo: (String) -> Unit) : FrameLayout(context) {
     val input = EditText(context)
+    private val align = TypedAlign(input)
     private val radius = Ui.sdp(context, 26).toFloat()
     private val rim = GradientDrawable().apply {
         setColor(Ui.CARD)
@@ -312,6 +313,7 @@ class SearchBox(context: Context, private val onGo: (String) -> Unit) : FrameLay
             }
         }
         addView(input, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        align.reset(false)
     }
 
     private fun fadeRim(target: Int) {

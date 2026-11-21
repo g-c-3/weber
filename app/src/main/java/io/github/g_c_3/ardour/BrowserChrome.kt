@@ -200,10 +200,12 @@ class IconButton(context: Context, kind: Kind) : View(context) {
 
 // Pill-shaped address field: host while idle, full address while editing (cursor after the site name), ember rim when focused.
 // Idle: a short host is centred; a long one starts at the left and runs to the pill's curve, cut mid-letter.
-// Editing: the text starts at the left (DECISIONS.md 111, 112, 114).
+// Editing: an address starts at the left; typed text and the empty hint are centred until they fill the width
+// (DECISIONS.md 111, 112, 114, 120).
 class AddressField(context: Context, private val onSubmit: (String) -> Unit, private val onFocus: (Boolean) -> Unit) :
     FrameLayout(context) {
     val input = EditText(context)
+    private val align = TypedAlign(input)
     private val label = HostLabel(context)
     private val sidePad = Ui.dp(context, 12)
 
@@ -258,6 +260,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             setOnFocusChangeListener { _, focused ->
                 focusedNow = focused
                 updateRim()
+                align.reset(!url.isNullOrEmpty())
                 if (focused) {
                     setText(url ?: "")
                     placeCursor()
@@ -294,8 +297,10 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         }
     }
 
-    // Distance from the left start of the text to its centred place.
+    // Distance from the left start of the text to its centred place; none for an empty bar, whose hint stays centred
+    // while it is edited (DECISIONS.md 120).
     private fun centreShift(): Float {
+        if (url.isNullOrEmpty()) return 0f
         val room = (width - 2 * sidePad).coerceAtLeast(0)
         val text = label.paint.measureText(label.text.toString()).coerceAtMost(room.toFloat())
         return (room - text) / 2f
@@ -328,6 +333,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         val size = Ui.textPx(context, 15.5f)
         input.setTextSize(TypedValue.COMPLEX_UNIT_PX, size)
         label.setTextSize(TypedValue.COMPLEX_UNIT_PX, size)
+        align.refresh()
     }
 
     // The ember rim and the loading line never show together: while a page loads, the editor has the plain rim and
