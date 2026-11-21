@@ -12,6 +12,8 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -75,6 +77,14 @@ object Gestures {
 class StartSearch(private val activity: Activity, private val onSubmit: (String) -> Unit) :
     LinearLayout(activity), VoiceInput.Callbacks {
     private val box = SearchBox(activity, ::submitTyped)
+    private val slot = FrameLayout(activity).apply { clipChildren = false }
+    private val bar = EditBar(
+        activity,
+        onCopy = { Clipboard.copy(activity, box.input.text.toString()) },
+        onPaste = { pasteIntoBox() },
+        onClear = { box.input.setText("") },
+        onGo = { submitTyped(box.input.text.toString()) },
+    )
     private val language = StartChip(activity, false)
     private val mic = MicButton(activity)
     private val engine = StartChip(activity, true)
@@ -86,7 +96,16 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     init {
         orientation = VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
+        // Room above the box for Copy, Paste, Clear and Go while the box is being edited.
+        slot.addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        addView(slot, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.sdp(activity, 54)))
         addView(box, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.sdp(activity, 50)))
+        box.onFocus = ::showBar
+        box.input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) = bar.refresh(!s.isNullOrEmpty(), Clipboard.hasText(activity))
+        })
         val row = LinearLayout(activity).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER
@@ -113,6 +132,39 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
         Gestures.tapOrSwipeDown(engine) { showEngines() }
     }
 
+    // Same rise-in as the address bar's bar, but above the box.
+    private fun showBar(show: Boolean) {
+        bar.animate().cancel()
+        if (show) {
+            bar.refresh(box.input.text.isNotEmpty(), Clipboard.hasText(activity))
+            bar.visibility = View.VISIBLE
+            bar.playIn()
+            bar.translationY = Ui.dp(activity, 10).toFloat()
+            bar.animate().alpha(1f).translationY(0f).setStartDelay(120).setDuration(380).setInterpolator(SpringInterpolator()).start()
+        } else {
+            bar.animate().alpha(0f).translationY(Ui.dp(activity, 6).toFloat()).setStartDelay(0).setDuration(160)
+                .withEndAction { if (!box.input.hasFocus()) bar.visibility = View.GONE }.start()
+        }
+    }
+
+    // The clipboard changed or the app came back: Paste follows what the clipboard holds.
+    fun refreshClipboard() {
+        if (bar.visibility == View.VISIBLE) bar.refresh(box.input.text.isNotEmpty(), Clipboard.hasText(activity))
+    }
+
+    private fun pasteIntoBox() {
+        val text = Clipboard.text(activity)
+        if (text.isEmpty()) {
+            Clipboard.markEmpty()
+            refreshClipboard()
+            return
+        }
+        val field = box.input
+        val a = field.selectionStart.coerceAtLeast(0)
+        val b = field.selectionEnd.coerceAtLeast(0)
+        field.text.replace(minOf(a, b), maxOf(a, b), text)
+    }
+
     private fun submitTyped(text: String) {
         if (text.isBlank()) return
         box.hideKeyboard()
@@ -129,33 +181,35 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     }
 
     private fun showLanguages() {
-        MenuPopup.show(
-            language,
-            VoiceLanguages.all.map { item ->
-                MenuItem(item.name, note = if (item.tag == voiceLanguage.tag) "Active" else null) {
-                    voiceLanguage = item
-                    VoiceLanguages.set(activity, item)
-                    language.label = item.short
-                }
-            },
-            turnAnchor = false,
-        )
+        ListSheet.show(
+            activity,
+            entries = VoiceLanguages.all.map { SheetEntry(it.tag, it.name) },
+            selectedKey = { voiceLanguage.tag },
+            recent = VoiceLanguages.recent(activity).map { SheetEntry(it.tag, it.name) },
+            searchable = true,
+        ) { picked ->
+            VoiceLanguages.byTag(picked.key)?.let {
+                voiceLanguage = it
+                VoiceLanguages.use(activity, it)
+                language.label = it.short
+            }
+        }
     }
 
     private fun showEngines() {
-        val active = SearchEngines.active
-        val isDefault = SearchEngines.default(activity).id == active.id
-        val items = SearchEngines.all.map { item ->
-            MenuItem(item.name, note = if (item.id == active.id) "Active" else null) { SearchEngines.use(item) }
-        } + MenuItem(
-            "Make default",
-            enabled = !(isDefault && active.id == SearchEngines.all[0].id),
-            toggle = isDefault,
-            dividerBefore = true,
-        ) {
-            SearchEngines.makeDefault(activity, if (isDefault) SearchEngines.all[0] else active)
+        ListSheet.show(
+            activity,
+            entries = SearchEngines.all.map { SheetEntry(it.id, it.name) },
+            selectedKey = { SearchEngines.active.id },
+            closeOnPick = false,
+            footer = SheetFooter(
+                label = { if (SearchEngines.default(activity).id == SearchEngines.active.id) "Default" else "Make default" },
+                enabled = { SearchEngines.default(activity).id != SearchEngines.active.id },
+                onTap = { SearchEngines.makeDefault(activity, SearchEngines.active) },
+            ),
+        ) { picked ->
+            SearchEngines.all.firstOrNull { it.id == picked.key }?.let { SearchEngines.use(it) }
         }
-        MenuPopup.show(engine, items, turnAnchor = false)
     }
 
     fun onPermissionResult(granted: Boolean) = voice.onPermissionResult(granted)
@@ -164,6 +218,7 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     fun stopVoice() {
         if (voice.active) voice.cancel()
         mic.setListening(false)
+        showStatus(null)
     }
 
     // The start page is hidden or shown again: nothing typed, heard or listening stays.
@@ -171,6 +226,9 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
         stopVoice()
         box.input.setText("")
         box.hideKeyboard()
+        bar.animate().cancel()
+        bar.visibility = View.GONE
+        bar.alpha = 0f
         showStatus(null)
     }
 
@@ -224,6 +282,7 @@ class SearchBox(context: Context, private val onGo: (String) -> Unit) : FrameLay
         alpha = 0
     }
     private var rimAnim: ValueAnimator? = null
+    var onFocus: ((Boolean) -> Unit)? = null
 
     init {
         background = rim
@@ -247,7 +306,10 @@ class SearchBox(context: Context, private val onGo: (String) -> Unit) : FrameLay
                 onGo(text.toString())
                 true
             }
-            setOnFocusChangeListener { _, focused -> fadeRim(if (focused) 255 else 0) }
+            setOnFocusChangeListener { _, focused ->
+                fadeRim(if (focused) 255 else 0)
+                onFocus?.invoke(focused)
+            }
         }
         addView(input, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }

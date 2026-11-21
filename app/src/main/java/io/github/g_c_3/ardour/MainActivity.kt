@@ -381,11 +381,7 @@ class MainActivity : Activity() {
     }
 
     // Copy action of the floating bar over the page while the address is edited.
-    private fun copyAddress() {
-        val text = address.input.text.toString()
-        if (text.isEmpty()) return
-        (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("address", text))
-    }
+    private fun copyAddress() = Clipboard.copy(this, address.input.text.toString())
 
     private var noticeView: TextView? = null
 
@@ -423,16 +419,15 @@ class MainActivity : Activity() {
     }
 
     // Whether the clipboard holds text; reads only its type, never its content.
-    private fun clipboardHasText(): Boolean {
-        val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-        return cm.hasPrimaryClip() && cm.primaryClipDescription?.hasMimeType("text/*") == true
-    }
+    private fun clipboardHasText(): Boolean = Clipboard.hasText(this)
 
     private fun pasteIntoAddress() {
-        val clip = (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).primaryClip ?: return
-        if (clip.itemCount == 0) return
-        val text = clip.getItemAt(0).coerceToText(this)?.toString().orEmpty()
-        if (text.isEmpty()) return
+        val text = Clipboard.text(this)
+        if (text.isEmpty()) {
+            Clipboard.markEmpty()
+            floatingBar.refresh(address.input.text.isNotEmpty(), clipboardHasText())
+            return
+        }
         val field = address.input
         val a = field.selectionStart.coerceAtLeast(0)
         val b = field.selectionEnd.coerceAtLeast(0)
@@ -605,6 +600,8 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        Clipboard.watch(this, clipListener)
+        refreshClipboardButtons()
         if (!::pageArea.isInitialized) return
         pageArea.enabledPull = Prefs.get(this, Prefs.PULL)
         EngineAdapter.setZoomMode(Prefs.get(this, Prefs.FORCE_ZOOM), Prefs.get(this, Prefs.WRAP))
@@ -898,8 +895,22 @@ class MainActivity : Activity() {
         }
     }
 
+    // The clipboard can change while the app is away or while a bar is open: Paste follows it.
+    private val clipListener = ClipboardManager.OnPrimaryClipChangedListener {
+        Clipboard.changed()
+        refreshClipboardButtons()
+    }
+
+    private fun refreshClipboardButtons() {
+        if (::floatingBar.isInitialized && floatingBar.visibility == View.VISIBLE) {
+            floatingBar.refresh(address.input.text.isNotEmpty(), clipboardHasText())
+        }
+        if (::searchBlock.isInitialized) searchBlock.refreshClipboard()
+    }
+
     // The mic never keeps listening once the app leaves the screen.
     override fun onPause() {
+        Clipboard.unwatch(this, clipListener)
         if (::searchBlock.isInitialized) searchBlock.stopVoice()
         super.onPause()
     }
