@@ -5,13 +5,9 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.text.TextUtils
@@ -203,8 +199,8 @@ class IconButton(context: Context, kind: Kind) : View(context) {
 }
 
 // Pill-shaped address field: host while idle, full address while editing (cursor after the site name), ember rim when focused.
-// Idle: a short host is centred; a long one starts at the left and fades out into the pill's corner, no ellipsis.
-// Editing: the text starts at the left (DECISIONS.md 111, 112).
+// Idle: a short host is centred; a long one starts at the left and runs to the pill's curve, cut mid-letter.
+// Editing: the text starts at the left (DECISIONS.md 111, 112, 114).
 class AddressField(context: Context, private val onSubmit: (String) -> Unit, private val onFocus: (Boolean) -> Unit) :
     FrameLayout(context) {
     val input = EditText(context)
@@ -432,21 +428,15 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
     }
 }
 
-// Idle host label: centred when it fits; when longer it starts at the left and fades out at the right end into the
-// pill's corner, with no ellipsis (DECISIONS.md 112).
+// Idle host label: centred when it fits; when longer it starts at the left and runs to the curve of the pill's end,
+// cut mid-letter, with no fade and no ellipsis (DECISIONS.md 114).
 private class HostLabel(context: Context) : TextView(context) {
-    private val fade = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
-    private val fadeLen = Ui.dp(context, 28).toFloat()
+    private val inset = Ui.dp(context, 3).toFloat()
+    private val clip = Path()
 
     init {
         isSingleLine = true
         gravity = Gravity.START or Gravity.CENTER_VERTICAL
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        val edge = (w - paddingRight).toFloat()
-        fade.shader = LinearGradient(edge - fadeLen, 0f, edge, 0f, 0x00000000, 0xFF000000.toInt(), Shader.TileMode.CLAMP)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -459,9 +449,13 @@ private class HostLabel(context: Context) : TextView(context) {
             canvas.restore()
             return
         }
-        val layer = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
-        super.onDraw(canvas)
-        canvas.drawRect(width - paddingRight - fadeLen, 0f, width.toFloat(), height.toFloat(), fade)
-        canvas.restoreToCount(layer)
+        val radius = height / 2f - inset
+        clip.rewind()
+        clip.addRoundRect(inset, inset, width - inset, height - inset, radius, radius, Path.Direction.CW)
+        canvas.save()
+        canvas.clipPath(clip)
+        paint.color = currentTextColor
+        canvas.drawText(this.text.toString(), paddingLeft.toFloat(), baseline.toFloat(), paint)
+        canvas.restore()
     }
 }
