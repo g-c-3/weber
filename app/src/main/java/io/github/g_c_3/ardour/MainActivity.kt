@@ -37,7 +37,7 @@ class MainActivity : Activity() {
     private lateinit var address: AddressField
     private val progress: PageProgress get() = address.progress
     private lateinit var startView: View
-    private lateinit var startSearch: StartSearch
+    private lateinit var searchBlock: StartSearch
     private lateinit var errorView: LinearLayout
     private lateinit var errorTitle: TextView
     private lateinit var errorBody: TextView
@@ -483,8 +483,8 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         setBackgroundColor(Ui.PAPER)
         clipChildren = false
-        startSearch = StartSearch(this@MainActivity) { submit(it) }
-        addView(startSearch, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+        searchBlock = StartSearch(this@MainActivity) { submit(it) }
+        addView(searchBlock, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             marginStart = px(24)
             marginEnd = px(24)
         })
@@ -780,7 +780,7 @@ class MainActivity : Activity() {
     private fun revealPage() {
         if (hasPage) return
         hasPage = true
-        startSearch.reset()
+        searchBlock.reset()
         startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
     }
 
@@ -893,14 +893,14 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == VoiceInput.REQUEST && ::startSearch.isInitialized) {
-            startSearch.onPermissionResult(grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED)
+        if (requestCode == VoiceInput.REQUEST && ::searchBlock.isInitialized) {
+            searchBlock.onPermissionResult(grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED)
         }
     }
 
     // The mic never keeps listening once the app leaves the screen.
     override fun onPause() {
-        if (::startSearch.isInitialized) startSearch.stopVoice()
+        if (::searchBlock.isInitialized) searchBlock.stopVoice()
         super.onPause()
     }
 
