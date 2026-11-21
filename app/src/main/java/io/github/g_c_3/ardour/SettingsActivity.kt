@@ -182,11 +182,7 @@ class SettingsActivity : Activity() {
         val clear = Ui.secondaryButton(ctx, "Clear")
         save.setOnClickListener {
             val name = CrashLog.save(ctx)
-            status.text = when {
-                name != null -> "Saved to Downloads: $name"
-                CrashLog.count(ctx) == 0 -> "No crash recorded."
-                else -> "Could not save the file."
-            }
+            status.text = if (name != null) "Saved to Downloads: $name" else "Could not save the file."
         }
         clear.setOnClickListener {
             CrashLog.clear(ctx)

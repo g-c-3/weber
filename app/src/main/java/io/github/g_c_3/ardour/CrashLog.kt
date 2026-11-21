@@ -102,15 +102,16 @@ object CrashLog {
 
     fun render(context: Context): String {
         val b = StringBuilder("CRASHLOG.md\n")
-        for ((i, f) in files(context).withIndex()) {
+        val all = files(context)
+        if (all.isEmpty()) b.append("\nNo crash recorded. App works fine.\n")
+        for ((i, f) in all.withIndex()) {
             b.append("\n=== Record ${i + 1} ===\n").append(f.readText(Charsets.UTF_8))
         }
         return b.toString()
     }
 
-    // Writes one text file to Downloads. Returns its name, or null when there is nothing to save or the write failed.
+    // Writes one text file to Downloads, also when no crash was recorded (it then says so). Returns its name, or null when the write failed.
     fun save(context: Context): String? {
-        if (count(context) == 0) return null
         val name = "Ardour-crash-${versionName(context)}-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.txt"
         return if (Trace.writeDownload(context, name, render(context))) name else null
     }
