@@ -9,7 +9,8 @@ import java.util.Locale
 
 // Crash log (DECISIONS.md 103): when Ardour's own code ends with an uncaught error, a short record is written to a
 // private folder of the app (version, phone, error type and place, the last page load events). It stays there until the
-// owner taps Save in Settings > Diagnostics, which writes one text file to Downloads. Never sent anywhere. Not covered:
+// owner taps Save in Settings > Diagnostics, which writes one text file to Downloads. Never sent anywhere. The file's first
+// line names CRASHLOG.md in the docs repository, which explains how to read it (DECISIONS.md 109). Not covered:
 // the engine's own process (Trace shows RENDERER), the system killing the app, and freezes.
 object CrashLog {
     private const val KEEP = 5
@@ -74,7 +75,7 @@ object CrashLog {
         b.append("WebView: ").append(try { EngineAdapter.webViewVersion(context) ?: "not found" } catch (_: Throwable) { "unknown" }).append('\n')
         b.append("Thread: ").append(thread.name).append("\n\n")
         b.append(describe(error))
-        b.append("\nLast page load events (addresses reduced to host and path):\n")
+        b.append("\nLast page load events:\n")
         for (line in Trace.tail(EVENTS)) b.append(line).append('\n')
         val dir = folder(context)
         dir.mkdirs()
@@ -100,9 +101,7 @@ object CrashLog {
     }
 
     fun render(context: Context): String {
-        val b = StringBuilder("Ardour crash log\n\n")
-        b.append("Records are the errors that ended the app, newest first. Each lists the error type and place in the code, then the last\n")
-        b.append("page load events (addresses reduced to host and path; no cookies, no page content). Created only because Save was tapped.\n")
+        val b = StringBuilder("CRASHLOG.md\n")
         for ((i, f) in files(context).withIndex()) {
             b.append("\n=== Record ${i + 1} ===\n").append(f.readText(Charsets.UTF_8))
         }

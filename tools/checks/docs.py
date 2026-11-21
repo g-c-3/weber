@@ -1,9 +1,9 @@
-"""Docs consistency: numbering, TRACK against SESSIONS, references, INDEX ranges, banned words, secrets, e-mail addresses, dates."""
+"""Docs consistency (including NOTES, TRACE and CRASHLOG, which the app's saved files name on their first line): numbering, TRACK against SESSIONS, references, INDEX ranges, banned words, secrets, e-mail addresses, dates."""
 import re
 from .common import Finding
 
 NAME = "docs"
-MAIN = ["INDEX.md", "ROADMAP.md", "DECISIONS.md", "SESSIONS.md", "TRACK.md", "ARCHITECTURE.md"]
+MAIN = ["INDEX.md", "ROADMAP.md", "DECISIONS.md", "SESSIONS.md", "TRACK.md", "ARCHITECTURE.md", "NOTES.md", "TRACE.md", "CRASHLOG.md"]
 SIZE_LIMIT = 60 * 1024
 INDEX_LIMIT = 5 * 1024
 # built from parts so this file does not hold the banned words itself
@@ -92,7 +92,7 @@ def run(docs=None):
                     err(f"TRACK.md:{n}", f"decision {m.group(0)} does not exist")
 
     # references to decisions and sessions
-    for name in ("INDEX.md", "ROADMAP.md", "SESSIONS.md", "ARCHITECTURE.md", "DECISIONS.md"):
+    for name in ("INDEX.md", "ROADMAP.md", "SESSIONS.md", "ARCHITECTURE.md", "DECISIONS.md", "NOTES.md", "TRACE.md", "CRASHLOG.md"):
         for n, l in enumerate(lines.get(name, []), 1):
             for m in re.finditer(r"(?:\b[Dd]ecisions?|DECISIONS\.md) (\d+)" + LIST, l):
                 for k in numbers(m.group(1), m.group(2)):
@@ -148,7 +148,7 @@ def run(docs=None):
                 err(f"{name}:{n}", "a secret")
             if re.search(EMAIL, l):
                 err(f"{name}:{n}", "an e-mail address (decision 98)")
-            if name in ("DECISIONS.md", "SESSIONS.md") or name.startswith("archive/DECISIONS") or name.startswith("archive/SESSIONS"):
+            if name in ("DECISIONS.md", "SESSIONS.md", "NOTES.md") or name.startswith("archive/DECISIONS") or name.startswith("archive/SESSIONS"):
                 if any(re.search(rx, l) for rx in DATES):
                     err(f"{name}:{n}", "a date or time reference")
     for name, t in text.items():
