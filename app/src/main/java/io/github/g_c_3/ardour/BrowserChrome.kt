@@ -5,9 +5,13 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.text.TextUtils
@@ -199,22 +203,13 @@ class IconButton(context: Context, kind: Kind) : View(context) {
 }
 
 // Pill-shaped address field: host while idle, full address while editing (cursor after the site name), ember rim when focused.
-// Idle: the host is centred between two thin curved lines inside the pill's ends and ends with an ellipsis if too long.
-// Editing: the lines fade, the text starts at the left (DECISIONS.md 111).
+// Idle: a short host is centred; a long one starts at the left and fades out into the pill's corner, no ellipsis.
+// Editing: the text starts at the left (DECISIONS.md 111, 112).
 class AddressField(context: Context, private val onSubmit: (String) -> Unit, private val onFocus: (Boolean) -> Unit) :
     FrameLayout(context) {
     val input = EditText(context)
-    private val label = TextView(context)
-    private val sidePad = Ui.dp(context, 18)
-    private val endLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = Ui.dp(context, 1).toFloat() * 1.2f
-        strokeCap = Paint.Cap.ROUND
-        color = Ui.LINE
-    }
-    private val endArc = RectF()
-    private var lineAmount = 1f
-    private var lineAnim: ValueAnimator? = null
+    private val label = HostLabel(context)
+    private val sidePad = Ui.dp(context, 12)
 
     // Page loading line, inside the pill along its bottom straight edge; it widens with the pill (DECISIONS.md 70).
     val progress = PageProgress(context)
@@ -224,21 +219,23 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         cornerRadius = Ui.dp(context, 26).toFloat()
         setStroke(Ui.dp(context, 1), Ui.LINE)
     }
+    // The ember rim is a second outline faded in over the grey one: a stroke width in whole pixels would step at the end.
+    private val emberRim = GradientDrawable().apply {
+        cornerRadius = Ui.dp(context, 26).toFloat()
+        setStroke(Ui.dp(context, 2), Ui.EMBER)
+    }
     private var focusedNow = false
     private var loadingNow = false
     private var rimAmount = 0f
     private var rimAnim: ValueAnimator? = null
-    private val rimBlend = ArgbEvaluator()
 
     init {
         background = rim
+        foreground = emberRim
         clipChildren = false
         applyRim(0f)
         label.apply {
             setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.textPx(context, 15.5f))
-            isSingleLine = true
-            ellipsize = TextUtils.TruncateAt.END
-            gravity = Gravity.CENTER
             setPadding(sidePad, 0, sidePad, 0)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
@@ -308,18 +305,15 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         return (room - text) / 2f
     }
 
-    // Editing starts: the centred host glides left and gives way to the editor; the end lines fade. Editing ends:
-    // the host glides back to the centre and the lines return.
+    // Editing starts: the centred host glides left and gives way to the editor. Editing ends: the host glides back to
+    // the centre.
     private fun glide(editing: Boolean) {
         label.animate().cancel()
         input.animate().cancel()
-        lineAnim?.cancel()
-        val target = if (editing) 0f else 1f
         if (!ValueAnimator.areAnimatorsEnabled()) {
             label.alpha = if (editing) 0f else 1f
             label.translationX = 0f
             input.alpha = if (editing) 1f else 0f
-            setLine(target)
             return
         }
         if (editing) {
@@ -331,42 +325,13 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             label.animate().translationX(0f).alpha(1f).setDuration(380).setInterpolator(SpringInterpolator()).start()
             input.animate().alpha(0f).setDuration(140).start()
         }
-        lineAnim = ValueAnimator.ofFloat(lineAmount, target).apply {
-            duration = if (editing) 160L else 320L
-            startDelay = if (editing) 0L else 140L
-            addUpdateListener { setLine(it.animatedValue as Float) }
-            start()
-        }
     }
 
-    private fun setLine(amount: Float) {
-        lineAmount = amount
-        invalidate()
-    }
-
-    // Two thin arcs inside the pill's rounded ends, concentric with them.
-    override fun dispatchDraw(canvas: Canvas) {
-        super.dispatchDraw(canvas)
-        if (lineAmount < 0.01f || height <= 0) return
-        val inset = Ui.dp(context, 5).toFloat()
-        val d = height - 2 * inset
-        endLine.alpha = (255 * lineAmount).toInt()
-        endArc.set(inset, inset, inset + d, height - inset)
-        canvas.drawArc(endArc, 90f, 180f, false, endLine)
-        endArc.set(width - inset - d, inset, width - inset, height - inset)
-        canvas.drawArc(endArc, 270f, 180f, false, endLine)
-    }
-
-    // The loading line runs along the straight bottom edge, clear of the end arcs.
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        val m = h / 2 + Ui.dp(context, 3)
-        val lp = progress.layoutParams as LayoutParams
-        if (lp.marginStart != m || lp.marginEnd != m) {
-            lp.marginStart = m
-            lp.marginEnd = m
-            progress.layoutParams = lp
-        }
+    // The system font size changed: text sizes follow in place (the row height is set by the activity).
+    fun applyScale() {
+        val size = Ui.textPx(context, 15.5f)
+        input.setTextSize(TypedValue.COMPLEX_UNIT_PX, size)
+        label.setTextSize(TypedValue.COMPLEX_UNIT_PX, size)
     }
 
     // The ember rim and the loading line never show together: while a page loads, the editor has the plain rim and
@@ -404,7 +369,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         rimAnim = ValueAnimator.ofFloat(rimAmount, target).apply {
             duration = if (target > rimAmount) fadeInMs else 240L
             startDelay = if (target > rimAmount) delayMs else 0L
-            interpolator = PathInterpolator(0.2f, 0f, 0f, 1f)
+            interpolator = PathInterpolator(0.4f, 0f, 0.2f, 1f)
             addUpdateListener { applyRim(it.animatedValue as Float) }
             start()
         }
@@ -413,8 +378,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
     // amount 0: plain rim, quiet glow. 1: ember rim, 2 dp, stronger glow.
     private fun applyRim(amount: Float) {
         rimAmount = amount
-        val width = Ui.dp(context, 1) + (Ui.dp(context, 1) * amount).toInt()
-        rim.setStroke(width, rimBlend.evaluate(amount, Ui.LINE, Ui.EMBER) as Int)
+        emberRim.alpha = (255 * amount).toInt()
         elevation = Ui.dp(context, 4) + Ui.dp(context, 3) * amount
         val alpha = (0x59 + (0x99 - 0x59) * amount).toInt()
         outlineSpotShadowColor = (alpha shl 24) or (Ui.EMBER and 0x00FFFFFF)
@@ -465,5 +429,39 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             input.setText(UrlInput.display(value))
             refreshLabel()
         }
+    }
+}
+
+// Idle host label: centred when it fits; when longer it starts at the left and fades out at the right end into the
+// pill's corner, with no ellipsis (DECISIONS.md 112).
+private class HostLabel(context: Context) : TextView(context) {
+    private val fade = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
+    private val fadeLen = Ui.dp(context, 28).toFloat()
+
+    init {
+        isSingleLine = true
+        gravity = Gravity.START or Gravity.CENTER_VERTICAL
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        val edge = (w - paddingRight).toFloat()
+        fade.shader = LinearGradient(edge - fadeLen, 0f, edge, 0f, 0x00000000, 0xFF000000.toInt(), Shader.TileMode.CLAMP)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val room = (width - paddingLeft - paddingRight).toFloat()
+        val text = paint.measureText(this.text.toString())
+        if (text <= room) {
+            canvas.save()
+            canvas.translate((room - text) / 2f, 0f)
+            super.onDraw(canvas)
+            canvas.restore()
+            return
+        }
+        val layer = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
+        super.onDraw(canvas)
+        canvas.drawRect(width - paddingRight - fadeLen, 0f, width.toFloat(), height.toFloat(), fade)
+        canvas.restoreToCount(layer)
     }
 }

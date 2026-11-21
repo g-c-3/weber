@@ -7,6 +7,7 @@ import android.content.ClipboardManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.LinearGradient
 import android.graphics.drawable.GradientDrawable
 import android.net.ConnectivityManager
@@ -309,13 +310,7 @@ class MainActivity : Activity() {
         errorView = errorScreen().apply { visibility = View.GONE }
         content.addView(errorView, fill)
         content.attachIndicator()
-        floatingBar = EditBar(
-            this,
-            onCopy = { copyAddress() },
-            onPaste = { pasteIntoAddress() },
-            onClear = { address.input.setText("") },
-            onGo = { submit(address.input.text.toString()) },
-        )
+        floatingBar = newFloatingBar()
         address.input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -323,16 +318,49 @@ class MainActivity : Activity() {
                 floatingBar.refresh(!s.isNullOrEmpty(), clipboardHasText())
             }
         })
-        content.addView(
-            floatingBar,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-                .apply { topMargin = px(8) },
-        )
+        content.addView(floatingBar, floatingBarParams())
         root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         findBar = FindBar(this, { EngineAdapter.findAll(it) }, { EngineAdapter.findNext(it) }, ::closeFind).apply { visibility = View.GONE }
         root.addView(findBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         Ui.enter(listOf(top, startView))
+    }
+
+    private fun newFloatingBar() = EditBar(
+        this,
+        onCopy = { copyAddress() },
+        onPaste = { pasteIntoAddress() },
+        onClear = { address.input.setText("") },
+        onGo = { submit(address.input.text.toString()) },
+    )
+
+    private fun floatingBarParams() =
+        FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+            .apply { topMargin = px(8) }
+
+    // The system font size changed: the top row and the edit bar follow it in place; the page and its history stay
+    // (DECISIONS.md 112).
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!::floatingBar.isInitialized) return
+        val row = Ui.sdp(this, ROW_HEIGHT)
+        buttonGroup.layoutParams.height = row
+        address.layoutParams.height = row
+        val bar = (topBar as ViewGroup).getChildAt(0)
+        bar.layoutParams.height = row + px(2)
+        address.applyScale()
+        val old = floatingBar
+        floatingBar = newFloatingBar().also {
+            it.visibility = old.visibility
+            it.alpha = old.alpha
+            it.translationY = old.translationY
+        }
+        pageArea.removeView(old)
+        pageArea.addView(floatingBar, floatingBarParams())
+        floatingBar.refresh(address.input.text.isNotEmpty(), clipboardHasText())
+        buttonGroup.requestLayout()
+        address.requestLayout()
+        bar.requestLayout()
     }
 
     // Row width known: the pill gets half of it, the buttons the other half.
