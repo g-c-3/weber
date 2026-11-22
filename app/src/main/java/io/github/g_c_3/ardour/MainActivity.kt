@@ -46,7 +46,7 @@ class MainActivity : Activity() {
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var buttonGroup: LinearLayout
-    private var privateOn = false // the Private button's state; marks the window only until private tabs exist (DECISIONS.md 129)
+    private var privateOn = false // private mode: its own engine profile, removed on close (DECISIONS.md 131)
     private var homeOver = false // the start screen is shown over a page the user left with Home (DECISIONS.md 127)
     private lateinit var floatingBar: EditBar
     private lateinit var suggestList: SuggestionList
@@ -254,6 +254,8 @@ class MainActivity : Activity() {
 
     // Builds the browser screen: top row of address and buttons, page area, start and error views, find bar; wires the engine.
     private fun buildBrowser(root: LinearLayout) {
+        EngineAdapter.removeStalePrivate()
+        privateOn = EngineAdapter.privateMode
         rootLayout = root
         backButton = IconButton(this, IconButton.Kind.BACK).apply {
             contentDescription = "Back"
@@ -284,7 +286,8 @@ class MainActivity : Activity() {
             onSwipeDown = { showNotice("Tabs come in a later update") }
         }
         val privateButton = IconButton(this, IconButton.Kind.PRIVATE).apply {
-            contentDescription = "Private browsing, off"
+            contentDescription = if (privateOn) "Private browsing, on" else "Private browsing, off"
+            if (privateOn) post { setOn(true) }
             setOnClickListener { togglePrivate(this) }
             onSwipeDown = { togglePrivate(this) }
         }
@@ -829,13 +832,36 @@ class MainActivity : Activity() {
         startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
     }
 
-    // The Private button: shield fills amber when on. Marks the window only; the isolation and the history wipe come with
-    // private tabs and the history list (DECISIONS.md 129).
+    // The Private button (DECISIONS.md 131): switches the whole app to a private engine profile and back. Nothing of the
+    // normal browsing is visible in it, and what the private session kept is removed when it is left or the app closes.
+    // The normal page comes back as it was.
     private fun togglePrivate(button: IconButton) {
-        privateOn = !privateOn
-        button.setOn(privateOn)
-        button.contentDescription = if (privateOn) "Private browsing, on" else "Private browsing, off"
-        showNotice(if (privateOn) "Marked private. Full privacy comes with tabs." else "Private marking off")
+        if (finding) closeFind()
+        if (address.input.hasFocus()) leaveAddress()
+        closeSuggestions()
+        closeReader()
+        val on = !privateOn
+        val view = EngineAdapter.setPrivate(this, on) ?: return
+        pageArea.addView(view, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        EngineAdapter.setZoomMode(Prefs.get(this, Prefs.FORCE_ZOOM), Prefs.get(this, Prefs.WRAP))
+        EngineAdapter.setThirdPartyCookies(Prefs.get(this, Prefs.THIRD_PARTY, false))
+        privateOn = on
+        button.setOn(on)
+        button.contentDescription = if (on) "Private browsing, on" else "Private browsing, off"
+        // The new view has no page yet: the start screen shows; a restored normal page brings itself back.
+        hasPage = false
+        homeOver = false
+        errorView.visibility = View.GONE
+        address.showUrl("")
+        reloadButton.isEnabled = false
+        backButton.isEnabled = false
+        forwardButton.isEnabled = false
+        searchBlock.reset()
+        startView.animate().cancel()
+        startView.alpha = 1f
+        startView.visibility = View.VISIBLE
+        refreshBack()
+        showNotice(if (on) "Private on. Removed when you leave it." else "Private off. Session data removed.")
     }
 
     // Home: the start screen over the page; the page and its history stay. Back, or any new load, brings the page back.
@@ -1020,7 +1046,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        EngineAdapter.destroy()
+        EngineAdapter.destroy(isFinishing)
         super.onDestroy()
     }
 

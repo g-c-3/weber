@@ -8,11 +8,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.net.Uri
 import android.net.http.SslError
+import android.os.Bundle
 import android.os.SystemClock
 import android.webkit.ConsoleMessage
-import android.webkit.CookieManager
-import android.webkit.GeolocationPermissions
-import android.webkit.WebStorage
 import android.webkit.RenderProcessGoneDetail
 import org.json.JSONException
 import org.json.JSONObject
@@ -28,6 +26,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.Profile
+import androidx.webkit.ProfileStore
 import androidx.webkit.ScriptHandler
 import androidx.webkit.UserAgentMetadata
 import androidx.webkit.WebSettingsCompat
@@ -406,6 +405,14 @@ object EngineAdapter {
     private const val STEP_MAX = 24
     private const val MIN_CHARS = 600
 
+    // Private mode (DECISIONS.md 131): its own engine profile, so nothing of the normal browsing is visible in it and
+    // nothing of it outlives the session. One view lives at a time: the normal page is saved while private is on.
+    var privateMode = false
+        private set
+    private const val PRIVATE_PROFILE = "private"
+    private var savedNormal: Bundle? = null
+    private var engineLost: (() -> Unit)? = null
+
     // Desktop site (user switch): a desktop user-agent string. Kept across a view rebuild.
     var desktopSite = false
         private set
@@ -438,10 +445,12 @@ object EngineAdapter {
     @Suppress("DEPRECATION")
     fun createView(context: Context, listener: PageListener, onEngineLost: () -> Unit): View {
         pageListener = listener
+        engineLost = onEngineLost
         appContext = context.applicationContext
         val view = WebView(context)
         // Profile first: no other call on the view before it (ROADMAP 2). Named Space profiles arrive in Phase 12.
-        WebViewCompat.setProfile(view, Profile.DEFAULT_PROFILE_NAME)
+        if (privateMode) ProfileStore.getInstance().getOrCreateProfile(PRIVATE_PROFILE)
+        WebViewCompat.setProfile(view, if (privateMode) PRIVATE_PROFILE else Profile.DEFAULT_PROFILE_NAME)
         view.settings.apply {
             javaScriptEnabled = true
             // Off by default in WebView; most sites need it to run (DECISIONS.md 45).
@@ -821,7 +830,7 @@ object EngineAdapter {
     // Third-party cookies (embedded ads, sign-in frames) are refused unless the user allows them (DECISIONS.md 57).
     fun setThirdPartyCookies(allow: Boolean) {
         val view = webView ?: return
-        CookieManager.getInstance().setAcceptThirdPartyCookies(view, allow)
+        WebViewCompat.getProfile(view).cookieManager.setAcceptThirdPartyCookies(view, allow)
     }
 
     // Clears what the user ticked (DECISIONS.md 81, 82). Login details: the site's cookies, including those it shares
@@ -833,11 +842,12 @@ object EngineAdapter {
         val uri = Uri.parse(url)
         val host = uri.host
         Trace.log("ACTION", "clear site data logins=$logins siteData=$siteData cache=$cache ${Trace.safe(url)}")
-        if (host != null && logins) clearCookies(url, uri, host)
+        if (host != null && logins) clearCookies(view, url, uri, host)
         if (host != null && siteData) {
             val port = if (uri.port != -1) ":" + uri.port else ""
-            val storage = WebStorage.getInstance()
-            val locations = GeolocationPermissions.getInstance()
+            val profile = WebViewCompat.getProfile(view)
+            val storage = profile.webStorage
+            val locations = profile.geolocationPermissions
             for (scheme in listOf("https", "http")) {
                 val origin = "$scheme://$host$port"
                 storage.deleteOrigin(origin)
@@ -849,9 +859,9 @@ object EngineAdapter {
 
     // Cookies are found by name for this address and expired for the host, each parent domain and each path of the
     // address; cookies of other hosts, and of paths this address does not reach, stay.
-    private fun clearCookies(url: String, uri: Uri, host: String) {
+    private fun clearCookies(view: WebView, url: String, uri: Uri, host: String) {
         val secure = uri.scheme == "https"
-        val manager = CookieManager.getInstance()
+        val manager = WebViewCompat.getProfile(view).cookieManager
         val labels = host.split('.')
         val domains = (0..(labels.size - 2).coerceAtLeast(0)).map { labels.drop(it).joinToString(".") }
         val segments = (uri.path ?: "/").split('/').filter { it.isNotEmpty() }
@@ -996,7 +1006,8 @@ object EngineAdapter {
     // Cookie names (never values) the engine would send for this address.
     private fun cookieNames(url: String?): String {
         if (url == null) return "-"
-        val names = CookieManager.getInstance().getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() }.orEmpty()
+        val manager = webView?.let { WebViewCompat.getProfile(it).cookieManager } ?: return "-"
+        val names = manager.getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() }.orEmpty()
         return "${names.size} for ${Trace.safe(url)}: ${names.joinToString(", ")}"
     }
 
@@ -1021,9 +1032,69 @@ object EngineAdapter {
         return b.toString()
     }
 
+    // Switches the app between normal and private browsing (DECISIONS.md 131). Entering saves the normal page and builds
+    // a view on the private profile; leaving wipes that profile's data, destroys its view and rebuilds the normal view from
+    // the saved page. The caller puts the returned view in place of the old one.
+    fun setPrivate(context: Context, on: Boolean): WebView? {
+        val listener = pageListener ?: return null
+        val lost = engineLost ?: return null
+        if (on == privateMode) return webView
+        val old = webView
+        if (on) savedNormal = Bundle().also { old?.saveState(it) } else wipePrivate(old)
+        old?.let {
+            (it.parent as? ViewGroup)?.removeView(it)
+            it.destroy()
+        }
+        webView = null
+        privateMode = on
+        Trace.log("PRIVATE", if (on) "on" else "off")
+        createView(context, listener, lost)
+        if (!on) {
+            savedNormal?.let { webView?.restoreState(it) }
+            savedNormal = null
+        }
+        return webView
+    }
+
+    // Empties the private profile through the view that used it: cookies, site storage, saved locations, cache, history.
+    // The profile itself is deleted at the next launch (a profile in use cannot be deleted).
+    private fun wipePrivate(view: WebView?) {
+        if (view == null) return
+        try {
+            view.clearCache(true)
+            view.clearFormData()
+            view.clearHistory()
+            val profile = WebViewCompat.getProfile(view)
+            profile.cookieManager.removeAllCookies(null)
+            profile.cookieManager.flush()
+            profile.webStorage.deleteAllData()
+            profile.geolocationPermissions.clearAll()
+        } catch (e: Exception) {
+            Trace.log("PRIVATE", "wipe failed ${e.javaClass.simpleName}")
+        }
+    }
+
+    // The private profile never outlives a session: removed at launch, before any view uses it, in case the last session
+    // ended without a clean close (DECISIONS.md 131).
+    fun removeStalePrivate() {
+        if (privateMode) return
+        try {
+            val store = ProfileStore.getInstance()
+            if (PRIVATE_PROFILE in store.allProfileNames) store.deleteProfile(PRIVATE_PROFILE)
+        } catch (e: Exception) {
+            Trace.log("PRIVATE", "stale profile not removed ${e.javaClass.simpleName}")
+        }
+    }
+
     fun canGoBack(): Boolean = webView?.canGoBack() == true
 
-    fun destroy() {
+    // finishing: the app is closing, not rebuilding its screen; a private session ends with it.
+    fun destroy(finishing: Boolean = false) {
+        if (finishing && privateMode) {
+            wipePrivate(webView)
+            privateMode = false
+            savedNormal = null
+        }
         webView?.let {
             (it.parent as? ViewGroup)?.removeView(it)
             it.destroy()
