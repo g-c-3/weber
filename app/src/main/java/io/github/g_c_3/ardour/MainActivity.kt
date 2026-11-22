@@ -46,6 +46,7 @@ class MainActivity : Activity() {
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var buttonGroup: LinearLayout
+    private var privateOn = false // the Private button's state; marks the window only until private tabs exist (DECISIONS.md 129)
     private var homeOver = false // the start screen is shown over a page the user left with Home (DECISIONS.md 127)
     private lateinit var floatingBar: EditBar
     private lateinit var suggestList: SuggestionList
@@ -283,9 +284,9 @@ class MainActivity : Activity() {
             onSwipeDown = { showNotice("Tabs come in a later update") }
         }
         val privateButton = IconButton(this, IconButton.Kind.PRIVATE).apply {
-            contentDescription = "Private browsing"
-            setOnClickListener { showNotice("Private browsing comes with tabs") }
-            onSwipeDown = { showNotice("Private browsing comes with tabs") }
+            contentDescription = "Private browsing, off"
+            setOnClickListener { togglePrivate(this) }
+            onSwipeDown = { togglePrivate(this) }
         }
         val menuButton = IconButton(this, IconButton.Kind.MENU).apply {
             contentDescription = "Menu"
@@ -826,6 +827,15 @@ class MainActivity : Activity() {
         homeOver = false
         searchBlock.reset()
         startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
+    }
+
+    // The Private button: shield fills amber when on. Marks the window only; the isolation and the history wipe come with
+    // private tabs and the history list (DECISIONS.md 129).
+    private fun togglePrivate(button: IconButton) {
+        privateOn = !privateOn
+        button.setOn(privateOn)
+        button.contentDescription = if (privateOn) "Private browsing, on" else "Private browsing, off"
+        showNotice(if (privateOn) "Marked private. Full privacy comes with tabs." else "Private marking off")
     }
 
     // Home: the start screen over the page; the page and its history stay. Back, or any new load, brings the page back.

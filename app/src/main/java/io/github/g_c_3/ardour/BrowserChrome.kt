@@ -53,6 +53,14 @@ class IconButton(context: Context, kind: Kind) : View(context) {
         color = Ui.INK
     }
     private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.INK }
+    private val shieldLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = Ui.dp(context, 2) * 0.9f
+        strokeJoin = Paint.Join.ROUND
+        strokeCap = Paint.Cap.ROUND
+    }
+    private val shieldFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.AMBER }
+    private val keyhole = Paint(Paint.ANTI_ALIAS_FLAG)
     private val digit = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Ui.INK
         textAlign = Paint.Align.CENTER
@@ -80,9 +88,34 @@ class IconButton(context: Context, kind: Kind) : View(context) {
         }
     }
 
+    // The PRIVATE icon: filled amber when on (the shield fills from its centre); animated, never jumps.
+    private var fill = 0f
+    private var fillAnim: ValueAnimator? = null
+    private var ink = Ui.INK
+
+    fun setOn(on: Boolean) {
+        fillAnim?.cancel()
+        val to = if (on) 1f else 0f
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            fill = to
+            invalidate()
+            return
+        }
+        fillAnim = ValueAnimator.ofFloat(fill, to).apply {
+            duration = if (on) 340L else 220L
+            interpolator = android.view.animation.DecelerateInterpolator(1.8f)
+            addUpdateListener {
+                fill = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
     private fun applyWarmth(w: Float) {
         warmth = w
         val c = blend.evaluate(w, Ui.INK, Ui.EMBER) as Int
+        ink = c
         stroke.color = c
         dot.color = c
         digit.color = c
@@ -233,18 +266,33 @@ class IconButton(context: Context, kind: Kind) : View(context) {
                 canvas.drawText(if (count > 99) "99" else count.toString(), cx, cy - (m.ascent + m.descent) / 2f, digit)
             }
             Kind.PRIVATE -> {
-                // Hat and glasses, filled: the usual sign for private browsing (DECISIONS.md 128).
+                // Shield with a keyhole (DECISIONS.md 129): hollow at rest; when private is on the body fills amber from
+                // the centre and the keyhole turns paper-white.
                 path.reset()
-                path.moveTo(cx - r * 0.62f, cy - r * 0.15f)
-                path.lineTo(cx - r * 0.42f, cy - r * 0.92f)
-                path.lineTo(cx + r * 0.42f, cy - r * 0.92f)
-                path.lineTo(cx + r * 0.62f, cy - r * 0.15f)
+                path.moveTo(cx, cy - r * 1.08f)
+                path.lineTo(cx + r * 0.92f, cy - r * 0.72f)
+                path.lineTo(cx + r * 0.92f, cy + r * 0.08f)
+                path.quadTo(cx + r * 0.92f, cy + r * 0.78f, cx, cy + r * 1.1f)
+                path.quadTo(cx - r * 0.92f, cy + r * 0.78f, cx - r * 0.92f, cy + r * 0.08f)
+                path.lineTo(cx - r * 0.92f, cy - r * 0.72f)
                 path.close()
-                canvas.drawPath(path, dot)
-                canvas.drawLine(cx - r * 1.05f, cy - r * 0.15f, cx + r * 1.05f, cy - r * 0.15f, stroke)
-                canvas.drawCircle(cx - r * 0.5f, cy + r * 0.58f, r * 0.4f, dot)
-                canvas.drawCircle(cx + r * 0.5f, cy + r * 0.58f, r * 0.4f, dot)
-                canvas.drawLine(cx - r * 0.12f, cy + r * 0.5f, cx + r * 0.12f, cy + r * 0.5f, stroke)
+                if (fill > 0f) {
+                    canvas.save()
+                    canvas.scale(fill, fill, cx, cy)
+                    canvas.drawPath(path, shieldFill)
+                    canvas.restore()
+                }
+                shieldLine.color = blend.evaluate(fill, ink, Ui.AMBER) as Int
+                canvas.drawPath(path, shieldLine)
+                keyhole.color = blend.evaluate(fill, ink, Ui.CARD) as Int
+                canvas.drawCircle(cx, cy - r * 0.22f, r * 0.27f, keyhole)
+                path.reset()
+                path.moveTo(cx - r * 0.12f, cy - r * 0.05f)
+                path.lineTo(cx + r * 0.12f, cy - r * 0.05f)
+                path.lineTo(cx + r * 0.22f, cy + r * 0.55f)
+                path.lineTo(cx - r * 0.22f, cy + r * 0.55f)
+                path.close()
+                canvas.drawPath(path, keyhole)
             }
             Kind.MENU -> {
                 // The dots span the same height as the Tabs square (DECISIONS.md 128).
