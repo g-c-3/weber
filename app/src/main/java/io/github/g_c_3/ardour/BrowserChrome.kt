@@ -30,7 +30,7 @@ import kotlin.math.sin
 
 // Toolbar icon drawn by hand; dimmed when disabled.
 class IconButton(context: Context, kind: Kind) : View(context) {
-    enum class Kind { BACK, FORWARD, RELOAD, STOP, HOME, TABS, MENU, UP, DOWN }
+    enum class Kind { BACK, FORWARD, RELOAD, STOP, HOME, TABS, PRIVATE, MENU, UP, DOWN }
 
     // The number inside the TABS icon (DECISIONS.md 127).
     var count = 1
@@ -232,9 +232,25 @@ class IconButton(context: Context, kind: Kind) : View(context) {
                 val m = digit.fontMetrics
                 canvas.drawText(if (count > 99) "99" else count.toString(), cx, cy - (m.ascent + m.descent) / 2f, digit)
             }
+            Kind.PRIVATE -> {
+                // Hat and glasses, filled: the usual sign for private browsing (DECISIONS.md 128).
+                path.reset()
+                path.moveTo(cx - r * 0.62f, cy - r * 0.15f)
+                path.lineTo(cx - r * 0.42f, cy - r * 0.92f)
+                path.lineTo(cx + r * 0.42f, cy - r * 0.92f)
+                path.lineTo(cx + r * 0.62f, cy - r * 0.15f)
+                path.close()
+                canvas.drawPath(path, dot)
+                canvas.drawLine(cx - r * 1.05f, cy - r * 0.15f, cx + r * 1.05f, cy - r * 0.15f, stroke)
+                canvas.drawCircle(cx - r * 0.5f, cy + r * 0.58f, r * 0.4f, dot)
+                canvas.drawCircle(cx + r * 0.5f, cy + r * 0.58f, r * 0.4f, dot)
+                canvas.drawLine(cx - r * 0.12f, cy + r * 0.5f, cx + r * 0.12f, cy + r * 0.5f, stroke)
+            }
             Kind.MENU -> {
-                val gap = r * 0.95f
-                for (i in -1..1) canvas.drawCircle(cx, cy + i * gap, Ui.dp(context, 2).toFloat() * 1.05f, dot)
+                // The dots span the same height as the Tabs square (DECISIONS.md 128).
+                val dotR = Ui.dp(context, 2).toFloat() * 1.05f
+                val gap = (r * 1.9f + stroke.strokeWidth) / 2f - dotR
+                for (i in -1..1) canvas.drawCircle(cx, cy + i * gap, dotR, dot)
             }
         }
     }

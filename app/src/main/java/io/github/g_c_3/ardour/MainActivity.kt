@@ -282,16 +282,21 @@ class MainActivity : Activity() {
             setOnClickListener { showNotice("Tabs come in a later update") }
             onSwipeDown = { showNotice("Tabs come in a later update") }
         }
+        val privateButton = IconButton(this, IconButton.Kind.PRIVATE).apply {
+            contentDescription = "Private browsing"
+            setOnClickListener { showNotice("Private browsing comes with tabs") }
+            onSwipeDown = { showNotice("Private browsing comes with tabs") }
+        }
         val menuButton = IconButton(this, IconButton.Kind.MENU).apply {
             contentDescription = "Menu"
             setOnClickListener { showMenu(this) }
             onSwipeDown = { showMenu(this) }
         }
-        // One top row: the address pill at the left, six equal buttons at the right edge. Editing the address
+        // One top row: the address pill at the left, seven equal buttons at the right edge. Editing the address
         // widens the pill over the buttons (setExpanded).
         buttonGroup = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            for (b in listOf(backButton, forwardButton, reloadButton, homeButton, tabsButton, menuButton)) {
+            for (b in listOf(backButton, forwardButton, reloadButton, homeButton, tabsButton, privateButton, menuButton)) {
                 addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
             }
         }
@@ -400,16 +405,16 @@ class MainActivity : Activity() {
         bar.requestLayout()
     }
 
-    // Row width known: six equal buttons, each as wide as the row is tall unless the pill would drop under 112 dp; the
-    // pill gets the rest (DECISIONS.md 127).
+    // Row width known: the pill takes half of it as before, seven equal buttons share the other half; on a narrow
+    // screen the buttons keep 30 dp and the pill gives way (DECISIONS.md 127, 128).
     private fun sizeTopRow(w: Int) {
         if (w <= 0 || w == rowWidth) return
         rowWidth = w
         val gap = px(8)
-        val each = minOf(Ui.sdp(this, ROW_HEIGHT), (w - gap - px(112)) / 6)
-        idleWidth = w - gap - each * 6
+        val each = maxOf((w - gap - (w - gap) / 2) / 7, px(30))
+        idleWidth = w - gap - each * 7
         val buttons = buttonGroup.layoutParams as FrameLayout.LayoutParams
-        buttons.width = each * 6
+        buttons.width = each * 7
         buttonGroup.layoutParams = buttons
         val pill = address.layoutParams as FrameLayout.LayoutParams
         pill.width = if (expanded) w else idleWidth
