@@ -418,13 +418,12 @@ class MainActivity : Activity() {
         noticeView?.animate()?.alpha(0f)?.setDuration(260)?.withEndAction { noticeView?.visibility = View.GONE }?.start()
     }
 
-    // Whether the clipboard holds text; reads only its type, never its content.
+    // Whether the clipboard holds text; the content is read once per copied clip (DECISIONS.md 124).
     private fun clipboardHasText(): Boolean = Clipboard.hasText(this)
 
     private fun pasteIntoAddress() {
         val text = Clipboard.text(this)
         if (text.isEmpty()) {
-            Clipboard.markEmpty()
             floatingBar.refresh(address.input.text.isNotEmpty(), clipboardHasText())
             return
         }
@@ -903,7 +902,6 @@ class MainActivity : Activity() {
 
     // The clipboard can change while the app is away or while a bar is open: Paste follows it.
     private val clipListener = ClipboardManager.OnPrimaryClipChangedListener {
-        Clipboard.changed()
         refreshClipboardButtons()
     }
 

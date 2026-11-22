@@ -5,21 +5,33 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 
-// The clipboard as the address bars use it (DECISIONS.md 118). Android 12 and newer tell the user whenever an app reads
-// the clipboard, so there the content is read only on a paste; a paste that finds nothing marks the clipboard empty
-// until it changes. Before Android 12 the content is read silently, so an empty clip is seen at once.
+// The clipboard as the address bars use it (DECISIONS.md 124). Paste is lit only when the clipboard holds text. The
+// text is read once per copied clip, when a bar is open and the window has focus, and the answer is kept by the clip's
+// copy time: Android 12 and newer show their clipboard notice on that read. Nothing is stored or sent.
 object Clipboard {
-    private var emptySeen = false
+    private var readStamp = -1L
+    private var readHasText = false
     private var lastState = ""
 
     private fun manager(context: Context) = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun hasText(context: Context): Boolean {
-        if (emptySeen) return false
         val cm = manager(context)
         val has = cm.hasPrimaryClip()
-        val textual = has && cm.primaryClipDescription?.hasMimeType("text/*") == true
-        val result = textual && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S || text(context).isNotEmpty())
+        val description = if (has) cm.primaryClipDescription else null
+        val textual = description?.hasMimeType("text/*") == true
+        var result = false
+        if (description != null && textual) {
+            val stamp = description.timestamp
+            if (stamp != readStamp) {
+                val clip = cm.primaryClip
+                if (clip != null) {
+                    readHasText = clip.itemCount > 0 && clip.getItemAt(0).coerceToText(context)?.isNotEmpty() == true
+                    readStamp = stamp
+                }
+            }
+            result = stamp == readStamp && readHasText
+        }
         val state = "clip=$has text=$textual paste=$result sdk=${Build.VERSION.SDK_INT}"
         if (state != lastState) {
             lastState = state
@@ -36,16 +48,7 @@ object Clipboard {
 
     fun copy(context: Context, text: String) {
         if (text.isEmpty()) return
-        emptySeen = false
         manager(context).setPrimaryClip(ClipData.newPlainText("address", text))
-    }
-
-    fun markEmpty() {
-        emptySeen = true
-    }
-
-    fun changed() {
-        emptySeen = false
     }
 
     fun watch(context: Context, listener: ClipboardManager.OnPrimaryClipChangedListener) = manager(context).addPrimaryClipChangedListener(listener)

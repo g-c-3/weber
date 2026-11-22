@@ -155,7 +155,6 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     private fun pasteIntoBox() {
         val text = Clipboard.text(activity)
         if (text.isEmpty()) {
-            Clipboard.markEmpty()
             refreshClipboard()
             return
         }
