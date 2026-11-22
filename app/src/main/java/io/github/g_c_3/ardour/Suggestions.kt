@@ -12,7 +12,8 @@ import javax.net.ssl.HttpsURLConnection
 
 // Search suggestions (DECISIONS.md 119, 125): while a search field or the address bar is edited, the typed text goes
 // over HTTPS to the suggestion address of the engine in use. No cookie, no identifier, no referrer, no redirect;
-// nothing is kept. Only engines whose address is listed here ask; the others show no suggestions.
+// nothing is kept. Google and Startpage have no usable address, so their typed text goes to another engine's service
+// (DECISIONS.md 126); the search itself still goes to the engine in use.
 object Suggestions {
     // Addresses from Chromium's engine list (DECISIONS.md 125). The typed text is appended, URL-encoded.
     private val ENDPOINTS = mapOf(
@@ -20,6 +21,8 @@ object Suggestions {
         "bing" to "https://www.bing.com/osjson.aspx?query=",
         "brave" to "https://search.brave.com/api/suggest?q=",
     )
+    // Engine in use -> engine whose suggestion service answers (DECISIONS.md 126).
+    private val SOURCE = mapOf("google" to "brave", "startpage" to "ddg")
     private const val MAX_ITEMS = 5
     private const val MAX_TEXT = 100
     private const val MAX_BODY = 32768
@@ -69,16 +72,16 @@ object Suggestions {
         fun query(text: String) {
             stop()
             val typed = text.trim()
-            val base = ENDPOINTS[SearchEngines.active.id]
+            val source = SOURCE[SearchEngines.active.id] ?: SearchEngines.active.id
+            val base = ENDPOINTS[source]
             if (base == null || !eligible(typed)) {
                 onResult(emptyList())
                 return
             }
             val mine = synchronized(lock) { generation }
-            val engine = SearchEngines.active.id
             val run = Runnable {
                 waiting = null
-                Trace.log("SUGGEST", "asked $engine, ${typed.length} characters")
+                Trace.log("SUGGEST", "asked $source, ${typed.length} characters")
                 pool.execute { fetch(base, typed, mine) }
             }
             waiting = run
