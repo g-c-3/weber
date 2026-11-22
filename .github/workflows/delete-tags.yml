@@ -1,18 +1,24 @@
-name: Delete Git Tags
+name: Delete Old Git Tags
 
 on:
   workflow_dispatch:
     inputs:
-      tags:
-        description: 'Tag name(s) to delete (comma-separated, or "ALL" to delete all remote tags)'
+      keep_recent:
+        description: 'Number of most recent tags to exclude (keep)'
         required: true
-        type: string
+        default: '1'
+        type: number
+      dry_run:
+        description: 'Preview which tags will be kept/deleted without actually deleting'
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: write
 
 jobs:
-  delete-tags:
+  delete-old-tags:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,30 +26,43 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Delete specified or all tags
+      - name: Delete tags excluding the N most recent
         env:
-          TAGS_INPUT: ${{ inputs.tags }}
+          KEEP_RECENT: ${{ inputs.keep_recent }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           git fetch --tags --force
 
-          if [ "$TAGS_INPUT" = "ALL" ]; then
-            echo "Deleting all remote tags..."
-            ALL_TAGS=$(git tag -l)
-            if [ -z "$ALL_TAGS" ]; then
-              echo "No tags found."
-              exit 0
-            fi
-            for tag in $ALL_TAGS; do
-              echo "Deleting tag: $tag"
-              git push origin --delete "$tag" || true
-            done
-          else
-            IFS=',' read -ra TAG_ARRAY <<< "$TAGS_INPUT"
-            for raw_tag in "${TAG_ARRAY[@]}"; do
-              tag=$(echo "$raw_tag" | xargs)
-              if [ -n "$tag" ]; then
-                echo "Deleting tag: $tag"
-                git push origin --delete "$tag"
-              fi
-            done
+          # Validate non-negative integer
+          if ! [[ "$KEEP_RECENT" =~ ^[0-9]+$ ]]; then
+            echo "Error: keep_recent must be a non-negative integer (0 or greater)."
+            exit 1
           fi
+
+          # List tags sorted newest first by creator date (falls back to version sort on ties)
+          mapfile -t ALL_TAGS < <(git tag --sort=-creatordate --sort=-v:refname)
+          TOTAL=${#ALL_TAGS[@]}
+
+          echo "Total tags found: $TOTAL"
+          echo "Recent tags to keep: $KEEP_RECENT"
+
+          if [ "$TOTAL" -le "$KEEP_RECENT" ]; then
+            echo "Nothing to delete (total tags <= tags to keep)."
+            exit 0
+          fi
+
+          echo "--- Keeping ---"
+          for ((i=0; i<KEEP_RECENT; i++)); do
+            echo "KEEP: ${ALL_TAGS[$i]}"
+          done
+
+          echo "--- Deleting ---"
+          for ((i=KEEP_RECENT; i<TOTAL; i++)); do
+            tag="${ALL_TAGS[$i]}"
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "[DRY RUN] Would delete: $tag"
+            else
+              echo "Deleting: $tag"
+              git push origin --delete "$tag" || true
+            fi
+          done
