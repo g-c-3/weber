@@ -247,6 +247,11 @@ private class Chip(context: Context, val icon: EditIcon, label: String, private 
         animate().alpha(if (on) 1f else 0.4f).setDuration(160).start()
         if (primary) icon.flow = on
     }
+
+    // Puts the chip at its final alpha at once: cancelling the rise-in also freezes a running fade at its start value.
+    fun settleAlpha() {
+        alpha = if (isEnabled) 1f else 0.4f
+    }
 }
 
 // The floating actions over the page while the address is edited: Copy, Paste, Clear and Go. They never take focus,
@@ -336,6 +341,7 @@ class EditBar(
         val chips = listOf(copy, paste, clear, go)
         for ((i, chip) in chips.withIndex()) {
             chip.animate().cancel()
+            chip.settleAlpha()
             chip.translationY = Ui.dp(context, 8).toFloat()
             chip.scaleX = 0.9f
             chip.scaleY = 0.9f
