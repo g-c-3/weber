@@ -84,7 +84,14 @@ class IconButton(context: Context, kind: Kind) : View(context) {
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
         alpha = if (enabled) 1f else 0.3f
-        if (!enabled && translationY != 0f) settle()
+        if (!enabled) {
+            // Android gives a disabled view no touch-listener events, so a press cut short by this (a swipe that used
+            // up the history) would never ease back: end the warmth and the press scale here (NOTES 13).
+            warmAnim?.cancel()
+            applyWarmth(0f)
+            animate().scaleX(1f).scaleY(1f).setDuration(200)
+            if (translationY != 0f) settle()
+        }
     }
 
     // Back to rest after a swipe, also when the swipe itself disabled the button (no more history).
