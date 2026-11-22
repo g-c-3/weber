@@ -90,6 +90,12 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     private val engine = StartChip(activity, true)
     private val status = Ui.body(activity, "").apply { alpha = 0f; gravity = Gravity.CENTER }
     private val voice = VoiceInput(activity, this)
+    private val suggestList = SuggestionList(activity) { pick ->
+        closeSuggestions()
+        submitTyped(pick)
+    }
+    private val suggest = Suggestions.Session { suggestList.showItems(it) }
+    private var heard = false // spoken words fill the box: they are searched, never sent for suggestions
     private var voiceLanguage = VoiceLanguages.current(activity)
     private val hideStatus = Runnable { status.animate().alpha(0f).setDuration(240).start() }
 
@@ -104,7 +110,10 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
         box.input.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) = bar.refresh(!s.isNullOrEmpty(), Clipboard.hasText(activity))
+            override fun afterTextChanged(s: Editable?) {
+                bar.refresh(!s.isNullOrEmpty(), Clipboard.hasText(activity))
+                if (box.input.hasFocus() && !heard) suggest.query(s?.toString().orEmpty()) else closeSuggestions()
+            }
         })
         val row = LinearLayout(activity).apply {
             orientation = HORIZONTAL
@@ -122,7 +131,12 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
             marginEnd = gap
         })
         row.addView(engine)
-        addView(row, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = Ui.dp(activity, 6) })
+        // The suggestions cover the buttons row and run below it, over the title.
+        val holder = FrameLayout(activity).apply { clipChildren = false }
+        holder.addView(row, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
+        holder.addView(suggestList, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+        addView(holder, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = Ui.dp(activity, 6) })
+        elevation = Ui.dp(activity, 2).toFloat()
         addView(status, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         clipChildren = false
 
@@ -133,7 +147,13 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     }
 
     // Same rise-in as the address bar's bar, but above the box.
+    private fun closeSuggestions() {
+        suggest.stop()
+        suggestList.hideList()
+    }
+
     private fun showBar(show: Boolean) {
+        if (!show) closeSuggestions()
         bar.animate().cancel()
         if (show) {
             bar.refresh(box.input.text.isNotEmpty(), Clipboard.hasText(activity))
@@ -223,6 +243,7 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     // The start page is hidden or shown again: nothing typed, heard or listening stays.
     fun reset() {
         stopVoice()
+        closeSuggestions()
         box.input.setText("")
         box.hideKeyboard()
         bar.animate().cancel()
@@ -250,8 +271,10 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     override fun onLevel(level: Float) = mic.setLevel(level)
 
     override fun onText(text: String, isFinal: Boolean) {
+        heard = true
         box.input.setText(text)
         box.input.setSelection(text.length)
+        heard = false
         if (isFinal) {
             mic.setListening(false)
             showStatus(null)

@@ -224,6 +224,10 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
     }
     private var focusedNow = false
     private var loadingNow = false
+
+    // True while the app itself fills the field (address on focus, host on blur); only the user's edits are typed text.
+    var filling = false
+        private set
     private var rimAmount = 0f
     private var rimAnim: ValueAnimator? = null
 
@@ -261,6 +265,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
                 focusedNow = focused
                 updateRim()
                 align.reset(!url.isNullOrEmpty())
+                filling = true
                 if (focused) {
                     setText(url ?: "")
                     placeCursor()
@@ -268,6 +273,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
                     setText(url?.let { UrlInput.display(it) } ?: "")
                     refreshLabel()
                 }
+                filling = false
                 glide(focused)
                 onFocus(focused)
             }

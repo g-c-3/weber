@@ -36,7 +36,8 @@ def run():
                 if re.search(pat, line):
                     out.append(Finding("error", NAME, f"{rel(p)}:{n}", why))
             if re.search(r"HttpURLConnection|OkHttp|URL\(\s*\"|openConnection|java\.net\.Socket", line):
-                if "sideload" not in p.parts:
+                # The updater is sideload only; search suggestions are approved for both flavors (DECISIONS.md 119, 125).
+                if "sideload" not in p.parts and p.name != "Suggestions.kt":
                     out.append(Finding("error", NAME, f"{rel(p)}:{n}", "network code outside the sideload source set: a new app connection needs approval"))
     # every literal host in code and manifests
     hosts = {}

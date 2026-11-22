@@ -47,6 +47,8 @@ class MainActivity : Activity() {
     private var failedUrl: String? = null
     private lateinit var buttonGroup: LinearLayout
     private lateinit var floatingBar: EditBar
+    private lateinit var suggestList: SuggestionList
+    private lateinit var suggest: Suggestions.Session
     private var expanded = false
     private var rowWidth = 0
     private var idleWidth = 0
@@ -319,9 +321,27 @@ class MainActivity : Activity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
                 floatingBar.refresh(!s.isNullOrEmpty(), clipboardHasText())
+                if (address.input.hasFocus() && !address.filling) {
+                    suggest.query(s?.toString().orEmpty())
+                } else {
+                    closeSuggestions()
+                }
             }
         })
         content.addView(floatingBar, floatingBarParams())
+        suggestList = SuggestionList(this) { pick ->
+            closeSuggestions()
+            submit(pick)
+        }
+        suggest = Suggestions.Session { suggestList.showItems(it) }
+        content.addView(
+            suggestList,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP).apply {
+                marginStart = px(10)
+                marginEnd = px(10)
+                topMargin = px(8) + Ui.sdp(this@MainActivity, 36) + px(10) + px(8)
+            },
+        )
         root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         findBar = FindBar(this, { EngineAdapter.findAll(it) }, { EngineAdapter.findNext(it) }, ::closeFind).apply { visibility = View.GONE }
@@ -803,8 +823,15 @@ class MainActivity : Activity() {
         refreshBack()
     }
 
+    private fun closeSuggestions() {
+        if (!::suggest.isInitialized) return
+        suggest.stop()
+        suggestList.hideList()
+    }
+
     private fun onAddressFocus(focused: Boolean) {
         if (focused && finding) closeFind()
+        if (!focused) closeSuggestions()
         setExpanded(focused)
         refreshBack()
     }
