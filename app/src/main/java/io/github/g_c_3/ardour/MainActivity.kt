@@ -46,6 +46,7 @@ class MainActivity : Activity() {
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var buttonGroup: LinearLayout
+    private var homeOver = false // the start screen is shown over a page the user left with Home (DECISIONS.md 127)
     private lateinit var floatingBar: EditBar
     private lateinit var suggestList: SuggestionList
     private lateinit var suggest: Suggestions.Session
@@ -114,7 +115,7 @@ class MainActivity : Activity() {
                 address.showUrl(url)
                 revealPage()
             }
-            backButton.isEnabled = canGoBack
+            backButton.isEnabled = canGoBack || homeOver
             forwardButton.isEnabled = canGoForward
             reloadButton.isEnabled = hasPage
             refreshBack()
@@ -256,8 +257,8 @@ class MainActivity : Activity() {
         backButton = IconButton(this, IconButton.Kind.BACK).apply {
             contentDescription = "Back"
             isEnabled = false
-            setOnClickListener { EngineAdapter.goBack() }
-            onSwipeDown = { EngineAdapter.goBack() }
+            setOnClickListener { stepBack() }
+            onSwipeDown = { stepBack() }
         }
         forwardButton = IconButton(this, IconButton.Kind.FORWARD).apply {
             contentDescription = "Forward"
@@ -271,16 +272,26 @@ class MainActivity : Activity() {
             setOnClickListener { if (loading) EngineAdapter.stop() else EngineAdapter.reload() }
             onSwipeDown = { if (loading) EngineAdapter.stop() else EngineAdapter.reload() }
         }
+        val homeButton = IconButton(this, IconButton.Kind.HOME).apply {
+            contentDescription = "Home"
+            setOnClickListener { showHome() }
+            onSwipeDown = { showHome() }
+        }
+        val tabsButton = IconButton(this, IconButton.Kind.TABS).apply {
+            contentDescription = "Tabs"
+            setOnClickListener { showNotice("Tabs come in a later update") }
+            onSwipeDown = { showNotice("Tabs come in a later update") }
+        }
         val menuButton = IconButton(this, IconButton.Kind.MENU).apply {
             contentDescription = "Menu"
             setOnClickListener { showMenu(this) }
             onSwipeDown = { showMenu(this) }
         }
-        // One top row: the address pill takes the left half, the four buttons the right half. Editing the address
+        // One top row: the address pill at the left, six equal buttons at the right edge. Editing the address
         // widens the pill over the buttons (setExpanded).
         buttonGroup = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            for (b in listOf(backButton, forwardButton, reloadButton, menuButton)) {
+            for (b in listOf(backButton, forwardButton, reloadButton, homeButton, tabsButton, menuButton)) {
                 addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
             }
         }
@@ -381,19 +392,24 @@ class MainActivity : Activity() {
         pageArea.removeView(old)
         pageArea.addView(floatingBar, floatingBarParams())
         floatingBar.refresh(address.input.text.isNotEmpty(), clipboardHasText())
+        val width = rowWidth
+        rowWidth = 0
+        sizeTopRow(width)
         buttonGroup.requestLayout()
         address.requestLayout()
         bar.requestLayout()
     }
 
-    // Row width known: the pill gets half of it, the buttons the other half.
+    // Row width known: six equal buttons, each as wide as the row is tall unless the pill would drop under 112 dp; the
+    // pill gets the rest (DECISIONS.md 127).
     private fun sizeTopRow(w: Int) {
         if (w <= 0 || w == rowWidth) return
         rowWidth = w
         val gap = px(8)
-        idleWidth = (w - gap) / 2
+        val each = minOf(Ui.sdp(this, ROW_HEIGHT), (w - gap - px(112)) / 6)
+        idleWidth = w - gap - each * 6
         val buttons = buttonGroup.layoutParams as FrameLayout.LayoutParams
-        buttons.width = w - idleWidth - gap
+        buttons.width = each * 6
         buttonGroup.layoutParams = buttons
         val pill = address.layoutParams as FrameLayout.LayoutParams
         pill.width = if (expanded) w else idleWidth
@@ -802,8 +818,46 @@ class MainActivity : Activity() {
     private fun revealPage() {
         if (hasPage) return
         hasPage = true
+        homeOver = false
         searchBlock.reset()
         startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
+    }
+
+    // Home: the start screen over the page; the page and its history stay. Back, or any new load, brings the page back.
+    private fun showHome() {
+        if (finding) closeFind()
+        if (address.input.hasFocus()) leaveAddress()
+        if (!hasPage || homeOver) return
+        EngineAdapter.stop()
+        homeOver = true
+        hasPage = false
+        errorView.visibility = View.GONE
+        address.showUrl("")
+        reloadButton.isEnabled = false
+        backButton.isEnabled = true
+        startView.animate().cancel()
+        startView.alpha = 0f
+        startView.visibility = View.VISIBLE
+        startView.animate().alpha(1f).setDuration(220).start()
+        refreshBack()
+    }
+
+    private fun closeHome() {
+        if (!homeOver) return
+        homeOver = false
+        hasPage = true
+        searchBlock.reset()
+        startView.animate().cancel()
+        startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
+        EngineAdapter.currentUrl()?.let { address.showUrl(it) }
+        reloadButton.isEnabled = true
+        backButton.isEnabled = EngineAdapter.canGoBack()
+        refreshBack()
+    }
+
+    // The Back button: leaves the Home screen first, then walks the page history.
+    private fun stepBack() {
+        if (homeOver) closeHome() else EngineAdapter.goBack()
     }
 
     private fun openFind() {
@@ -860,6 +914,10 @@ class MainActivity : Activity() {
             leaveAddress()
             return true
         }
+        if (homeOver) {
+            closeHome()
+            return true
+        }
         if (EngineAdapter.canGoBack()) {
             EngineAdapter.goBack()
             return true
@@ -871,7 +929,7 @@ class MainActivity : Activity() {
     // while Ardour has something to go back to, so the system still plays its normal exit when it has not.
     private fun refreshBack() {
         if (Build.VERSION.SDK_INT < 33) return
-        val needed = EngineAdapter.canGoBack() || address.input.hasFocus() || finding || reader != null || sheet.showing
+        val needed = EngineAdapter.canGoBack() || address.input.hasFocus() || finding || reader != null || sheet.showing || homeOver
         if (needed && backCallback == null) registerBack() else if (!needed && backCallback != null) unregisterBack()
     }
 

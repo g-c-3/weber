@@ -7,6 +7,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Typeface
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.text.InputType
@@ -29,7 +30,14 @@ import kotlin.math.sin
 
 // Toolbar icon drawn by hand; dimmed when disabled.
 class IconButton(context: Context, kind: Kind) : View(context) {
-    enum class Kind { BACK, FORWARD, RELOAD, STOP, MENU, UP, DOWN }
+    enum class Kind { BACK, FORWARD, RELOAD, STOP, HOME, TABS, MENU, UP, DOWN }
+
+    // The number inside the TABS icon (DECISIONS.md 127).
+    var count = 1
+        set(v) {
+            field = v
+            invalidate()
+        }
 
     var kind: Kind = kind
         set(v) {
@@ -45,6 +53,11 @@ class IconButton(context: Context, kind: Kind) : View(context) {
         color = Ui.INK
     }
     private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.INK }
+    private val digit = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Ui.INK
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    }
     private val path = Path()
     private val arc = RectF()
 
@@ -72,6 +85,7 @@ class IconButton(context: Context, kind: Kind) : View(context) {
         val c = blend.evaluate(w, Ui.INK, Ui.EMBER) as Int
         stroke.color = c
         dot.color = c
+        digit.color = c
         invalidate()
     }
 
@@ -149,7 +163,8 @@ class IconButton(context: Context, kind: Kind) : View(context) {
         return super.onTouchEvent(event)
     }
 
-    // Draws the icon of the current kind: arrows, stop cross, reload arc, menu dots, up and down chevrons.
+    // Draws the icon of the current kind: arrows, stop cross, reload arc, house, tab square with its number, menu dots,
+    // up and down chevrons.
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
@@ -166,21 +181,23 @@ class IconButton(context: Context, kind: Kind) : View(context) {
                 canvas.drawPath(path, stroke)
             }
             Kind.RELOAD -> {
-                arc.set(cx - r, cy - r, cx + r, cy + r)
+                // A little smaller than the other icons (DECISIONS.md 127).
+                val q = r * 0.86f
+                arc.set(cx - q, cy - q, cx + q, cy + q)
                 canvas.drawArc(arc, 60f, 250f, false, stroke)
                 val end = Math.toRadians(-50.0)
-                val ex = cx + r * cos(end).toFloat()
-                val ey = cy + r * sin(end).toFloat()
+                val ex = cx + q * cos(end).toFloat()
+                val ey = cy + q * sin(end).toFloat()
                 // Radial and tangent (clockwise) unit vectors at the arc end; the head points along the tangent.
                 val ux = cos(end).toFloat()
                 val uy = sin(end).toFloat()
                 val tx = -uy
                 val ty = ux
-                val h = r * 0.75f
+                val h = q * 0.75f
                 path.reset()
                 path.moveTo(ex + ux * h, ey + uy * h)
                 path.lineTo(ex - ux * h, ey - uy * h)
-                path.lineTo(ex + tx * r * 1.15f, ey + ty * r * 1.15f)
+                path.lineTo(ex + tx * q * 1.15f, ey + ty * q * 1.15f)
                 path.close()
                 canvas.drawPath(path, dot)
             }
@@ -197,9 +214,27 @@ class IconButton(context: Context, kind: Kind) : View(context) {
                 path.lineTo(cx + r * 0.75f, cy + s * r * 0.35f)
                 canvas.drawPath(path, stroke)
             }
+            Kind.HOME -> {
+                path.reset()
+                path.moveTo(cx - r * 1.05f, cy - r * 0.05f)
+                path.lineTo(cx, cy - r * 0.95f)
+                path.lineTo(cx + r * 1.05f, cy - r * 0.05f)
+                path.moveTo(cx - r * 0.72f, cy - r * 0.2f)
+                path.lineTo(cx - r * 0.72f, cy + r * 0.85f)
+                path.lineTo(cx + r * 0.72f, cy + r * 0.85f)
+                path.lineTo(cx + r * 0.72f, cy - r * 0.2f)
+                canvas.drawPath(path, stroke)
+            }
+            Kind.TABS -> {
+                arc.set(cx - r * 0.95f, cy - r * 0.95f, cx + r * 0.95f, cy + r * 0.95f)
+                canvas.drawRoundRect(arc, r * 0.38f, r * 0.38f, stroke)
+                digit.textSize = r * (if (count > 9) 0.95f else 1.2f)
+                val m = digit.fontMetrics
+                canvas.drawText(if (count > 99) "99" else count.toString(), cx, cy - (m.ascent + m.descent) / 2f, digit)
+            }
             Kind.MENU -> {
                 val gap = r * 0.95f
-                for (i in -1..1) canvas.drawCircle(cx + i * gap, cy, Ui.dp(context, 2).toFloat() * 1.05f, dot)
+                for (i in -1..1) canvas.drawCircle(cx, cy + i * gap, Ui.dp(context, 2).toFloat() * 1.05f, dot)
             }
         }
     }
