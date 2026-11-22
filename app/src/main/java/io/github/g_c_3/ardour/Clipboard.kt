@@ -10,14 +10,22 @@ import android.os.Build
 // until it changes. Before Android 12 the content is read silently, so an empty clip is seen at once.
 object Clipboard {
     private var emptySeen = false
+    private var lastState = ""
 
     private fun manager(context: Context) = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun hasText(context: Context): Boolean {
         if (emptySeen) return false
         val cm = manager(context)
-        if (!cm.hasPrimaryClip() || cm.primaryClipDescription?.hasMimeType("text/*") != true) return false
-        return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) text(context).isNotEmpty() else true
+        val has = cm.hasPrimaryClip()
+        val textual = has && cm.primaryClipDescription?.hasMimeType("text/*") == true
+        val result = textual && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S || text(context).isNotEmpty())
+        val state = "clip=$has text=$textual paste=$result sdk=${Build.VERSION.SDK_INT}"
+        if (state != lastState) {
+            lastState = state
+            Trace.log("CLIP", state)
+        }
+        return result
     }
 
     fun text(context: Context): String {

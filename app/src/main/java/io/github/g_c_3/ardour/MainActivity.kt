@@ -598,6 +598,12 @@ class MainActivity : Activity() {
         errorView.animate().alpha(1f).setDuration(220).start()
     }
 
+    // Android hides the clipboard from an app without window focus, so Paste is read again when focus returns.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) refreshClipboardButtons()
+    }
+
     override fun onResume() {
         super.onResume()
         Clipboard.watch(this, clipListener)
