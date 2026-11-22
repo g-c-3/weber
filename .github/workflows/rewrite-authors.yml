@@ -1,0 +1,71 @@
+name: Rewrite commit authors
+
+# Manual run only. Place this file at .github/workflows/rewrite-authors.yml
+on:
+  workflow_dispatch:
+    inputs:
+      old_emails:
+        description: "Comma-separated emails to replace. Leave EMPTY to only list the emails in history."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  rewrite:
+    runs-on: ubuntu-latest
+    env:
+      NEW_NAME: g-c-3
+      NEW_EMAIL: 284188315+g-c-3@users.noreply.github.com
+      OLD_EMAILS: ${{ github.event.inputs.old_emails }}
+      PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: List all author and committer identities
+        run: |
+          echo "Identities found in history:"
+          git log --all --format='%an <%ae>%n%cn <%ce>' | sort -u
+
+      - name: Stop here if no emails were given
+        if: ${{ github.event.inputs.old_emails == '' }}
+        run: |
+          echo "No old_emails given. Copy the emails from the list above and run again."
+
+      - name: Install git-filter-repo
+        if: ${{ github.event.inputs.old_emails != '' }}
+        run: pip install git-filter-repo
+
+      - name: Build mailmap
+        if: ${{ github.event.inputs.old_emails != '' }}
+        run: |
+          : > /tmp/mailmap.txt
+          IFS=',' read -ra EMAILS <<< "$OLD_EMAILS"
+          for e in "${EMAILS[@]}"; do
+            e=$(echo "$e" | xargs)
+            [ -n "$e" ] && echo "$NEW_NAME <$NEW_EMAIL> <$e>" >> /tmp/mailmap.txt
+          done
+          echo "Mailmap:"
+          cat /tmp/mailmap.txt
+
+      - name: Rewrite history
+        if: ${{ github.event.inputs.old_emails != '' }}
+        run: |
+          git filter-repo --force --mailmap /tmp/mailmap.txt
+          echo "Identities after rewrite:"
+          git log --all --format='%an <%ae>%n%cn <%ce>' | sort -u
+
+      - name: Force-push rewritten branches and tags
+        if: ${{ github.event.inputs.old_emails != '' }}
+        run: |
+          if [ -z "$PUSH_TOKEN" ]; then
+            echo "Secret PUSH_TOKEN is missing." && exit 1
+          fi
+          git remote add origin "https://x-access-token:${PUSH_TOKEN}@github.com/${REPO}.git"
+          git push --force --all origin
+          git push --force --tags origin
