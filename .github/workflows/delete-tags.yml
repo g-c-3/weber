@@ -1,0 +1,49 @@
+name: Delete Git Tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Tag name(s) to delete (comma-separated, or "ALL" to delete all remote tags)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  delete-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Delete specified or all tags
+        env:
+          TAGS_INPUT: ${{ inputs.tags }}
+        run: |
+          git fetch --tags --force
+
+          if [ "$TAGS_INPUT" = "ALL" ]; then
+            echo "Deleting all remote tags..."
+            ALL_TAGS=$(git tag -l)
+            if [ -z "$ALL_TAGS" ]; then
+              echo "No tags found."
+              exit 0
+            fi
+            for tag in $ALL_TAGS; do
+              echo "Deleting tag: $tag"
+              git push origin --delete "$tag" || true
+            done
+          else
+            IFS=',' read -ra TAG_ARRAY <<< "$TAGS_INPUT"
+            for raw_tag in "${TAG_ARRAY[@]}"; do
+              tag=$(echo "$raw_tag" | xargs)
+              if [ -n "$tag" ]; then
+                echo "Deleting tag: $tag"
+                git push origin --delete "$tag"
+              fi
+            done
+          fi
