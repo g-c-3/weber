@@ -90,6 +90,9 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     private val engine = StartChip(activity, true)
     private val status = Ui.body(activity, "").apply { alpha = 0f; gravity = Gravity.CENTER }
     private val voice = VoiceInput(activity, this)
+
+    // Set by the activity: the top address bar follows an engine change made here.
+    var onEngineChanged: (() -> Unit)? = null
     private val suggestList = SuggestionList(activity) { pick ->
         closeSuggestions()
         submitTyped(pick)
@@ -206,6 +209,7 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
             selectedKey = { voiceLanguage.tag },
             recent = VoiceLanguages.recent(activity).map { SheetEntry(it.tag, it.name) },
             searchable = true,
+            scrollToSelected = false,
         ) { picked ->
             VoiceLanguages.byTag(picked.key)?.let {
                 voiceLanguage = it
@@ -227,7 +231,11 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
                 onTap = { SearchEngines.makeDefault(activity, SearchEngines.active) },
             ),
         ) { picked ->
-            SearchEngines.all.firstOrNull { it.id == picked.key }?.let { SearchEngines.use(it) }
+            SearchEngines.all.firstOrNull { it.id == picked.key }?.let {
+                SearchEngines.use(it)
+                box.refreshHint()
+                onEngineChanged?.invoke()
+            }
         }
     }
 
@@ -293,6 +301,11 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
 class SearchBox(context: Context, private val onGo: (String) -> Unit) : FrameLayout(context) {
     val input = EditText(context)
     private val align = TypedAlign(input)
+
+    fun refreshHint() {
+        input.hint = SearchEngines.searchHint
+        align.refresh()
+    }
     private val radius = Ui.sdp(context, 26).toFloat()
     private val rim = GradientDrawable().apply {
         setColor(Ui.CARD)
@@ -316,7 +329,7 @@ class SearchBox(context: Context, private val onGo: (String) -> Unit) : FrameLay
         input.apply {
             background = null
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
-            hint = "Search or enter address"
+            hint = SearchEngines.searchHint
             setHintTextColor(0xFF9A9CA6.toInt())
             setTextColor(Ui.INK)
             setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.textPx(context, 16f))
@@ -388,7 +401,7 @@ class StartChip(context: Context, private val engine: Boolean) : View(context) {
         textAlign = Paint.Align.CENTER
     }
     private val glyph = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Ui.EMBER
+        color = Ui.INK
         style = Paint.Style.STROKE
         strokeWidth = 2f * unit
         strokeCap = Paint.Cap.ROUND

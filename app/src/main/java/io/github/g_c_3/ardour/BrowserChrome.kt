@@ -353,7 +353,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             alpha = 0f
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
             background = null
-            hint = "Search or enter address"
+            hint = SearchEngines.searchHint
             setHintTextColor(0xFF9A9CA6.toInt())
             setTextColor(Ui.INK)
             setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.textPx(context, 15.5f))
@@ -401,7 +401,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
     private fun refreshLabel() {
         val shown = url?.let { UrlInput.display(it) }
         if (shown.isNullOrEmpty()) {
-            label.text = "Search or enter address"
+            label.text = SearchEngines.searchHint
             label.setTextColor(0xFF9A9CA6.toInt())
         } else {
             label.text = shown
@@ -535,6 +535,13 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         val at = { input.setSelection(UrlInput.nameEnd(input.text.toString()).coerceIn(0, input.text.length)) }
         at()
         input.post { at() }
+    }
+
+    // The engine in use changed: the hint follows it.
+    fun refreshHint() {
+        input.hint = SearchEngines.searchHint
+        align.refresh()
+        refreshLabel()
     }
 
     fun showUrl(value: String) {

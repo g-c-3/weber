@@ -48,6 +48,7 @@ object ListSheet {
         searchable: Boolean = false,
         closeOnPick: Boolean = true,
         footer: SheetFooter? = null,
+        scrollToSelected: Boolean = true,
         onPick: (SheetEntry) -> Unit,
     ) {
         val context: Context = activity
@@ -228,6 +229,7 @@ object ListSheet {
         dialog.show()
         card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(380).setInterpolator(SpringInterpolator()).start()
         scroll.post {
+            if (!scrollToSelected) return@post
             val target = selectedInList ?: return@post
             scroll.scrollTo(0, max(0, target.top - Ui.dp(context, 110)))
         }

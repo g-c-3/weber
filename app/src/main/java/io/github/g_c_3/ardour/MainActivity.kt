@@ -519,7 +519,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         setBackgroundColor(Ui.PAPER)
         clipChildren = false
-        searchBlock = StartSearch(this@MainActivity) { submit(it) }
+        searchBlock = StartSearch(this@MainActivity) { submit(it) }.also { it.onEngineChanged = { address.refreshHint() } }
         addView(searchBlock, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             marginStart = px(24)
             marginEnd = px(24)
