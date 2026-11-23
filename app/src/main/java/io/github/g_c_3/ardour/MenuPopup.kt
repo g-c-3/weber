@@ -111,13 +111,13 @@ object MenuPopup {
         holder.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val loc = IntArray(2)
         anchor.getLocationOnScreen(loc)
-        // The card sits under the Reload and menu buttons: its right edge a little left of the menu button's centre,
-        // never closer than 8 dp to the screen's left edge. The card grows out of the menu button's centre.
+        // The card sits in the right corner, 8 dp from the screen's right edge (DECISIONS.md 144), and grows out of the menu
+        // button's centre.
         val screenWidth = context.resources.displayMetrics.widthPixels
         val anchorCentre = loc[0] + anchor.width / 2
         val cardWidth = holder.measuredWidth - 2 * margin
         val edge = Ui.dp(context, 8)
-        val cardLeft = max(edge, minOf(anchorCentre - Ui.dp(context, 36) - cardWidth, screenWidth - cardWidth - edge))
+        val cardLeft = max(edge, screenWidth - cardWidth - edge)
         val x = cardLeft - margin
         growFrom = (anchorCentre - cardLeft).toFloat()
         // Above the button when it sits low on the screen, below it when it sits at the top.
@@ -191,11 +191,12 @@ object MenuPopup {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(Ui.dp(context, 26), Ui.dp(context, 10), Ui.dp(context, 26), Ui.dp(context, 10))
             background = StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_pressed), pressed)
                 addState(intArrayOf(), ColorDrawable(0))
             }
+            // After the background: a background with padding of its own would otherwise replace this padding (NOTES.md 17).
+            setPadding(Ui.dp(context, 26), Ui.dp(context, 10), Ui.dp(context, 26), Ui.dp(context, 10))
             alpha = if (item.enabled) 1f else 0.35f
             isEnabled = item.enabled
             isClickable = true
