@@ -13,6 +13,7 @@ import android.graphics.Typeface
 import android.util.TypedValue
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
 import android.view.MotionEvent
@@ -179,7 +180,14 @@ object MenuPopup {
 
     // One centred row: a plain action, or a toggle shown as an Off or On word beside its label (DECISIONS.md 106, 107).
     private fun row(context: Context, item: MenuItem, close: () -> Unit): View {
-        val pressed = ColorDrawable(Ui.PAPER)
+        // A rounded highlight inset from the card's edges, so it never pokes past the card's curved corners (DECISIONS.md 143).
+        val pressed = InsetDrawable(
+            GradientDrawable().apply {
+                setColor(Ui.PAPER)
+                cornerRadius = Ui.dp(context, 12).toFloat()
+            },
+            Ui.dp(context, 8), Ui.dp(context, 1), Ui.dp(context, 8), Ui.dp(context, 1),
+        )
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER

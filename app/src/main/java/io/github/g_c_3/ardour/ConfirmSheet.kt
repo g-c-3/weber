@@ -63,6 +63,7 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
         box.addView(Ui.title(activity, title).apply { textSize = 20f })
         box.addView(
             Ui.body(activity, body).apply {
+                if (infoOnly) justificationMode = android.text.Layout.JUSTIFICATION_MODE_INTER_WORD
                 textSize = 15f
                 setPadding(0, Ui.dp(activity, 10), 0, Ui.dp(activity, if (choices.isEmpty()) 22 else 12))
             },
