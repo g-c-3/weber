@@ -92,7 +92,11 @@ class SettingsActivity : Activity() {
         }
         column.addView(browsing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Private browsing"))
-        column.addView(Ui.card(this).apply { addView(leaveChoiceRow()) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        column.addView(Ui.card(this).apply {
+            addView(leaveChoiceRow())
+            addView(Ui.divider(this@SettingsActivity))
+            addView(switchRow("Delete when the app closes", "While private is on, closing the app deletes what the private session added, as Delete all does. If Android ends the app without telling it, the deletion runs the next time Ardour opens. While this is on and private is on, the list of sites opened privately (addresses of sites and cookie names, no passwords or page content) is kept in the app's private storage until the deletion has run. Off by default.", Prefs.PRIVATE_CLOSE))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         defaultBrowserButton()?.let { card ->
             column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = Ui.dp(this@SettingsActivity, 20)

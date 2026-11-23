@@ -6,6 +6,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.os.SystemClock
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -46,7 +47,9 @@ class MainActivity : Activity() {
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var buttonGroup: LinearLayout
-    private var privateOn = false // the Private button's state (DECISIONS.md 134)
+    private var privateOn = EngineAdapter.privateActive // the Private button's state (DECISIONS.md 134)
+    private var startBack = false // the start screen was reached by Back through the page history (DECISIONS.md 138)
+    private var lastExitBack = 0L
     private var homeOver = false // the start screen is shown over a page the user left with Home (DECISIONS.md 127)
     private lateinit var floatingBar: EditBar
     private lateinit var suggestList: SuggestionList
@@ -116,7 +119,7 @@ class MainActivity : Activity() {
                 address.showUrl(url)
                 revealPage()
             }
-            backButton.isEnabled = canGoBack || homeOver
+            backButton.isEnabled = if (homeOver) !startBack else canGoBack || hasPage
             forwardButton.isEnabled = canGoForward
             reloadButton.isEnabled = hasPage
             refreshBack()
@@ -284,7 +287,8 @@ class MainActivity : Activity() {
             onSwipeDown = { showNotice("Tabs come in a later update") }
         }
         val privateButton = IconButton(this, IconButton.Kind.PRIVATE).apply {
-            contentDescription = "Private browsing, off"
+            contentDescription = if (privateOn) "Private browsing, on" else "Private browsing, off"
+            if (privateOn) setOn(true)
             setOnClickListener { togglePrivate(this) }
             onSwipeDown = { togglePrivate(this) }
         }
@@ -327,6 +331,7 @@ class MainActivity : Activity() {
         pageArea = content
         val fill = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         content.addView(EngineAdapter.createView(this, listener) { root.post { recreate() } }, fill)
+        EngineAdapter.cleanLeftover(this)
         startView = startScreen()
         content.addView(startView, fill)
         errorView = errorScreen().apply { visibility = View.GONE }
@@ -364,6 +369,7 @@ class MainActivity : Activity() {
         findBar = FindBar(this, { EngineAdapter.findAll(it) }, { EngineAdapter.findNext(it) }, ::closeFind).apply { visibility = View.GONE }
         root.addView(findBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         Ui.enter(listOf(top, startView))
+        refreshBack()
     }
 
     private fun newFloatingBar() = EditBar(
@@ -825,6 +831,7 @@ class MainActivity : Activity() {
         if (hasPage) return
         hasPage = true
         homeOver = false
+        startBack = false
         searchBlock.reset()
         startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
     }
@@ -850,6 +857,7 @@ class MainActivity : Activity() {
                 confirm = "Delete all",
                 cancelLabel = "Continue as is",
                 onCancelTap = { leavePrivate(button, false) },
+                dangerConfirm = true,
             ) { leavePrivate(button, true) }
         }
     }
@@ -864,17 +872,20 @@ class MainActivity : Activity() {
     }
 
     // Home: the start screen over the page; the page and its history stay. Back, or any new load, brings the page back.
-    private fun showHome() {
+    // Reached by Back with the page history used up (`fromBack`, DECISIONS.md 138), it is the first step of the history:
+    // Back there does not bring the page back, it asks to be pressed again to exit.
+    private fun showHome(fromBack: Boolean = false) {
         if (finding) closeFind()
         if (address.input.hasFocus()) leaveAddress()
         if (!hasPage || homeOver) return
         EngineAdapter.stop()
         homeOver = true
+        startBack = fromBack
         hasPage = false
         errorView.visibility = View.GONE
         address.showUrl("")
         reloadButton.isEnabled = false
-        backButton.isEnabled = true
+        backButton.isEnabled = !fromBack
         startView.animate().cancel()
         startView.alpha = 0f
         startView.visibility = View.VISIBLE
@@ -885,19 +896,37 @@ class MainActivity : Activity() {
     private fun closeHome() {
         if (!homeOver) return
         homeOver = false
+        startBack = false
         hasPage = true
         searchBlock.reset()
         startView.animate().cancel()
         startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
         EngineAdapter.currentUrl()?.let { address.showUrl(it) }
         reloadButton.isEnabled = true
-        backButton.isEnabled = EngineAdapter.canGoBack()
+        backButton.isEnabled = true
         refreshBack()
     }
 
-    // The Back button: leaves the Home screen first, then walks the page history.
+    // The Back button: leaves the Home screen first, walks the page history, then returns to the start screen.
     private fun stepBack() {
-        if (homeOver) closeHome() else EngineAdapter.goBack()
+        when {
+            homeOver && !startBack -> closeHome()
+            homeOver -> Unit
+            EngineAdapter.canGoBack() -> EngineAdapter.goBack()
+            hasPage -> showHome(fromBack = true)
+        }
+    }
+
+    // On the start screen a single Back only warns; a second one within two seconds exits (DECISIONS.md 138).
+    private fun exitOnSecondBack(): Boolean {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastExitBack <= 2000L) {
+            finish()
+            return true
+        }
+        lastExitBack = now
+        showNotice("Press again to exit")
+        return true
     }
 
     private fun openFind() {
@@ -954,23 +983,26 @@ class MainActivity : Activity() {
             leaveAddress()
             return true
         }
-        if (homeOver) {
+        if (homeOver && !startBack) {
             closeHome()
             return true
         }
-        if (EngineAdapter.canGoBack()) {
+        if (!homeOver && EngineAdapter.canGoBack()) {
             EngineAdapter.goBack()
             return true
         }
-        return false
+        if (hasPage && !homeOver) {
+            showHome(fromBack = true)
+            return true
+        }
+        return exitOnSecondBack()
     }
 
-    // Android 13+ with target SDK 36 no longer calls onBackPressed: a back callback must be registered, and only
-    // while Ardour has something to go back to, so the system still plays its normal exit when it has not.
+    // Android 13+ with target SDK 36 no longer calls onBackPressed: a back callback must be registered.
     private fun refreshBack() {
         if (Build.VERSION.SDK_INT < 33) return
-        val needed = EngineAdapter.canGoBack() || address.input.hasFocus() || finding || reader != null || sheet.showing || homeOver
-        if (needed && backCallback == null) registerBack() else if (!needed && backCallback != null) unregisterBack()
+        // Back always has a step now (start screen, then the exit warning), so the callback stays registered.
+        if (backCallback == null) registerBack()
     }
 
     @TargetApi(33)
@@ -978,12 +1010,6 @@ class MainActivity : Activity() {
         val callback = OnBackInvokedCallback { handleBack() }
         onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
         backCallback = callback
-    }
-
-    @TargetApi(33)
-    private fun unregisterBack() {
-        (backCallback as? OnBackInvokedCallback)?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
-        backCallback = null
     }
 
     @Suppress("DEPRECATION")
@@ -1045,6 +1071,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        if (isFinishing && privateOn && Prefs.get(this, Prefs.PRIVATE_CLOSE)) EngineAdapter.deletePrivateAdditions()
         EngineAdapter.destroy()
         super.onDestroy()
     }

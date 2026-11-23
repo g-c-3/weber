@@ -18,6 +18,10 @@ object Prefs {
     const val LEAVE_DELETE = "delete"
     const val LEAVE_KEEP = "keep"
 
+    // Closing the app while private is on (DECISIONS.md 137): off by default. The record is host and cookie names only.
+    const val PRIVATE_CLOSE = "private_delete_on_close"
+    const val PRIVATE_RECORD = "private_record"
+
     // Diagnostics only (hidden card in Settings): the desktop viewport script stays off, to test the Gmail stall.
     const val DIAG_NO_DESKTOP_SCRIPT = "diag_no_desktop_script"
 

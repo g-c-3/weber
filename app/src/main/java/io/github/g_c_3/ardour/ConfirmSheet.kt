@@ -37,6 +37,7 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
         choices: List<Choice> = emptyList(),
         cancelLabel: String = "Cancel",
         onCancelTap: (() -> Unit)? = null,
+        dangerConfirm: Boolean = false,
         onConfirm: (List<Boolean>) -> Unit,
     ) {
         if (backdrop != null) return
@@ -81,7 +82,7 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
         }
-        val cancel = TextView(activity).apply {
+        val quietCancel = TextView(activity).apply {
             text = cancelLabel
             textSize = 16f
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
@@ -94,17 +95,35 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
                 onCancelTap?.invoke()
             }
         }
-        Ui.springPress(cancel)
-        val go = Ui.pillButton(activity, confirm).apply {
-            setOnClickListener {
-                dismiss()
-                onConfirm(states.toList())
+        Ui.springPress(quietCancel)
+        // A destructive confirm sits faded in neon red and lights up when pressed; the other button becomes the glowing one.
+        val cancel = if (dangerConfirm) {
+            Ui.pillButton(activity, cancelLabel).apply {
+                setOnClickListener {
+                    dismiss()
+                    onCancelTap?.invoke()
+                }
+            }
+        } else {
+            quietCancel
+        }
+        val go = if (dangerConfirm) {
+            dangerButton(confirm) { onConfirm(states.toList()) }
+        } else {
+            Ui.pillButton(activity, confirm).apply {
+                setOnClickListener {
+                    dismiss()
+                    onConfirm(states.toList())
+                }
             }
         }
         confirmButton = go
         refreshConfirm()
-        row.addView(cancel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        row.addView(go, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        val wrap = ViewGroup.LayoutParams.WRAP_CONTENT
+        val first = if (dangerConfirm) go else cancel
+        val second = if (dangerConfirm) cancel else go
+        row.addView(first, LinearLayout.LayoutParams(wrap, wrap))
+        row.addView(second, LinearLayout.LayoutParams(wrap, wrap).apply { if (dangerConfirm) marginStart = Ui.dp(activity, 12) })
         box.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         val margin = Ui.dp(activity, 16)
         dim.addView(
@@ -120,6 +139,45 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
         dim.animate().alpha(1f).setDuration(220).start()
         box.animate().translationY(0f).setDuration(460).setInterpolator(SpringInterpolator()).start()
         onChange()
+    }
+
+    // Neon red, faded at rest; a press or tap lights it fully, and the action runs a moment later.
+    private fun dangerButton(label: String, action: () -> Unit): TextView {
+        val neon = 0xFFFF2D55.toInt()
+        val view = TextView(activity).apply {
+            text = label
+            textSize = 16f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            gravity = Gravity.CENTER
+            setPadding(Ui.dp(activity, 22), Ui.dp(activity, 15), Ui.dp(activity, 22), Ui.dp(activity, 15))
+            isClickable = true
+            isFocusable = true
+        }
+        var fired = false
+        fun paint(hot: Boolean) {
+            view.setTextColor(if (hot) 0xFFFFFFFF.toInt() else 0x99FF2D55.toInt())
+            view.background = GradientDrawable().apply {
+                cornerRadius = Ui.dp(activity, 28).toFloat()
+                if (hot) setColor(neon) else {
+                    setColor(0x14FF2D55)
+                    setStroke(Ui.dp(activity, 1), 0x59FF2D55)
+                }
+            }
+            view.elevation = if (hot) Ui.dp(activity, 8).toFloat() else 0f
+            view.outlineSpotShadowColor = neon
+        }
+        paint(false)
+        Ui.springPress(view) { down -> if (down) paint(true) else if (!fired) paint(false) }
+        view.setOnClickListener {
+            if (fired) return@setOnClickListener
+            fired = true
+            paint(true)
+            view.postDelayed({
+                dismiss()
+                action()
+            }, 240)
+        }
+        return view
     }
 
     fun dismiss() {

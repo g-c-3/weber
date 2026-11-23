@@ -14,6 +14,7 @@ import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.WebStorage
 import android.webkit.RenderProcessGoneDetail
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
@@ -883,6 +884,51 @@ object EngineAdapter {
         privateSchemes.clear()
         Trace.log("ACTION", "private ${if (on) "on" else "off"}")
         if (on) notePrivateSite(webView?.url) // the page already open counts as the first visit to its host
+        persistPrivate()
+    }
+
+    val privateActive: Boolean get() = privateSites != null
+
+    // With the close option on (DECISIONS.md 137) the record (host, scheme, cookie names; no values) is kept in the app's
+    // private storage, so a close Android does not announce can still be cleaned at the next launch.
+    private fun persistPrivate() {
+        val context = webView?.context ?: return
+        val sites = privateSites
+        if (sites == null || !Prefs.get(context, Prefs.PRIVATE_CLOSE)) {
+            Prefs.setString(context, Prefs.PRIVATE_RECORD, "")
+            return
+        }
+        val out = JSONObject()
+        for ((host, names) in sites) {
+            out.put(host, JSONObject().put("s", privateSchemes[host] ?: "https").put("n", JSONArray(names.toList())))
+        }
+        Prefs.setString(context, Prefs.PRIVATE_RECORD, out.toString())
+    }
+
+    // At launch: a record left by a private session that ended without leaving (the app was closed or killed) is deleted
+    // when the close option is on, and dropped when it is off. A session live in this process is left alone.
+    fun cleanLeftover(context: Context) {
+        if (privateSites != null) return
+        val raw = Prefs.getString(context, Prefs.PRIVATE_RECORD, "")
+        if (raw.isEmpty()) return
+        Prefs.setString(context, Prefs.PRIVATE_RECORD, "")
+        if (!Prefs.get(context, Prefs.PRIVATE_CLOSE)) return
+        try {
+            val record = JSONObject(raw)
+            val sites = LinkedHashMap<String, Set<String>>()
+            val schemes = HashMap<String, String>()
+            for (host in record.keys()) {
+                val entry = record.getJSONObject(host)
+                schemes[host] = entry.getString("s")
+                val names = entry.getJSONArray("n")
+                sites[host] = (0 until names.length()).map { names.getString(it) }.toSet()
+            }
+            val removed = removeAdditions(sites, schemes)
+            webView?.clearCache(true)
+            Trace.log("ACTION", "private leftover delete $removed cookies, ${sites.size} sites, cache")
+        } catch (_: JSONException) {
+            // An unreadable record is dropped.
+        }
     }
 
     // A page starts while private: the first visit to a host takes its baseline, before the page's own cookies arrive.
@@ -895,6 +941,7 @@ object EngineAdapter {
         sites[host] = cookieNameSet("$scheme://$host/")
         privateSchemes[host] = scheme
         Trace.log("ACTION", "private baseline ${sites[host]?.size ?: 0} cookies for $host")
+        persistPrivate()
     }
 
     // Removes what the private session added (DECISIONS.md 134): per host, the cookie names that were not there at the
@@ -903,10 +950,15 @@ object EngineAdapter {
     fun deletePrivateAdditions() {
         val view = webView ?: return
         val sites = privateSites ?: return
+        val removed = removeAdditions(sites, privateSchemes)
+        view.clearCache(true)
+        Trace.log("ACTION", "private delete $removed cookies, ${sites.size} sites, cache")
+    }
+
+    private fun removeAdditions(sites: Map<String, Set<String>>, schemes: Map<String, String>): Int {
         var removed = 0
         for ((host, baseline) in sites) {
-            val scheme = privateSchemes[host] ?: "https"
-            val root = "$scheme://$host/"
+            val root = "${schemes[host] ?: "https"}://$host/"
             val added = cookieNameSet(root) - baseline
             if (added.isNotEmpty()) {
                 clearCookies(root, Uri.parse(root), host, added)
@@ -921,8 +973,7 @@ object EngineAdapter {
                 }
             }
         }
-        view.clearCache(true)
-        Trace.log("ACTION", "private delete $removed cookies, ${sites.size} sites, cache")
+        return removed
     }
 
     // Loads the open page again from the network, skipping the cache for this one load.
