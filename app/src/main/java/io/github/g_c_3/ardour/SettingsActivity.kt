@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.view.GestureDetector
@@ -90,6 +91,8 @@ class SettingsActivity : Activity() {
             addView(switchRow("Third-party cookies", "Lets content embedded in a page, such as ads and sign-in frames, set cookies. This also lets those sites recognise you across the pages that embed them. Off by default; some sites need them to work. Applies to pages you open next.", Prefs.THIRD_PARTY))
         }
         column.addView(browsing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        column.addView(Ui.sectionLabel(this, "Private browsing"))
+        column.addView(Ui.card(this).apply { addView(leaveChoiceRow()) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         defaultBrowserButton()?.let { card ->
             column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = Ui.dp(this@SettingsActivity, 20)
@@ -259,6 +262,70 @@ class SettingsActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_DEFAULT_BROWSER) recreate()
+    }
+
+    // What leaving private mode does (DECISIONS.md 134, 136): three segments, the chosen one filled ember.
+    private fun leaveChoiceRow(): View {
+        val ctx = this
+        val options = listOf(Prefs.LEAVE_ASK to "Ask every time", Prefs.LEAVE_DELETE to "Delete always", Prefs.LEAVE_KEEP to "Keep always")
+        var chosen = Prefs.getString(ctx, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_ASK)
+        val notes = mapOf(
+            Prefs.LEAVE_ASK to "Switching private off asks whether to delete what the private session added.",
+            Prefs.LEAVE_DELETE to "Switching private off deletes the cookies, site data and cache the private session added. Sign-ins you already had stay.",
+            Prefs.LEAVE_KEEP to "Switching private off keeps everything the private session added.",
+        )
+        val note = Ui.body(ctx, notes.getValue(chosen)).apply { setPadding(0, Ui.dp(ctx, 12), 0, 0) }
+        val segments = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        val labels = ArrayList<TextView>()
+        fun paint() {
+            options.forEachIndexed { i, (key, _) ->
+                val on = key == chosen
+                labels[i].setTextColor(if (on) 0xFFFFFFFF.toInt() else Ui.INK)
+                labels[i].background = GradientDrawable().apply {
+                    cornerRadius = Ui.dp(ctx, 22).toFloat()
+                    if (on) setColor(Ui.EMBER) else {
+                        setColor(Ui.CARD)
+                        setStroke(Ui.dp(ctx, 1), Ui.LINE)
+                    }
+                }
+            }
+            note.text = notes.getValue(chosen)
+        }
+        options.forEachIndexed { i, (key, text) ->
+            val label = TextView(ctx).apply {
+                this.text = text
+                textSize = 13f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                gravity = Gravity.CENTER
+                setPadding(Ui.dp(ctx, 4), Ui.dp(ctx, 11), Ui.dp(ctx, 4), Ui.dp(ctx, 11))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    chosen = key
+                    Prefs.setString(ctx, Prefs.PRIVATE_LEAVE, key)
+                    paint()
+                }
+            }
+            Ui.springPress(label)
+            labels.add(label)
+            segments.addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                if (i > 0) marginStart = Ui.dp(ctx, 8)
+            })
+        }
+        paint()
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, Ui.dp(ctx, 14), 0, Ui.dp(ctx, 14))
+            addView(TextView(ctx).apply {
+                text = "When leaving private"
+                textSize = 16f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(Ui.INK)
+                setPadding(0, 0, 0, Ui.dp(ctx, 10))
+            })
+            addView(segments, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(note)
+        }
     }
 
     // One option: label and note on the left, an ember switch on the right; a tap anywhere on the row flips it.

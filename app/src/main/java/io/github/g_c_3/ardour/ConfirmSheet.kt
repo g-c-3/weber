@@ -21,8 +21,8 @@ import android.widget.TextView
 class Choice(val label: String, val detail: String, val checked: Boolean)
 
 // A confirmation card over the page, drawn by Ardour (DECISIONS.md 38): a dimmed backdrop, a card that rises in with a
-// spring, optional tickable choices, a quiet Cancel and a glowing confirm button. A tap outside the card, or Back,
-// cancels. With choices, the confirm button dims while none is ticked and hands back the ticked states in order.
+// spring, optional tickable choices, a quiet Cancel (own label and action on request) and a glowing confirm button. A
+// tap outside the card, or Back, cancels without running the quiet button's action. With choices, the confirm button dims while none is ticked and hands back the ticked states in order.
 class ConfirmSheet(private val activity: Activity, private val onChange: () -> Unit) {
     private var backdrop: FrameLayout? = null
     private var card: LinearLayout? = null
@@ -35,6 +35,8 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
         body: String,
         confirm: String,
         choices: List<Choice> = emptyList(),
+        cancelLabel: String = "Cancel",
+        onCancelTap: (() -> Unit)? = null,
         onConfirm: (List<Boolean>) -> Unit,
     ) {
         if (backdrop != null) return
@@ -80,14 +82,17 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
         }
         val cancel = TextView(activity).apply {
-            text = "Cancel"
+            text = cancelLabel
             textSize = 16f
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
             setTextColor(Ui.MUTED)
             gravity = Gravity.CENTER
             setPadding(Ui.dp(activity, 20), Ui.dp(activity, 15), Ui.dp(activity, 20), Ui.dp(activity, 15))
             isClickable = true
-            setOnClickListener { dismiss() }
+            setOnClickListener {
+                dismiss()
+                onCancelTap?.invoke()
+            }
         }
         Ui.springPress(cancel)
         val go = Ui.pillButton(activity, confirm).apply {

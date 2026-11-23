@@ -428,6 +428,11 @@ object EngineAdapter {
     // Host of the main-frame address last requested or started; tells the page's own certificate error from another site's.
     private var mainFrameHost: String? = null
 
+    // Private mode (DECISIONS.md 134): while on, each site first opened remembers the cookie names it had then (host to
+    // names). Deleting removes only the names added since; a site that had none also loses its saved site data.
+    private var privateSites: LinkedHashMap<String, Set<String>>? = null
+    private val privateSchemes = HashMap<String, String>()
+
     // A main-frame navigation was requested and the engine has not reported its start yet.
     private var navPending = false
 
@@ -519,6 +524,7 @@ object EngineAdapter {
                 httpErrorsLogged = 0
                 resourcesLogged = 0
                 if (scheme == "http" || scheme == "https") mainFrameHost = Uri.parse(url).host?.lowercase()
+                if (scheme == "http" || scheme == "https") notePrivateSite(url)
                 if (scheme != null && scheme != "http" && scheme != "https" && scheme != "about") return
                 listener.onLoading(true)
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
@@ -849,14 +855,14 @@ object EngineAdapter {
 
     // Cookies are found by name for this address and expired for the host, each parent domain and each path of the
     // address; cookies of other hosts, and of paths this address does not reach, stay.
-    private fun clearCookies(url: String, uri: Uri, host: String) {
+    private fun clearCookies(url: String, uri: Uri, host: String, only: Set<String>? = null) {
         val secure = uri.scheme == "https"
         val manager = CookieManager.getInstance()
         val labels = host.split('.')
         val domains = (0..(labels.size - 2).coerceAtLeast(0)).map { labels.drop(it).joinToString(".") }
         val segments = (uri.path ?: "/").split('/').filter { it.isNotEmpty() }
         val paths = listOf("/") + (1..segments.size).map { "/" + segments.take(it).joinToString("/") }
-        val names = manager.getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() }?.distinct().orEmpty()
+        val names = manager.getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() && (only == null || it in only) }?.distinct().orEmpty()
         val expired = "=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT" + if (secure) "; Secure" else ""
         for (name in names) {
             for (path in paths) {
@@ -865,6 +871,58 @@ object EngineAdapter {
             }
         }
         manager.flush()
+    }
+
+    private fun cookieNameSet(url: String): Set<String> =
+        CookieManager.getInstance().getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() }?.toSet().orEmpty()
+
+    // Private mode on or off. Turning it on starts an empty record; turning it off forgets the record (call
+    // `deletePrivateAdditions` first to remove what the session added).
+    fun setPrivate(on: Boolean) {
+        privateSites = if (on) LinkedHashMap() else null
+        privateSchemes.clear()
+        Trace.log("ACTION", "private ${if (on) "on" else "off"}")
+        if (on) notePrivateSite(webView?.url) // the page already open counts as the first visit to its host
+    }
+
+    // A page starts while private: the first visit to a host takes its baseline, before the page's own cookies arrive.
+    // A cookie a redirect sets earlier counts as baseline and so stays: the error keeps a sign-in, never removes one.
+    private fun notePrivateSite(url: String?) {
+        val sites = privateSites ?: return
+        val host = Uri.parse(url ?: return).host?.lowercase() ?: return
+        if (host in sites) return
+        val scheme = Uri.parse(url).scheme ?: "https"
+        sites[host] = cookieNameSet("$scheme://$host/")
+        privateSchemes[host] = scheme
+        Trace.log("ACTION", "private baseline ${sites[host]?.size ?: 0} cookies for $host")
+    }
+
+    // Removes what the private session added (DECISIONS.md 134): per host, the cookie names that were not there at the
+    // first visit; saved site data only for hosts that had no cookies then; and the engine's cache. Cookies are matched
+    // at the site's root address, so a cookie kept for a deeper path stays.
+    fun deletePrivateAdditions() {
+        val view = webView ?: return
+        val sites = privateSites ?: return
+        var removed = 0
+        for ((host, baseline) in sites) {
+            val scheme = privateSchemes[host] ?: "https"
+            val root = "$scheme://$host/"
+            val added = cookieNameSet(root) - baseline
+            if (added.isNotEmpty()) {
+                clearCookies(root, Uri.parse(root), host, added)
+                removed += added.size
+            }
+            if (baseline.isEmpty()) {
+                val storage = WebStorage.getInstance()
+                val locations = GeolocationPermissions.getInstance()
+                for (s in listOf("https", "http")) {
+                    storage.deleteOrigin("$s://$host")
+                    locations.clear("$s://$host")
+                }
+            }
+        }
+        view.clearCache(true)
+        Trace.log("ACTION", "private delete $removed cookies, ${sites.size} sites, cache")
     }
 
     // Loads the open page again from the network, skipping the cache for this one load.

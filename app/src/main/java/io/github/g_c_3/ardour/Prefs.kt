@@ -12,6 +12,12 @@ object Prefs {
     const val READER_TEXT = "reader_text_tenths"
     const val READER_LEFT = "reader_left_aligned"
 
+    // What leaving private mode does (DECISIONS.md 134, 136).
+    const val PRIVATE_LEAVE = "private_leave"
+    const val LEAVE_ASK = "ask"
+    const val LEAVE_DELETE = "delete"
+    const val LEAVE_KEEP = "keep"
+
     // Diagnostics only (hidden card in Settings): the desktop viewport script stays off, to test the Gmail stall.
     const val DIAG_NO_DESKTOP_SCRIPT = "diag_no_desktop_script"
 

@@ -46,7 +46,7 @@ class MainActivity : Activity() {
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var buttonGroup: LinearLayout
-    private var privateOn = false // the Private button's state; marks the window only until private tabs exist (DECISIONS.md 129)
+    private var privateOn = false // the Private button's state (DECISIONS.md 134)
     private var homeOver = false // the start screen is shown over a page the user left with Home (DECISIONS.md 127)
     private lateinit var floatingBar: EditBar
     private lateinit var suggestList: SuggestionList
@@ -829,13 +829,38 @@ class MainActivity : Activity() {
         startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
     }
 
-    // The Private button: shield fills amber when on. Marks the window only; the isolation and the history wipe come with
-    // private tabs and the history list (DECISIONS.md 129).
+    // The Private button (DECISIONS.md 134, 136): on keeps every sign-in and starts recording what this session adds;
+    // off asks, or follows the Settings choice, whether to delete those additions. History is not recorded while on
+    // (the history list is not built yet).
     private fun togglePrivate(button: IconButton) {
-        privateOn = !privateOn
-        button.setOn(privateOn)
-        button.contentDescription = if (privateOn) "Private browsing, on" else "Private browsing, off"
-        showNotice(if (privateOn) "Marked private. Full privacy comes with tabs." else "Private marking off")
+        if (!privateOn) {
+            privateOn = true
+            EngineAdapter.setPrivate(true)
+            button.setOn(true)
+            button.contentDescription = "Private browsing, on"
+            showNotice("Private on. Your sign-ins stay.")
+            return
+        }
+        when (Prefs.getString(this, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_ASK)) {
+            Prefs.LEAVE_DELETE -> leavePrivate(button, true)
+            Prefs.LEAVE_KEEP -> leavePrivate(button, false)
+            else -> sheet.show(
+                title = "Leave private mode?",
+                body = "Delete all removes the cookies, site data and cache this private session added. Sign-ins you already had stay.",
+                confirm = "Delete all",
+                cancelLabel = "Continue as is",
+                onCancelTap = { leavePrivate(button, false) },
+            ) { leavePrivate(button, true) }
+        }
+    }
+
+    private fun leavePrivate(button: IconButton, delete: Boolean) {
+        if (delete) EngineAdapter.deletePrivateAdditions()
+        EngineAdapter.setPrivate(false)
+        privateOn = false
+        button.setOn(false)
+        button.contentDescription = "Private browsing, off"
+        showNotice(if (delete) "Private off. This session's additions are deleted." else "Private off. Nothing deleted.")
     }
 
     // Home: the start screen over the page; the page and its history stay. Back, or any new load, brings the page back.
