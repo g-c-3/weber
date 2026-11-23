@@ -74,7 +74,7 @@ class SettingsActivity : Activity() {
         val versionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(Ui.row(this@SettingsActivity, "Ardour version", appVersion()), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(versionRow("Ardour version", appVersion(), null), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(updateSlot, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 marginStart = Ui.dp(this@SettingsActivity, 12)
             })
@@ -82,7 +82,7 @@ class SettingsActivity : Activity() {
         val about = Ui.card(this).apply {
             addView(versionRow)
             addView(divider, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this@SettingsActivity, 8)))
-            addView(Ui.row(this@SettingsActivity, "WebView version", EngineAdapter.webViewVersion(this@SettingsActivity) ?: "not found"))
+            addView(webViewRow())
         }
         UpdateFeature.attach(this, updateSlot, divider, appVersion())
         column.addView(about, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -323,10 +323,52 @@ class SettingsActivity : Activity() {
         paint()
         return LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, Ui.dp(ctx, 8), 0, Ui.dp(ctx, 14))
-            addView(titleLine("When leaving Shield Mode", options.joinToString("\n\n") { (key, name) -> name + ": " + notes.getValue(key) }, 10))
+            setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 12))
+            addView(titleLine("When leaving Shield Mode", options.joinToString("\n\n") { (key, name) -> name + ": " + notes.getValue(key) }, 6))
             addView(segments, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
+    }
+
+    // A heading with its value centred under it, and an optional info button at the end of the row.
+    private fun versionRow(label: String, value: String, info: String?): View {
+        val ctx = this
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, Ui.dp(ctx, 10), 0, Ui.dp(ctx, 10))
+            addView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                addView(TextView(ctx).apply {
+                    text = label
+                    textSize = 16f
+                    typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                    setTextColor(Ui.INK)
+                })
+                addView(TextView(ctx).apply {
+                    text = value
+                    textSize = 14f
+                    setTextColor(Ui.MUTED)
+                    setPadding(0, Ui.dp(ctx, 1), 0, 0)
+                })
+            })
+            if (info != null) {
+                addView(InfoButton(ctx).apply {
+                    contentDescription = "About $label"
+                    setOnClickListener { infoSheet.showInfo(label, info) }
+                }, LinearLayout.LayoutParams(Ui.dp(ctx, 30), Ui.dp(ctx, 30)))
+            }
+        }
+    }
+
+    // The WebView row shows the version; its info card names the package and what the component is.
+    private fun webViewRow(): View {
+        val full = EngineAdapter.webViewVersion(this) ?: "not found"
+        val version = full.substringBefore(" (")
+        val pack = full.substringAfter("(", "").removeSuffix(")")
+        val info = (if (pack.isEmpty()) "" else "Package: $pack.\n\n") +
+            "Ardour draws web pages with the Android System WebView installed on your phone; it has no engine of its own. Updating that component through the Play Store updates the engine."
+        return versionRow("WebView version", version, info)
     }
 
     // A title with the info button beside it; the button opens the full explanation on a card.
@@ -345,7 +387,7 @@ class SettingsActivity : Activity() {
             addView(InfoButton(ctx).apply {
                 contentDescription = "About $label"
                 setOnClickListener { infoSheet.showInfo(label, info) }
-            }, LinearLayout.LayoutParams(Ui.dp(ctx, 40), Ui.dp(ctx, 40)))
+            }, LinearLayout.LayoutParams(Ui.dp(ctx, 30), Ui.dp(ctx, 30)))
         }
     }
 
@@ -355,13 +397,13 @@ class SettingsActivity : Activity() {
         val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, Ui.dp(ctx, 6), 0, Ui.dp(ctx, 6))
+            setPadding(0, Ui.dp(ctx, 3), 0, Ui.dp(ctx, 3))
             isClickable = true
             isFocusable = true
         }
         val switch = ToggleSwitch(ctx, Prefs.get(ctx, key, default))
         row.addView(titleLine(label, note), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(switch, LinearLayout.LayoutParams(Ui.dp(ctx, 52), Ui.dp(ctx, 30)).apply { marginStart = Ui.dp(ctx, 16) })
+        row.addView(switch, LinearLayout.LayoutParams(Ui.dp(ctx, 40), Ui.dp(ctx, 22)).apply { marginStart = Ui.dp(ctx, 12) })
         row.setOnClickListener {
             switch.on = !switch.on
             Prefs.set(ctx, key, switch.on)

@@ -6,7 +6,6 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.LinearGradient
-import android.graphics.Outline
 import android.graphics.Shader
 import android.graphics.Paint
 import android.graphics.RectF
@@ -22,7 +21,6 @@ import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.view.ViewGroup
-import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -255,8 +253,8 @@ object MenuPopup {
     }
 }
 
-// Modern pill switch (DECISIONS.md 140): the track fills with an ember to amber gradient and a soft glow when on; the
-// knob is white with a shadow and stretches while it travels, settling with the shared spring.
+// Slim pill switch (DECISIONS.md 140, 141): the track fills with an ember to amber gradient when on, with no glow; the
+// knob is white with a faint shadow and stretches while it travels, settling with the shared spring.
 class ToggleSwitch(context: Context, initial: Boolean) : View(context) {
     private var pos = if (initial) 1f else 0f
     private var anim: ValueAnimator? = null
@@ -273,18 +271,6 @@ class ToggleSwitch(context: Context, initial: Boolean) : View(context) {
     private val mixer = ArgbEvaluator()
     private var gradient: LinearGradient? = null
 
-    init {
-        outlineProvider = object : ViewOutlineProvider() {
-            override fun getOutline(view: View, outline: Outline) {
-                outline.setRoundRect(0, 0, view.width, view.height, view.height / 2f)
-                outline.alpha = 1f
-            }
-        }
-        outlineSpotShadowColor = Ui.EMBER
-        outlineAmbientShadowColor = 0x00000000
-        elevation = Ui.dp(context, 5).toFloat() * pos
-    }
-
     var on: Boolean = initial
         set(v) {
             field = v
@@ -295,7 +281,6 @@ class ToggleSwitch(context: Context, initial: Boolean) : View(context) {
                 interpolator = SpringInterpolator()
                 addUpdateListener {
                     pos = it.animatedValue as Float
-                    elevation = Ui.dp(context, 5).toFloat() * pos.coerceIn(0f, 1f)
                     invalidate()
                 }
                 start()
@@ -323,7 +308,7 @@ class ToggleSwitch(context: Context, initial: Boolean) : View(context) {
         rect.inset(edge.strokeWidth / 2f, edge.strokeWidth / 2f)
         edge.alpha = (0x1F * (1f - p)).toInt()
         canvas.drawRoundRect(rect, h / 2f, h / 2f, edge)
-        val inset = Ui.dp(context, 3).toFloat()
+        val inset = Ui.dp(context, 2).toFloat()
         val d = h - 2f * inset
         val stretch = d * 0.4f * kotlin.math.sin(Math.PI * pos.coerceIn(0f, 1f)).toFloat()
         val kw = d + stretch
