@@ -38,6 +38,7 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
         cancelLabel: String = "Cancel",
         onCancelTap: (() -> Unit)? = null,
         dangerConfirm: Boolean = false,
+        infoOnly: Boolean = false,
         onConfirm: (List<Boolean>) -> Unit,
     ) {
         if (backdrop != null) return
@@ -122,8 +123,12 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
         val wrap = ViewGroup.LayoutParams.WRAP_CONTENT
         val first = if (dangerConfirm) go else cancel
         val second = if (dangerConfirm) cancel else go
-        row.addView(first, LinearLayout.LayoutParams(wrap, wrap))
-        row.addView(second, LinearLayout.LayoutParams(wrap, wrap).apply { if (dangerConfirm) marginStart = Ui.dp(activity, 12) })
+        if (infoOnly) {
+            row.addView(go, LinearLayout.LayoutParams(wrap, wrap))
+        } else {
+            row.addView(first, LinearLayout.LayoutParams(wrap, wrap))
+            row.addView(second, LinearLayout.LayoutParams(wrap, wrap).apply { if (dangerConfirm) marginStart = Ui.dp(activity, 12) })
+        }
         box.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         val margin = Ui.dp(activity, 16)
         dim.addView(
@@ -140,6 +145,9 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
         box.animate().translationY(0f).setDuration(460).setInterpolator(SpringInterpolator()).start()
         onChange()
     }
+
+    // An explanation card with one glowing button (the Settings info buttons, DECISIONS.md 140).
+    fun showInfo(title: String, body: String) = show(title, body, "Got it", infoOnly = true) { }
 
     // Neon red, faded at rest; a press or tap lights it fully, and the action runs a moment later.
     private fun dangerButton(label: String, action: () -> Unit): TextView {

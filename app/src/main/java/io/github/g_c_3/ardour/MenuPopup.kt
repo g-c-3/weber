@@ -5,6 +5,9 @@ import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Outline
+import android.graphics.Shader
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -19,6 +22,7 @@ import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -251,14 +255,35 @@ object MenuPopup {
     }
 }
 
-// Pill switch: ember when on; the knob settles with the shared spring.
+// Modern pill switch (DECISIONS.md 140): the track fills with an ember to amber gradient and a soft glow when on; the
+// knob is white with a shadow and stretches while it travels, settling with the shared spring.
 class ToggleSwitch(context: Context, initial: Boolean) : View(context) {
     private var pos = if (initial) 1f else 0f
     private var anim: ValueAnimator? = null
     private val track = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val knob = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.CARD }
+    private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = Ui.dp(context, 1).toFloat()
+        color = 0x1F000000
+    }
+    private val knob = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
+    private val knobShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x26000000 }
     private val rect = RectF()
-    private val offColor = 0xFFD9D7D2.toInt()
+    private val offColor = 0xFFE3E1DC.toInt()
+    private val mixer = ArgbEvaluator()
+    private var gradient: LinearGradient? = null
+
+    init {
+        outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height, view.height / 2f)
+                outline.alpha = 1f
+            }
+        }
+        outlineSpotShadowColor = Ui.EMBER
+        outlineAmbientShadowColor = 0x00000000
+        elevation = Ui.dp(context, 5).toFloat() * pos
+    }
 
     var on: Boolean = initial
         set(v) {
@@ -266,26 +291,49 @@ class ToggleSwitch(context: Context, initial: Boolean) : View(context) {
             val from = pos
             anim?.cancel()
             anim = ValueAnimator.ofFloat(from, if (v) 1f else 0f).apply {
-                duration = 360
+                duration = 380
                 interpolator = SpringInterpolator()
                 addUpdateListener {
                     pos = it.animatedValue as Float
+                    elevation = Ui.dp(context, 5).toFloat() * pos.coerceIn(0f, 1f)
                     invalidate()
                 }
                 start()
             }
         }
 
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        gradient = LinearGradient(0f, 0f, w.toFloat(), 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
+    }
+
     override fun onDraw(canvas: Canvas) {
         val w = width.toFloat()
         val h = height.toFloat()
-        track.color = ArgbEvaluator().evaluate(pos.coerceIn(0f, 1f), offColor, Ui.EMBER) as Int
+        val p = pos.coerceIn(0f, 1f)
         rect.set(0f, 0f, w, h)
+        track.shader = null
+        track.color = mixer.evaluate(p, offColor, Ui.EMBER) as Int
         canvas.drawRoundRect(rect, h / 2f, h / 2f, track)
+        if (p > 0.01f) {
+            track.shader = gradient
+            track.alpha = (255 * p).toInt()
+            canvas.drawRoundRect(rect, h / 2f, h / 2f, track)
+            track.shader = null
+        }
+        rect.inset(edge.strokeWidth / 2f, edge.strokeWidth / 2f)
+        edge.alpha = (0x1F * (1f - p)).toInt()
+        canvas.drawRoundRect(rect, h / 2f, h / 2f, edge)
         val inset = Ui.dp(context, 3).toFloat()
-        val r = h / 2f - inset
-        val cx = inset + r + (w - 2f * (inset + r)) * pos
-        canvas.drawCircle(cx, h / 2f, r, knob)
+        val d = h - 2f * inset
+        val stretch = d * 0.4f * kotlin.math.sin(Math.PI * pos.coerceIn(0f, 1f)).toFloat()
+        val kw = d + stretch
+        val left = inset + (w - 2f * inset - kw) * pos
+        rect.set(left, inset, left + kw, inset + d)
+        val lift = Ui.dp(context, 1).toFloat()
+        rect.offset(0f, lift)
+        canvas.drawRoundRect(rect, d / 2f, d / 2f, knobShadow)
+        rect.offset(0f, -lift)
+        canvas.drawRoundRect(rect, d / 2f, d / 2f, knob)
     }
 
     override fun onDetachedFromWindow() {

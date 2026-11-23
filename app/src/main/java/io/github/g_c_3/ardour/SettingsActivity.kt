@@ -1,5 +1,6 @@
 package io.github.g_c_3.ardour
 
+import android.annotation.TargetApi
 import android.app.Activity
 import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
@@ -7,6 +8,7 @@ import android.content.Intent
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.GestureDetector
@@ -20,6 +22,8 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 
 class SettingsActivity : Activity() {
     private companion object {
@@ -28,6 +32,8 @@ class SettingsActivity : Activity() {
 
     private var awaitingDefaults = false
     private var content: LinearLayout? = null
+    private val infoSheet = ConfirmSheet(this) { refreshBack() }
+    private var backCallback: Any? = null
     private var scroller: ScrollView? = null
     private var diagnosticsShown = false
 
@@ -91,11 +97,11 @@ class SettingsActivity : Activity() {
             addView(switchRow("Third-party cookies", "Lets content embedded in a page, such as ads and sign-in frames, set cookies. This also lets those sites recognise you across the pages that embed them. Off by default; some sites need them to work. Applies to pages you open next.", Prefs.THIRD_PARTY))
         }
         column.addView(browsing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        column.addView(Ui.sectionLabel(this, "Private browsing"))
+        column.addView(Ui.sectionLabel(this, "Shield Mode"))
         column.addView(Ui.card(this).apply {
             addView(leaveChoiceRow())
             addView(Ui.divider(this@SettingsActivity))
-            addView(switchRow("Delete when the app closes", "While private is on, closing the app deletes what the private session added, as Delete all does. If Android ends the app without telling it, the deletion runs the next time Ardour opens. While this is on and private is on, the list of sites opened privately (addresses of sites and cookie names, no passwords or page content) is kept in the app's private storage until the deletion has run. Off by default.", Prefs.PRIVATE_CLOSE))
+            addView(switchRow("Delete when the app closes", "While Shield Mode is on, closing the app deletes what the Shield Mode session added, as Delete all does. If Android ends the app without telling it, the deletion runs the next time Ardour opens. While this switch and Shield Mode are both on, the list of sites opened in Shield Mode (addresses of sites and cookie names, no passwords or page content) is kept in the app's private storage until the deletion has run. Off by default.", Prefs.PRIVATE_CLOSE))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         defaultBrowserButton()?.let { card ->
             column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -268,17 +274,16 @@ class SettingsActivity : Activity() {
         if (requestCode == REQUEST_DEFAULT_BROWSER) recreate()
     }
 
-    // What leaving private mode does (DECISIONS.md 134, 136): three segments, the chosen one filled ember.
+    // What leaving Shield Mode does (DECISIONS.md 134, 136, 139): three segments, the chosen one filled ember.
     private fun leaveChoiceRow(): View {
         val ctx = this
         val options = listOf(Prefs.LEAVE_ASK to "Ask every time", Prefs.LEAVE_DELETE to "Delete always", Prefs.LEAVE_KEEP to "Keep always")
         var chosen = Prefs.getString(ctx, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_ASK)
         val notes = mapOf(
-            Prefs.LEAVE_ASK to "Switching private off asks whether to delete what the private session added.",
-            Prefs.LEAVE_DELETE to "Switching private off deletes the cookies, site data and cache the private session added. Sign-ins you already had stay.",
-            Prefs.LEAVE_KEEP to "Switching private off keeps everything the private session added.",
+            Prefs.LEAVE_ASK to "Switching Shield Mode off asks whether to delete what the Shield Mode session added.",
+            Prefs.LEAVE_DELETE to "Switching Shield Mode off deletes the cookies, site data and cache the Shield Mode session added. Sign-ins you already had stay.",
+            Prefs.LEAVE_KEEP to "Switching Shield Mode off keeps everything the Shield Mode session added.",
         )
-        val note = Ui.body(ctx, notes.getValue(chosen)).apply { setPadding(0, Ui.dp(ctx, 12), 0, 0) }
         val segments = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         val labels = ArrayList<TextView>()
         fun paint() {
@@ -293,7 +298,6 @@ class SettingsActivity : Activity() {
                     }
                 }
             }
-            note.text = notes.getValue(chosen)
         }
         options.forEachIndexed { i, (key, text) ->
             val label = TextView(ctx).apply {
@@ -319,47 +323,75 @@ class SettingsActivity : Activity() {
         paint()
         return LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, Ui.dp(ctx, 14), 0, Ui.dp(ctx, 14))
-            addView(TextView(ctx).apply {
-                text = "When leaving private"
-                textSize = 16f
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                setTextColor(Ui.INK)
-                setPadding(0, 0, 0, Ui.dp(ctx, 10))
-            })
+            setPadding(0, Ui.dp(ctx, 8), 0, Ui.dp(ctx, 14))
+            addView(titleLine("When leaving Shield Mode", options.joinToString("\n\n") { (key, name) -> name + ": " + notes.getValue(key) }, 10))
             addView(segments, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            addView(note)
         }
     }
 
-    // One option: label and note on the left, an ember switch on the right; a tap anywhere on the row flips it.
+    // A title with the info button beside it; the button opens the full explanation on a card.
+    private fun titleLine(label: String, info: String, bottomDp: Int = 0): View {
+        val ctx = this
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, Ui.dp(ctx, bottomDp))
+            addView(TextView(ctx).apply {
+                text = label
+                textSize = 16f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(Ui.INK)
+            })
+            addView(InfoButton(ctx).apply {
+                contentDescription = "About $label"
+                setOnClickListener { infoSheet.showInfo(label, info) }
+            }, LinearLayout.LayoutParams(Ui.dp(ctx, 40), Ui.dp(ctx, 40)))
+        }
+    }
+
+    // One option: title and info button on the left, a switch on the right; a tap anywhere else on the row flips it.
     private fun switchRow(label: String, note: String, key: String, default: Boolean = false): View {
         val ctx = this
         val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, Ui.dp(ctx, 14), 0, Ui.dp(ctx, 14))
+            setPadding(0, Ui.dp(ctx, 6), 0, Ui.dp(ctx, 6))
             isClickable = true
             isFocusable = true
         }
-        val text = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(TextView(ctx).apply {
-                this.text = label
-                textSize = 16f
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                setTextColor(Ui.INK)
-            })
-            addView(Ui.body(ctx, note).apply { setPadding(0, Ui.dp(ctx, 2), 0, 0) })
-        }
         val switch = ToggleSwitch(ctx, Prefs.get(ctx, key, default))
-        row.addView(text, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(switch, LinearLayout.LayoutParams(Ui.dp(ctx, 44), Ui.dp(ctx, 26)).apply { marginStart = Ui.dp(ctx, 16) })
+        row.addView(titleLine(label, note), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(switch, LinearLayout.LayoutParams(Ui.dp(ctx, 52), Ui.dp(ctx, 30)).apply { marginStart = Ui.dp(ctx, 16) })
         row.setOnClickListener {
             switch.on = !switch.on
             Prefs.set(ctx, key, switch.on)
         }
         return row
+    }
+
+    // Back closes an open explanation card first; Android 13 and newer need a registered callback for that.
+    private fun refreshBack() {
+        if (Build.VERSION.SDK_INT < 33) return
+        if (infoSheet.showing && backCallback == null) registerBack() else if (!infoSheet.showing && backCallback != null) unregisterBack()
+    }
+
+    @TargetApi(33)
+    private fun registerBack() {
+        val callback = OnBackInvokedCallback { infoSheet.dismiss() }
+        onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+        backCallback = callback
+    }
+
+    @TargetApi(33)
+    private fun unregisterBack() {
+        (backCallback as? OnBackInvokedCallback)?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+        backCallback = null
+    }
+
+    @Suppress("DEPRECATION")
+    @Deprecated("Used below API 33; newer versions use the back callback above.")
+    override fun onBackPressed() {
+        if (infoSheet.showing) infoSheet.dismiss() else super.onBackPressed()
     }
 
     @Suppress("DEPRECATION")

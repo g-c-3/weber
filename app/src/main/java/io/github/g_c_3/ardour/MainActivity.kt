@@ -287,7 +287,7 @@ class MainActivity : Activity() {
             onSwipeDown = { showNotice("Tabs come in a later update") }
         }
         val privateButton = IconButton(this, IconButton.Kind.PRIVATE).apply {
-            contentDescription = if (privateOn) "Private browsing, on" else "Private browsing, off"
+            contentDescription = if (privateOn) "Shield Mode, on" else "Shield Mode, off"
             if (privateOn) setOn(true)
             setOnClickListener { togglePrivate(this) }
             onSwipeDown = { togglePrivate(this) }
@@ -836,7 +836,7 @@ class MainActivity : Activity() {
         startView.animate().alpha(0f).setDuration(220).withEndAction { startView.visibility = View.GONE }.start()
     }
 
-    // The Private button (DECISIONS.md 134, 136): on keeps every sign-in and starts recording what this session adds;
+    // The Shield Mode button (DECISIONS.md 134, 136, 139): on keeps every sign-in and starts recording what this session adds;
     // off asks, or follows the Settings choice, whether to delete those additions. History is not recorded while on
     // (the history list is not built yet).
     private fun togglePrivate(button: IconButton) {
@@ -844,16 +844,16 @@ class MainActivity : Activity() {
             privateOn = true
             EngineAdapter.setPrivate(true)
             button.setOn(true)
-            button.contentDescription = "Private browsing, on"
-            showNotice("Private on. Your sign-ins stay.")
+            button.contentDescription = "Shield Mode, on"
+            showNotice("Shield Mode on. Your sign-ins stay.")
             return
         }
         when (Prefs.getString(this, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_ASK)) {
             Prefs.LEAVE_DELETE -> leavePrivate(button, true)
             Prefs.LEAVE_KEEP -> leavePrivate(button, false)
             else -> sheet.show(
-                title = "Leave private mode?",
-                body = "Delete all removes the cookies, site data and cache this private session added. Sign-ins you already had stay.",
+                title = "Leave Shield Mode?",
+                body = "Delete all removes the cookies, site data and cache this Shield Mode session added. Sign-ins you already had stay.",
                 confirm = "Delete all",
                 cancelLabel = "Continue as is",
                 onCancelTap = { leavePrivate(button, false) },
@@ -867,8 +867,8 @@ class MainActivity : Activity() {
         EngineAdapter.setPrivate(false)
         privateOn = false
         button.setOn(false)
-        button.contentDescription = "Private browsing, off"
-        showNotice(if (delete) "Private off. This session's additions are deleted." else "Private off. Nothing deleted.")
+        button.contentDescription = "Shield Mode, off"
+        showNotice(if (delete) "Shield Mode off. This session's additions are deleted." else "Shield Mode off. Nothing deleted.")
     }
 
     // Home: the start screen over the page; the page and its history stay. Back, or any new load, brings the page back.
