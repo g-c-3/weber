@@ -12,18 +12,18 @@ import javax.net.ssl.HttpsURLConnection
 
 // Search suggestions (DECISIONS.md 119, 125): while a search field or the address bar is edited, the typed text goes
 // over HTTPS to the suggestion address of the engine in use. No cookie, no identifier, no referrer, no redirect;
-// nothing is kept. Google has no usable address, so its typed text goes to Brave's service (DECISIONS.md 126); the
-// search itself still goes to the engine in use.
+// nothing is kept. Google has no usable address, so its typed text goes to Brave's service (DECISIONS.md 126), and
+// Ecosia's, which answers nothing for one letter, to DuckDuckGo's (DECISIONS.md 135); the search itself still goes
+// to the engine in use.
 object Suggestions {
     // Addresses from Chromium's engine list (DECISIONS.md 125). The typed text is appended, URL-encoded.
     private val ENDPOINTS = mapOf(
         "ddg" to "https://duckduckgo.com/ac/?type=list&q=",
         "bing" to "https://www.bing.com/osjson.aspx?query=",
         "brave" to "https://search.brave.com/api/suggest?q=",
-        "ecosia" to "https://ac.ecosia.org/autocomplete?type=list&q=",
     )
     // Engine in use -> engine whose suggestion service answers (DECISIONS.md 126).
-    private val SOURCE = mapOf("google" to "brave")
+    private val SOURCE = mapOf("google" to "brave", "ecosia" to "ddg")
     private const val MAX_ITEMS = 5
     private const val MAX_TEXT = 100
     private const val MAX_BODY = 32768
@@ -101,6 +101,10 @@ object Suggestions {
             }
         }
 
+        private fun traceFailure(mine: Int, what: String) {
+            if (synchronized(lock) { mine == generation }) Trace.log("SUGGEST", "failed $what")
+        }
+
         private fun fetch(base: String, typed: String, mine: Int) {
             var conn: HttpsURLConnection? = null
             try {
@@ -116,7 +120,11 @@ object Suggestions {
                     if (mine != generation) return
                     running = conn
                 }
-                if (conn.responseCode != 200) return
+                val code = conn.responseCode
+                if (code != 200) {
+                    traceFailure(mine, "status $code")
+                    return
+                }
                 val items = parse(conn.inputStream.use { readCapped(it) }, typed)
                 main.post {
                     synchronized(lock) { if (mine != generation) return@post }
@@ -124,7 +132,8 @@ object Suggestions {
                     onResult(items)
                 }
             } catch (e: Exception) {
-                // A failed request shows nothing.
+                // A failed request shows nothing; the trace names the failure unless a newer edit cancelled it.
+                traceFailure(mine, e.javaClass.simpleName)
             } finally {
                 synchronized(lock) { if (running === conn) running = null }
                 conn?.disconnect()
