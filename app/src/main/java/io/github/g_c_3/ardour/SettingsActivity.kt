@@ -329,16 +329,15 @@ class SettingsActivity : Activity() {
         }
     }
 
-    // A heading with its value centred under it, and an optional info button at the end of the row.
+    // A heading with its value centred under it; the optional info button sits beside the heading, as in the other rows.
     private fun versionRow(label: String, value: String, info: String?): View {
         val ctx = this
         return LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.TOP
             setPadding(0, Ui.dp(ctx, 10), 0, Ui.dp(ctx, 10))
             addView(LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_HORIZONTAL
                 addView(TextView(ctx).apply {
                     text = label
                     textSize = 16f
@@ -349,6 +348,7 @@ class SettingsActivity : Activity() {
                     text = value
                     textSize = 14f
                     setTextColor(Ui.MUTED)
+                    gravity = Gravity.CENTER_HORIZONTAL
                     setPadding(0, Ui.dp(ctx, 1), 0, 0)
                 })
             })
@@ -356,7 +356,7 @@ class SettingsActivity : Activity() {
                 addView(InfoButton(ctx).apply {
                     contentDescription = "About $label"
                     setOnClickListener { infoSheet.showInfo(label, info) }
-                }, LinearLayout.LayoutParams(Ui.dp(ctx, 30), Ui.dp(ctx, 30)))
+                }, LinearLayout.LayoutParams(Ui.dp(ctx, 30), Ui.dp(ctx, 30)).apply { topMargin = -Ui.dp(ctx, 4) })
             }
         }
     }

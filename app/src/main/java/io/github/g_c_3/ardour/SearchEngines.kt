@@ -16,8 +16,8 @@ object SearchEngines {
     )
     private const val KEY = "search_engine"
 
-    // Hint of the address bar and the start box: the engine in use, e.g. "Google Search" (DECISIONS.md 130).
-    val searchHint: String get() = active.name.let { if (it.endsWith("Search")) it else "$it Search" }
+    // Hint of the address bar and the start box: the engine in use by name, without the word "Search" (DECISIONS.md 130, 142).
+    val searchHint: String get() = active.name.removeSuffix(" Search")
 
     // The engine in use now: the saved default at launch, or the one picked since.
     var active: SearchEngine = all[0]

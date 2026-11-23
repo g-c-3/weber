@@ -12,18 +12,17 @@ import javax.net.ssl.HttpsURLConnection
 
 // Search suggestions (DECISIONS.md 119, 125): while a search field or the address bar is edited, the typed text goes
 // over HTTPS to the suggestion address of the engine in use. No cookie, no identifier, no referrer, no redirect;
-// nothing is kept. Google has no usable address, so its typed text goes to Brave's service (DECISIONS.md 126), and
-// Ecosia's, which answers nothing for one letter, to DuckDuckGo's (DECISIONS.md 135); the search itself still goes
+// nothing is kept. Google has no usable address, Brave's answered HTTP 429 and Ecosia's nothing for one letter, so the
+// typed text of those three goes to DuckDuckGo's service (DECISIONS.md 126, 135, 142); the search itself still goes
 // to the engine in use.
 object Suggestions {
     // Addresses from Chromium's engine list (DECISIONS.md 125). The typed text is appended, URL-encoded.
     private val ENDPOINTS = mapOf(
         "ddg" to "https://duckduckgo.com/ac/?type=list&q=",
         "bing" to "https://www.bing.com/osjson.aspx?query=",
-        "brave" to "https://search.brave.com/api/suggest?q=",
     )
     // Engine in use -> engine whose suggestion service answers (DECISIONS.md 126).
-    private val SOURCE = mapOf("google" to "brave", "ecosia" to "ddg")
+    private val SOURCE = mapOf("google" to "ddg", "brave" to "ddg", "ecosia" to "ddg")
     private const val MAX_ITEMS = 5
     private const val MAX_TEXT = 100
     private const val MAX_BODY = 32768
