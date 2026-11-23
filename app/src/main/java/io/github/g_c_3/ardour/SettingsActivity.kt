@@ -11,13 +11,9 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.view.GestureDetector
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -31,11 +27,8 @@ class SettingsActivity : Activity() {
     }
 
     private var awaitingDefaults = false
-    private var content: LinearLayout? = null
     private val infoSheet = ConfirmSheet(this) { refreshBack() }
     private var backCallback: Any? = null
-    private var scroller: ScrollView? = null
-    private var diagnosticsShown = false
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,17 +44,8 @@ class SettingsActivity : Activity() {
             setOnClickListener { finish() }
         }
         column.addView(back, LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)))
-        content = column
         column.addView(Ui.title(this, "Settings").apply {
             setPadding(Ui.dp(this@SettingsActivity, 4), Ui.dp(this@SettingsActivity, 20), 0, 0)
-            val taps = GestureDetector(this@SettingsActivity, object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDown(e: MotionEvent) = true
-                override fun onDoubleTap(e: MotionEvent): Boolean {
-                    revealDiagnostics()
-                    return true
-                }
-            })
-            setOnTouchListener { _, event -> taps.onTouchEvent(event) }
         })
         column.addView(Ui.sectionLabel(this, "About"))
         // Version row with the update button beside it (sideload build only); the line under it becomes the download bar.
@@ -103,13 +87,18 @@ class SettingsActivity : Activity() {
             addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Delete when the app closes", "While Shield Mode is on, closing the app deletes what the Shield Mode session added, as Delete all does. If Android ends the app without telling it, the deletion runs the next time Ardour opens. While this switch and Shield Mode are both on, the list of sites opened in Shield Mode (addresses of sites and cookie names, no passwords or page content) is kept in the app's private storage until the deletion has run. Off by default.", Prefs.PRIVATE_CLOSE))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        column.addView(NavCard.build(this, "Diagnostics", "Page load trace and crash log.") {
+            startActivity(Intent(this, DiagnosticsActivity::class.java))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = Ui.dp(this@SettingsActivity, 20)
+        })
         defaultBrowserButton()?.let { card ->
             column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = Ui.dp(this@SettingsActivity, 20)
             })
         }
 
-        val scroll = ScrollView(this).also { scroller = it }.apply {
+        val scroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             addView(column, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             // Edge to edge at target SDK 36: keep content clear of the system bars.
@@ -126,100 +115,6 @@ class SettingsActivity : Activity() {
         setContentView(scroll)
         if (savedInstanceState == null) Ui.enter((0 until column.childCount).map { column.getChildAt(it) })
     }
-
-    // Diagnostics stay out of sight (DECISIONS.md 84): a double tap on the title adds them at the end of the page.
-    private fun revealDiagnostics() {
-        val column = content ?: return
-        if (diagnosticsShown) return
-        diagnosticsShown = true
-        val label = Ui.sectionLabel(this, "Diagnostics")
-        val card = traceCard()
-        val crash = crashCard()
-        column.addView(label)
-        column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        column.addView(crash, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = Ui.dp(this@SettingsActivity, 12)
-        })
-        for (view in listOf(label, card, crash)) {
-            view.alpha = 0f
-            view.translationY = Ui.dp(this, 14).toFloat()
-            view.animate().alpha(1f).translationY(0f).setDuration(280).setInterpolator(DecelerateInterpolator()).start()
-        }
-        card.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-        scroller?.post { scroller?.fullScroll(View.FOCUS_DOWN) }
-    }
-
-    // Page load trace (DECISIONS.md 84): kept in memory, written to Downloads only on Save.
-    private fun traceCard(): View {
-        val ctx = this
-        val status = Ui.body(ctx, traceNote()).apply { setPadding(0, Ui.dp(ctx, 2), 0, 0) }
-        val save = Ui.secondaryButton(ctx, "Save trace")
-        val clear = Ui.secondaryButton(ctx, "Clear")
-        save.setOnClickListener {
-            val name = Trace.save(ctx)
-            status.text = if (name != null) "Saved to Downloads: $name" else "Could not save the file."
-        }
-        clear.setOnClickListener {
-            Trace.clear()
-            status.text = traceNote()
-        }
-        val buttons = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            addView(save, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = Ui.dp(ctx, 6) })
-            addView(clear, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 6) })
-        }
-        fun scriptLabel() = if (Prefs.get(ctx, Prefs.DIAG_NO_DESKTOP_SCRIPT)) "Desktop viewport script: off" else "Desktop viewport script: on"
-        val script = Ui.secondaryButton(ctx, scriptLabel())
-        script.setOnClickListener {
-            Prefs.set(ctx, Prefs.DIAG_NO_DESKTOP_SCRIPT, !Prefs.get(ctx, Prefs.DIAG_NO_DESKTOP_SCRIPT))
-            script.text = scriptLabel()
-        }
-        return Ui.card(ctx).apply {
-            addView(Ui.row(ctx, "Page load trace", "Addresses, progress, redirects and errors of the last page loads."))
-            addView(status)
-            addView(buttons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = Ui.dp(ctx, 12)
-                bottomMargin = Ui.dp(ctx, 8)
-            })
-            addView(script, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = Ui.dp(ctx, 8)
-            })
-        }
-    }
-
-    // Crash log (DECISIONS.md 103): records stay in the app's private folder, written to Downloads only on Save.
-    private fun crashCard(): View {
-        val ctx = this
-        val status = Ui.body(ctx, crashNote()).apply { setPadding(0, Ui.dp(ctx, 2), 0, 0) }
-        val save = Ui.secondaryButton(ctx, "Save crash log")
-        val clear = Ui.secondaryButton(ctx, "Clear")
-        save.setOnClickListener {
-            val name = CrashLog.save(ctx)
-            status.text = if (name != null) "Saved to Downloads: $name" else "Could not save the file."
-        }
-        clear.setOnClickListener {
-            CrashLog.clear(ctx)
-            status.text = crashNote()
-        }
-        val buttons = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            addView(save, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = Ui.dp(ctx, 6) })
-            addView(clear, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 6) })
-        }
-        return Ui.card(ctx).apply {
-            addView(Ui.row(ctx, "Crash log", "Errors that ended the app, with the last page load events."))
-            addView(status)
-            addView(buttons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = Ui.dp(ctx, 12)
-                bottomMargin = Ui.dp(ctx, 8)
-            })
-        }
-    }
-
-    private fun crashNote(): String = "${CrashLog.summary(this)} Kept on this phone; Save writes a text file. Nothing is sent anywhere."
-
-    private fun traceNote(): String =
-        "${Trace.size().let { if (it == 1) "1 event" else "$it events" }} in memory. Save writes a text file with addresses reduced to host and path. Nothing is sent anywhere."
 
     // Default browser: the system role dialog where Android shows it, otherwise the phone's Default apps screen.
     // Ardour changes nothing itself (DECISIONS.md 54). Only the button is shown, and not once Ardour already holds the role.
