@@ -13,7 +13,7 @@ ALLOWED_HOSTS = {
     "api.github.com", "github.com", "play.google.com", "market.android.com", "schemas.android.com", "www.w3.org",
     "developer.android.com", "example.com", "www.example.com", "localhost",
     # the search pages the user can pick (DECISIONS.md 117); page visits, not connections of the app
-    "duckduckgo.com", "www.google.com", "www.bing.com", "search.brave.com", "www.startpage.com",
+    "duckduckgo.com", "www.google.com", "www.bing.com", "search.brave.com", "www.ecosia.org", "ac.ecosia.org",
 }
 FORBIDDEN = [
     (r"allowFileAccess\s*=\s*true|setAllowFileAccess\(\s*true", "file access must stay off"),

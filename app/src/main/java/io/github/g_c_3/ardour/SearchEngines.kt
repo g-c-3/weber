@@ -12,7 +12,7 @@ object SearchEngines {
         SearchEngine("google", "Google", "https://www.google.com/search?q="),
         SearchEngine("bing", "Bing", "https://www.bing.com/search?q="),
         SearchEngine("brave", "Brave Search", "https://search.brave.com/search?q="),
-        SearchEngine("startpage", "Startpage", "https://www.startpage.com/do/search?q="),
+        SearchEngine("ecosia", "Ecosia", "https://www.ecosia.org/search?q="),
     )
     private const val KEY = "search_engine"
 
