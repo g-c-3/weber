@@ -118,8 +118,12 @@ class MainActivity : Activity() {
     private val listener: PageListener = object : PageListener {
         override fun onPage(url: String?, canGoBack: Boolean, canGoForward: Boolean) {
             if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
-                address.showUrl(url)
-                revealPage()
+                // A page that is still reporting after Home was pressed must not bring the page back over the start screen
+                // (DECISIONS.md 157); only a new load of the owner's does (beginNavigation).
+                if (!homeOver) {
+                    address.showUrl(url)
+                    revealPage()
+                }
             }
             backButton.isEnabled = if (homeOver) !startBack else canGoBack || hasPage
             forwardButton.isEnabled = canGoForward
@@ -902,11 +906,24 @@ class MainActivity : Activity() {
         }
     }
 
+    // The shredder animation over the page area, started by the quick clean (DECISIONS.md 157); skipped when the phone's
+    // animations are off.
+    private fun shred() {
+        if (!android.animation.ValueAnimator.areAnimatorsEnabled()) return
+        val at = IntArray(2)
+        pageArea.getLocationInWindow(at)
+        val content = findViewById<ViewGroup>(android.R.id.content)
+        content.addView(ShredView(this, at[1]) { content.removeView(it) }, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
     // Long press on the shield (DECISIONS.md 151): cleans the open page's site at once, Shield Mode on or off, with no
     // question and no notice; the rings on the shield show it is done. Nothing happens without a web page open.
     private fun quickClean(button: IconButton) {
         if (!hasPage || homeOver) return
-        if (EngineAdapter.quickClean()) button.pulseRing()
+        if (EngineAdapter.quickClean()) {
+            button.pulseRing()
+            shred()
+        }
     }
 
     private fun leavePrivate(button: IconButton, delete: Boolean) {
