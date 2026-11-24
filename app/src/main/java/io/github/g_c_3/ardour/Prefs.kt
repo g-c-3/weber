@@ -6,6 +6,7 @@ import android.content.Context
 object Prefs {
     const val PULL = "pull_to_refresh"
     const val FULL_URL = "show_full_url"
+    const val FADE_PAGES = "fade_pages"
     const val FORCE_ZOOM = "force_zoom"
     const val WRAP = "wrap_on_zoom"
     const val THIRD_PARTY = "third_party_cookies"

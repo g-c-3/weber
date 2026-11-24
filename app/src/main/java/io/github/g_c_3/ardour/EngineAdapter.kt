@@ -5,6 +5,7 @@ import android.content.Context
 import android.print.PrintDocumentAdapter
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.animation.ValueAnimator
 import android.view.ViewGroup
 import android.net.Uri
 import android.net.http.SslError
@@ -66,6 +67,7 @@ object EngineAdapter {
     private var defaultAgent: String? = null
     private var defaultMetadata: UserAgentMetadata? = null
     private var bypassCache = false
+    private var lastCommitUrl: String? = null
     private var httpErrorsLogged = 0
     private var resourcesLogged = 0
     private var userNavAt = 0L
@@ -533,6 +535,10 @@ object EngineAdapter {
 
             override fun onPageCommitVisible(view: WebView, url: String?) {
                 Trace.log("COMMIT", Trace.safe(url))
+                // A page with another address than the last one fades in; a reload of the same page does not.
+                val fresh = url != lastCommitUrl
+                lastCommitUrl = url
+                if (fresh) fadeIn(view)
                 listener.onCommitVisible()
             }
 
@@ -974,6 +980,19 @@ object EngineAdapter {
             }
         }
         return removed
+    }
+
+    // New page content is ready (DECISIONS.md 148): the view fades in over 180 ms. The extra drawing layer exists only
+    // while the fade runs. Off with the Settings switch or when the phone's animations are off.
+    private fun fadeIn(view: WebView) {
+        view.animate().cancel()
+        view.alpha = 1f
+        view.setLayerType(View.LAYER_TYPE_NONE, null)
+        if (!Prefs.get(view.context, Prefs.FADE_PAGES, true) || !ValueAnimator.areAnimatorsEnabled()) return
+        view.alpha = 0f
+        view.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        view.animate().alpha(1f).setDuration(180).setInterpolator(android.view.animation.DecelerateInterpolator())
+            .withEndAction { view.setLayerType(View.LAYER_TYPE_NONE, null) }.start()
     }
 
     // Loads the open page again from the network, skipping the cache for this one load.
