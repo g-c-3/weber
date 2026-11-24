@@ -436,6 +436,11 @@ object EngineAdapter {
     private var privateSites: LinkedHashMap<String, Set<String>>? = null
     private val privateSchemes = HashMap<String, String>()
 
+    // Sites opened in this app run, Shield Mode on or off (DECISIONS.md 151): host to the cookie names it had at the first
+    // page start, so the shield's quick clean can remove what the site added since. Memory only, no values, never written
+    // to disk or sent; gone when the app closes.
+    private val openedSites = LinkedHashMap<String, Set<String>>()
+
     // A main-frame navigation was requested and the engine has not reported its start yet.
     private var navPending = false
 
@@ -527,7 +532,10 @@ object EngineAdapter {
                 httpErrorsLogged = 0
                 resourcesLogged = 0
                 if (scheme == "http" || scheme == "https") mainFrameHost = Uri.parse(url).host?.lowercase()
-                if (scheme == "http" || scheme == "https") notePrivateSite(url)
+                if (scheme == "http" || scheme == "https") {
+                    noteOpenedSite(url)
+                    notePrivateSite(url)
+                }
                 if (scheme != null && scheme != "http" && scheme != "https" && scheme != "about") return
                 listener.onLoading(true)
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
@@ -950,6 +958,44 @@ object EngineAdapter {
         persistPrivate()
     }
 
+    // The first page start of a host in this app run takes its baseline (DECISIONS.md 151).
+    private fun noteOpenedSite(url: String?) {
+        val host = Uri.parse(url ?: return).host?.lowercase() ?: return
+        if (host in openedSites) return
+        if (openedSites.size >= 300) openedSites.remove(openedSites.keys.first())
+        val scheme = Uri.parse(url).scheme ?: "https"
+        openedSites[host] = cookieNameSet("$scheme://$host/")
+    }
+
+    // Quick clean (DECISIONS.md 151), the shield's long press: the open page's site. Settings switch off: the cookies it
+    // added since its baseline (Shield Mode's own baseline while on, else the first page start in this app run), saved site
+    // data only when the baseline was empty, and the engine's cache. Switch on: every cookie and all saved data of the
+    // site. A site with no baseline keeps its cookies. False when no web page is open.
+    fun quickClean(): Boolean {
+        val view = webView ?: return false
+        val uri = Uri.parse(view.url ?: return false)
+        val host = uri.host?.lowercase() ?: return false
+        val scheme = uri.scheme ?: return false
+        if (scheme != "http" && scheme != "https") return false
+        val root = "$scheme://$host/"
+        val everything = Prefs.get(view.context, Prefs.QUICK_CLEAN_SIGNINS)
+        val baseline = privateSites?.get(host) ?: openedSites[host]
+        val now = cookieNameSet(root)
+        val doomed = if (everything) now else if (baseline != null) now - baseline else emptySet()
+        if (doomed.isNotEmpty()) clearCookies(root, Uri.parse(root), host, doomed)
+        if (everything || (baseline != null && baseline.isEmpty())) {
+            val storage = WebStorage.getInstance()
+            val locations = GeolocationPermissions.getInstance()
+            for (s in listOf("https", "http")) {
+                storage.deleteOrigin("$s://$host")
+                locations.clear("$s://$host")
+            }
+        }
+        view.clearCache(true)
+        Trace.log("ACTION", "quick clean everything=$everything ${doomed.size} cookies for $host")
+        return true
+    }
+
     // Removes what the private session added (DECISIONS.md 134): per host, the cookie names that were not there at the
     // first visit; saved site data only for hosts that had no cookies then; and the engine's cache. Cookies are matched
     // at the site's root address, so a cookie kept for a deeper path stays.
@@ -963,14 +1009,16 @@ object EngineAdapter {
 
     private fun removeAdditions(sites: Map<String, Set<String>>, schemes: Map<String, String>): Int {
         var removed = 0
+        val everything = webView?.context?.let { Prefs.get(it, Prefs.DELETE_ALL_SIGNINS) } ?: false
         for ((host, baseline) in sites) {
             val root = "${schemes[host] ?: "https"}://$host/"
-            val added = cookieNameSet(root) - baseline
+            // With the Settings switch on (DECISIONS.md 151) every cookie of the site goes, earlier sign-ins included.
+            val added = if (everything) cookieNameSet(root) else cookieNameSet(root) - baseline
             if (added.isNotEmpty()) {
                 clearCookies(root, Uri.parse(root), host, added)
                 removed += added.size
             }
-            if (baseline.isEmpty()) {
+            if (everything || baseline.isEmpty()) {
                 val storage = WebStorage.getInstance()
                 val locations = GeolocationPermissions.getInstance()
                 for (s in listOf("https", "http")) {

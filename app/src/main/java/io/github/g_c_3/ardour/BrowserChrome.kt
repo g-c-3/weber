@@ -114,6 +114,47 @@ class IconButton(context: Context, kind: Kind) : View(context) {
         }
     }
 
+    // Two rings that widen from the icon and fade: the Shield button's quick clean is done (DECISIONS.md 151).
+    private var ripple = 0f
+    private var rippleAnim: ValueAnimator? = null
+    private val rippleRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = Ui.dp(context, 2).toFloat()
+        color = Ui.EMBER
+    }
+
+    fun pulseRing() {
+        rippleAnim?.cancel()
+        if (!ValueAnimator.areAnimatorsEnabled()) return
+        rippleAnim = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 700L
+            interpolator = android.view.animation.DecelerateInterpolator(1.5f)
+            addUpdateListener {
+                ripple = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    ripple = 0f
+                    invalidate()
+                }
+            })
+            start()
+        }
+    }
+
+    override fun onDrawForeground(canvas: Canvas) {
+        super.onDrawForeground(canvas)
+        if (ripple <= 0f) return
+        val room = min(width, height) / 2f - rippleRing.strokeWidth
+        for (lag in floatArrayOf(0f, 0.22f)) {
+            val t = ((ripple - lag) / (1f - lag)).coerceIn(0f, 1f)
+            if (t <= 0f) continue
+            rippleRing.alpha = (255 * 0.85f * (1f - t)).toInt()
+            canvas.drawCircle(width / 2f, height / 2f, room * (0.25f + 0.75f * t), rippleRing)
+        }
+    }
+
     private fun applyWarmth(w: Float) {
         warmth = w
         val c = blend.evaluate(w, Ui.INK, Ui.EMBER) as Int

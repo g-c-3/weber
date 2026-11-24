@@ -92,6 +92,10 @@ class SettingsActivity : Activity() {
             addView(leaveChoiceRow())
             addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Delete when the app closes", "While Shield Mode is on, closing the app deletes what the Shield Mode session added, as Delete all does. If Android ends the app without telling it, the deletion runs the next time Ardour opens. While this switch and Shield Mode are both on, the list of sites opened in Shield Mode (addresses of sites and cookie names, no passwords or page content) is kept in the app's private storage until the deletion has run. Off by default.", Prefs.PRIVATE_CLOSE))
+            addView(Ui.divider(this@SettingsActivity))
+            addView(switchRow("Delete all also removes earlier sign-ins", "Delete all, when leaving Shield Mode or closing the app, then removes every cookie and all saved data of the sites opened in the session, sign-ins you already had included. You are signed out of those sites on this phone.", Prefs.DELETE_ALL_SIGNINS))
+            addView(Ui.divider(this@SettingsActivity))
+            addView(switchRow("Quick clean also removes earlier sign-ins", "A long press on the shield cleans the open page's site at once, Shield Mode on or off. Off: it removes only what the site added since you first opened it in this app run. On: every cookie and all saved data of the site, sign-ins included.", Prefs.QUICK_CLEAN_SIGNINS))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(NavCard.build(this, "Diagnostics", "Page load trace and crash log.") {
             startActivity(Intent(this, DiagnosticsActivity::class.java))

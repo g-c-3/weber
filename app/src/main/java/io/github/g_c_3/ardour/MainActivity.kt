@@ -290,6 +290,10 @@ class MainActivity : Activity() {
             contentDescription = if (privateOn) "Shield Mode, on" else "Shield Mode, off"
             if (privateOn) setOn(true)
             setOnClickListener { togglePrivate(this) }
+            setOnLongClickListener {
+                quickClean(this)
+                true
+            }
             onSwipeDown = { togglePrivate(this) }
         }
         val menuButton = IconButton(this, IconButton.Kind.MENU).apply {
@@ -861,6 +865,13 @@ class MainActivity : Activity() {
                 dangerConfirm = true,
             ) { leavePrivate(button, true) }
         }
+    }
+
+    // Long press on the shield (DECISIONS.md 151): cleans the open page's site at once, Shield Mode on or off, with no
+    // question and no notice; the rings on the shield show it is done. Nothing happens without a web page open.
+    private fun quickClean(button: IconButton) {
+        if (!hasPage || homeOver) return
+        if (EngineAdapter.quickClean()) button.pulseRing()
     }
 
     private fun leavePrivate(button: IconButton, delete: Boolean) {
