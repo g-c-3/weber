@@ -47,11 +47,31 @@ object Ui {
 
     val INK: Int get() = if (dark) 0xFFECECEF.toInt() else 0xFF242630.toInt()
     val EMBER = 0xFFE8451D.toInt()
-    val PAPER: Int get() = if (dark) 0xFF121214.toInt() else 0xFFF6F5F3.toInt()
-    val CARD: Int get() = if (dark) 0xFF1E1F24.toInt() else 0xFFFFFFFF.toInt()
-    val LINE: Int get() = if (dark) 0xFF30323A.toInt() else 0xFFE8E6E2.toInt()
+    val PAPER: Int get() = if (dark) 0xFF111113.toInt() else 0xFFF6F5F3.toInt()
+    val CARD: Int get() = if (dark) 0xFF1F2026.toInt() else 0xFFFFFFFF.toInt()
+    val LINE: Int get() = if (dark) 0xFF3B3E49.toInt() else 0xFFE8E6E2.toInt()
     val MUTED: Int get() = if (dark) 0xFF9A9CA8.toInt() else 0xFF646875.toInt()
     val AMBER = 0xFFF2791A.toInt()
+
+    // Look of one button in a row of choices (DECISIONS.md 154). Selected: ember fill with white text in light; in dark an
+    // ember outline and ember text on a near-black fill, so the choice does not glare. Others: card with a thin line.
+    fun choiceLook(context: Context, button: TextView, selected: Boolean) {
+        button.setTextColor(if (selected) (if (dark) EMBER else 0xFFFFFFFF.toInt()) else INK)
+        button.background = GradientDrawable().apply {
+            cornerRadius = dp(context, 22).toFloat()
+            when {
+                selected && dark -> {
+                    setColor(0xFF0B0B0D.toInt())
+                    setStroke(dp(context, 2), EMBER)
+                }
+                selected -> setColor(EMBER)
+                else -> {
+                    setColor(CARD)
+                    setStroke(dp(context, 1), LINE)
+                }
+            }
+        }
+    }
 
     // The card colour with its own opacity, for bars floating over the page.
     fun cardAlpha(alpha: Int): Int = (alpha shl 24) or (CARD and 0x00FFFFFF)

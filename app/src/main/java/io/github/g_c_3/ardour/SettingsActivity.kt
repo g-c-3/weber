@@ -7,7 +7,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -214,14 +213,7 @@ class SettingsActivity : Activity() {
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 gravity = Gravity.CENTER
                 setPadding(Ui.dp(ctx, 4), Ui.dp(ctx, 11), Ui.dp(ctx, 4), Ui.dp(ctx, 11))
-                setTextColor(if (on) 0xFFFFFFFF.toInt() else Ui.INK)
-                background = GradientDrawable().apply {
-                    cornerRadius = Ui.dp(ctx, 22).toFloat()
-                    if (on) setColor(Ui.EMBER) else {
-                        setColor(Ui.CARD)
-                        setStroke(Ui.dp(ctx, 1), Ui.LINE)
-                    }
-                }
+                Ui.choiceLook(ctx, this, on)
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
@@ -256,15 +248,7 @@ class SettingsActivity : Activity() {
         val labels = ArrayList<TextView>()
         fun paint() {
             options.forEachIndexed { i, (key, _) ->
-                val on = key == chosen
-                labels[i].setTextColor(if (on) 0xFFFFFFFF.toInt() else Ui.INK)
-                labels[i].background = GradientDrawable().apply {
-                    cornerRadius = Ui.dp(ctx, 22).toFloat()
-                    if (on) setColor(Ui.EMBER) else {
-                        setColor(Ui.CARD)
-                        setStroke(Ui.dp(ctx, 1), Ui.LINE)
-                    }
-                }
+                Ui.choiceLook(ctx, labels[i], key == chosen)
             }
         }
         options.forEachIndexed { i, (key, text) ->
