@@ -7,6 +7,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PathMeasure
 import android.graphics.Typeface
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
@@ -18,6 +19,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.animation.LinearInterpolator
 import android.view.animation.PathInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
@@ -337,6 +339,21 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
     private var rimAmount = 0f
     private var rimAnim: ValueAnimator? = null
 
+    // Travelling highlight on the ember rim while the bar is open for typing (DECISIONS.md 150): a short lighter-ember
+    // stretch, brightest at its head and fading to nothing behind it, one lap in 4.2 s. Runs only while the rim is lit.
+    private val trailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = Ui.dp(context, 2).toFloat()
+    }
+    private val trailPath = Path()
+    private val trailPiece = Path()
+    private val trailMeasure = PathMeasure()
+    private var trailLength = 0f
+    private var trailW = 0
+    private var trailH = 0
+    private var trailPos = 0f
+    private var trailAnim: ValueAnimator? = null
+
     init {
         background = rim
         foreground = emberRim
@@ -475,6 +492,79 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         }
     }
 
+    private fun startTrail() {
+        if (trailAnim != null || !ValueAnimator.areAnimatorsEnabled()) return
+        trailAnim = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 4200L
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            addUpdateListener {
+                trailPos = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
+    private fun stopTrail() {
+        trailAnim?.cancel()
+        trailAnim = null
+    }
+
+    override fun onDetachedFromWindow() {
+        stopTrail()
+        super.onDetachedFromWindow()
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility != View.VISIBLE) stopTrail() else if (rimAmount > 0f) startTrail()
+    }
+
+    // The rim's centre line: the ember stroke is 2 dp wide, so the path sits 1 dp inside the pill's edge.
+    private fun buildTrailPath() {
+        trailW = width
+        trailH = height
+        val inset = Ui.dp(context, 1).toFloat()
+        val radius = min(Ui.dp(context, 26).toFloat(), height / 2f) - inset
+        trailPath.rewind()
+        trailPath.addRoundRect(RectF(inset, inset, width - inset, height - inset), radius, radius, Path.Direction.CW)
+        trailMeasure.setPath(trailPath, true)
+        trailLength = trailMeasure.length
+    }
+
+    override fun onDrawForeground(canvas: Canvas) {
+        super.onDrawForeground(canvas)
+        if (trailAnim == null || rimAmount <= 0f || width == 0) return
+        if (trailW != width || trailH != height) buildTrailPath()
+        if (trailLength <= 0f) return
+        val span = trailLength * 0.28f
+        val head = trailPos * trailLength
+        val pieces = 28
+        for (i in 0 until pieces) {
+            val from = head - span + span * i / pieces
+            val to = head - span + span * (i + 1) / pieces + 0.5f
+            val t = (i + 1f) / pieces
+            val alpha = (255 * 0.92f * t * t * rimAmount).toInt()
+            trailPaint.color = (alpha shl 24) or 0x00FFB48C
+            drawTrailPiece(canvas, from, to)
+        }
+    }
+
+    private fun drawTrailPiece(canvas: Canvas, from: Float, to: Float) {
+        var start = from % trailLength
+        if (start < 0f) start += trailLength
+        val end = start + (to - from)
+        trailPiece.rewind()
+        if (end <= trailLength) {
+            trailMeasure.getSegment(start, end, trailPiece, true)
+        } else {
+            trailMeasure.getSegment(start, trailLength, trailPiece, true)
+            trailMeasure.getSegment(0f, end - trailLength, trailPiece, true)
+        }
+        canvas.drawPath(trailPiece, trailPaint)
+    }
+
     private fun updateRim(delayMs: Long = 0L, fadeInMs: Long = 520L) {
         val target = if (focusedNow && !loadingNow) 1f else 0f
         rimAnim?.cancel()
@@ -497,6 +587,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
     private fun applyRim(amount: Float) {
         rimAmount = amount
         emberRim.alpha = (255 * amount).toInt()
+        if (amount > 0f) startTrail() else stopTrail()
         elevation = Ui.dp(context, 4) + Ui.dp(context, 3) * amount
         val alpha = (0x59 + (0x99 - 0x59) * amount).toInt()
         outlineSpotShadowColor = (alpha shl 24) or (Ui.EMBER and 0x00FFFFFF)
