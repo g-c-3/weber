@@ -48,9 +48,9 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
             return
         }
         val random = Random(System.nanoTime())
-        val count = 26
+        val count = 78
         val unit = width.toFloat() / count
-        val gap = Ui.dp(context, 2).toFloat()
+        val gap = Ui.dp(context, 1) * 0.6f
         for (i in 0 until count) {
             strips.add(
                 Strip(
@@ -99,10 +99,10 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
             canvas.rotate(s.spin * sin(t * PI.toFloat()))
             rect.set(-s.w / 2f, -s.len / 2f, s.w / 2f, s.len / 2f)
             fill.color = (s.color and 0x00FFFFFF) or ((255 * alpha).toInt() shl 24)
-            canvas.drawRoundRect(rect, 2f * resources.displayMetrics.density, 2f * resources.displayMetrics.density, fill)
+            canvas.drawRoundRect(rect, minOf(2f * resources.displayMetrics.density, s.w * 0.4f), minOf(2f * resources.displayMetrics.density, s.w * 0.4f), fill)
             // A lighter edge on one side gives the paper some thickness.
             edge.color = 0x00FFFFFF or ((110 * alpha).toInt() shl 24)
-            rect.set(-s.w / 2f, -s.len / 2f, -s.w / 2f + Ui.dp(context, 1), s.len / 2f)
+            rect.set(-s.w / 2f, -s.len / 2f, -s.w / 2f + minOf(Ui.dp(context, 1).toFloat(), s.w * 0.3f), s.len / 2f)
             canvas.drawRect(rect, edge)
             canvas.restore()
         }

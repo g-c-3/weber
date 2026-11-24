@@ -106,6 +106,7 @@ class SettingsActivity : Activity() {
             addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The launcher may take a moment to change, and may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
                 AppIcon.set(this@SettingsActivity, it)
+                IconToast.show(this@SettingsActivity, it)
             })
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(NavCard.build(this, "Diagnostics", "Page load trace and crash log.") {
