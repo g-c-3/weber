@@ -20,15 +20,9 @@ class DiagnosticsActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad * 2)
         }
-        column.addView(BackButton(this).apply {
-            contentDescription = "Back"
-            setOnClickListener { finish() }
-        }, LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)))
-        column.addView(Ui.title(this, "Diagnostics").apply {
-            setPadding(Ui.dp(this@DiagnosticsActivity, 4), Ui.dp(this@DiagnosticsActivity, 20), 0, 0)
-        })
+        column.addView(PageHeader(this, "Diagnostics") { finish() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 44)))
         column.addView(Ui.body(this, "Files that show what happened when a page stalled or the app stopped. Nothing is sent anywhere.").apply {
-            setPadding(Ui.dp(this@DiagnosticsActivity, 4), Ui.dp(this@DiagnosticsActivity, 8), Ui.dp(this@DiagnosticsActivity, 4), 0)
+            setPadding(Ui.dp(this@DiagnosticsActivity, 4), Ui.dp(this@DiagnosticsActivity, 16), Ui.dp(this@DiagnosticsActivity, 4), 0)
         })
         column.addView(traceCard(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             topMargin = Ui.dp(this@DiagnosticsActivity, 24)

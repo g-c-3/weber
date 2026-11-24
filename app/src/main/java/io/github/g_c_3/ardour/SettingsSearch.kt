@@ -1,5 +1,8 @@
 package io.github.g_c_3.ardour
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.TimeInterpolator
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
@@ -12,34 +15,49 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.TextView
 
-// Search field at the top of Settings (DECISIONS.md 147): pill with a drawn magnifier, ember rim while focused, drawn clear
-// button once there is text. The text never leaves the field except to filter the rows.
-class SearchField(context: Context, private val onQuery: (String) -> Unit) : FrameLayout(context) {
+// Search button in the Settings header (DECISIONS.md 147, 149): a round button that unfolds leftwards over the title into the
+// search pill and folds back. Drawn magnifier, ember rim while focused, drawn cross to fold. The text never leaves the
+// field except to filter the rows.
+class SearchField(
+    context: Context,
+    private val onQuery: (String) -> Unit,
+    private val onFold: (Float) -> Unit,
+    private val onState: () -> Unit,
+) : FrameLayout(context) {
     private val input = EditText(context)
-    private val clear = CrossView(context)
+    private val cross = CrossView(context)
     private val rim = GradientDrawable().apply {
         setColor(Ui.CARD)
-        cornerRadius = Ui.dp(context, 24).toFloat()
+        cornerRadius = Ui.dp(context, 22).toFloat()
         setStroke(Ui.dp(context, 1), Ui.LINE)
     }
     // Second outline faded in over the grey one, so the rim does not step in whole pixels.
     private val emberRim = GradientDrawable().apply {
-        cornerRadius = Ui.dp(context, 24).toFloat()
+        cornerRadius = Ui.dp(context, 22).toFloat()
         setStroke(Ui.dp(context, 2), Ui.EMBER)
         alpha = 0
     }
+    private val collapsedWidth = Ui.dp(context, 44)
+    private var progress = 0f
+    private var animator: ValueAnimator? = null
+    var isOpen = false
+        private set
 
     init {
         background = rim
         foreground = emberRim
+        contentDescription = "Search settings"
+        isClickable = true
+        setOnClickListener { if (!isOpen) unfold() }
         addView(MagnifierView(context), FrameLayout.LayoutParams(Ui.dp(context, 20), Ui.dp(context, 20), Gravity.START or Gravity.CENTER_VERTICAL).apply {
-            marginStart = Ui.dp(context, 16)
+            marginStart = Ui.dp(context, 12)
         })
         input.apply {
             background = null
@@ -51,27 +69,99 @@ class SearchField(context: Context, private val onQuery: (String) -> Unit) : Fra
             gravity = Gravity.CENTER_VERTICAL
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             imeOptions = EditorInfo.IME_ACTION_SEARCH or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
-            setPadding(Ui.dp(context, 46), 0, Ui.dp(context, 44), 0)
+            setPadding(Ui.dp(context, 42), 0, Ui.dp(context, 44), 0)
+            alpha = 0f
+            visibility = View.GONE
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: Editable?) {
-                    clear.visibility = if (s.isNullOrEmpty()) View.GONE else View.VISIBLE
-                    onQuery(s?.toString().orEmpty())
-                }
+                override fun afterTextChanged(s: Editable?) = onQuery(s?.toString().orEmpty())
             })
             setOnFocusChangeListener { _, focused -> fadeRim(focused) }
             setOnEditorActionListener { v, _, _ ->
-                context.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(v.windowToken, 0)
+                hideKeyboard()
                 v.clearFocus()
                 true
             }
         }
         addView(input, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        clear.visibility = View.GONE
-        clear.contentDescription = "Clear search"
-        clear.setOnClickListener { input.setText("") }
-        addView(clear, FrameLayout.LayoutParams(Ui.dp(context, 44), Ui.dp(context, 44), Gravity.END or Gravity.CENTER_VERTICAL))
+        cross.alpha = 0f
+        cross.visibility = View.GONE
+        cross.contentDescription = "Close search"
+        cross.setOnClickListener { fold() }
+        addView(cross, FrameLayout.LayoutParams(Ui.dp(context, 44), Ui.dp(context, 44), Gravity.END or Gravity.CENTER_VERTICAL))
+    }
+
+    // Unfolds over the title with a spring; the keyboard opens when it has settled.
+    fun unfold() {
+        if (isOpen) return
+        isOpen = true
+        input.visibility = View.VISIBLE
+        cross.visibility = View.VISIBLE
+        glide(1f, 420L, SpringInterpolator()) {
+            input.requestFocus()
+            context.getSystemService(InputMethodManager::class.java)?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
+        onState()
+    }
+
+    // Clears the text (the rows come back), closes the keyboard and folds into the round button.
+    fun fold() {
+        if (!isOpen) return
+        isOpen = false
+        input.setText("")
+        hideKeyboard()
+        input.clearFocus()
+        glide(0f, 280L, DecelerateInterpolator()) {
+            input.visibility = View.GONE
+            cross.visibility = View.GONE
+        }
+        onState()
+    }
+
+    private fun hideKeyboard() {
+        context.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(input.windowToken, 0)
+    }
+
+    private fun glide(target: Float, ms: Long, curve: TimeInterpolator, end: () -> Unit) {
+        animator?.cancel()
+        val room = (parent as? View)?.width ?: 0
+        val expanded = (room - Ui.dp(context, 52)).coerceAtLeast(collapsedWidth)
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            shape(target, expanded)
+            end()
+            return
+        }
+        animator = ValueAnimator.ofFloat(progress, target).apply {
+            duration = ms
+            interpolator = curve
+            var cancelled = false
+            addUpdateListener { shape(it.animatedValue as Float, expanded) }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationCancel(animation: Animator) {
+                    cancelled = true
+                }
+
+                override fun onAnimationEnd(animation: Animator) {
+                    if (!cancelled) end()
+                }
+            })
+            start()
+        }
+    }
+
+    // Width follows the progress (clamped, so a spring overshoot never covers the back button); the text and the cross
+    // appear in the second half of the unfold.
+    private fun shape(p: Float, expanded: Int) {
+        progress = p
+        val q = p.coerceIn(0f, 1f)
+        val lp = layoutParams
+        lp.width = (collapsedWidth + (expanded - collapsedWidth) * q).toInt()
+        layoutParams = lp
+        val reveal = ((q - 0.45f) / 0.4f).coerceIn(0f, 1f)
+        input.alpha = reveal
+        cross.alpha = reveal
+        onFold(q)
     }
 
     private fun fadeRim(focused: Boolean) {

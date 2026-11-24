@@ -29,6 +29,7 @@ class SettingsActivity : Activity() {
     private var awaitingDefaults = false
     private val infoSheet = ConfirmSheet(this) { refreshBack() }
     private var backCallback: Any? = null
+    private var searchField: SearchField? = null
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,17 +40,13 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad * 2)
         }
-        val back = BackButton(this).apply {
-            contentDescription = "Back"
-            setOnClickListener { finish() }
-        }
-        column.addView(back, LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)))
-        column.addView(Ui.title(this, "Settings").apply {
-            setPadding(Ui.dp(this@SettingsActivity, 4), Ui.dp(this@SettingsActivity, 20), 0, 0)
-        })
+        val header = PageHeader(this, "Settings") { finish() }
         var filter: SettingsFilter? = null
-        column.addView(SearchField(this) { filter?.update(it) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48)).apply {
-            topMargin = Ui.dp(this@SettingsActivity, 16)
+        val field = SearchField(this, { filter?.update(it) }, { header.foldTitle(it) }, { refreshBack() })
+        searchField = field
+        header.attach(field)
+        column.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 44)).apply {
+            bottomMargin = Ui.dp(this@SettingsActivity, 4)
         })
         val firstGroup = column.childCount
         column.addView(Ui.sectionLabel(this, "About"))
@@ -325,15 +322,28 @@ class SettingsActivity : Activity() {
         return row
     }
 
-    // Back closes an open explanation card first; Android 13 and newer need a registered callback for that.
+    // Back closes an open explanation card first, then an unfolded search; Android 13 and newer need a registered callback for that.
     private fun refreshBack() {
         if (Build.VERSION.SDK_INT < 33) return
-        if (infoSheet.showing && backCallback == null) registerBack() else if (!infoSheet.showing && backCallback != null) unregisterBack()
+        val needed = infoSheet.showing || searchField?.isOpen == true
+        if (needed && backCallback == null) registerBack() else if (!needed && backCallback != null) unregisterBack()
+    }
+
+    private fun handleBack(): Boolean {
+        if (infoSheet.showing) {
+            infoSheet.dismiss()
+            return true
+        }
+        if (searchField?.isOpen == true) {
+            searchField?.fold()
+            return true
+        }
+        return false
     }
 
     @TargetApi(33)
     private fun registerBack() {
-        val callback = OnBackInvokedCallback { infoSheet.dismiss() }
+        val callback = OnBackInvokedCallback { handleBack() }
         onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
         backCallback = callback
     }
@@ -347,7 +357,7 @@ class SettingsActivity : Activity() {
     @Suppress("DEPRECATION")
     @Deprecated("Used below API 33; newer versions use the back callback above.")
     override fun onBackPressed() {
-        if (infoSheet.showing) infoSheet.dismiss() else super.onBackPressed()
+        if (!handleBack()) super.onBackPressed()
     }
 
     @Suppress("DEPRECATION")
