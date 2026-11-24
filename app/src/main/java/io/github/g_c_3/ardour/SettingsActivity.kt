@@ -97,6 +97,8 @@ class SettingsActivity : Activity() {
             addView(switchRow("Delete all also removes earlier sign-ins", "Delete all, when leaving Shield Mode or closing the app, then removes every cookie and all saved data of the sites opened in the session, sign-ins you already had included. You are signed out of those sites on this phone.", Prefs.DELETE_ALL_SIGNINS))
             addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Quick clean also removes earlier sign-ins", "A long press on the shield cleans the open page's site at once, Shield Mode on or off. Off: it removes only what the site added since you first opened it in this app run. On: every cookie and all saved data of the site, sign-ins included.", Prefs.QUICK_CLEAN_SIGNINS))
+            addView(Ui.divider(this@SettingsActivity))
+            addView(switchRow("Allow screenshots in Shield Mode", "While Shield Mode is on, screenshots, screen recordings and casting show nothing. Turn this on to allow them. Off by default; Shield Mode off is never blocked.", Prefs.SHIELD_SHOTS))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Appearance"))
         column.addView(Ui.card(this).apply {

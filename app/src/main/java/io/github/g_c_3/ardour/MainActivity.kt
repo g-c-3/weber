@@ -22,6 +22,7 @@ import android.print.PrintAttributes
 import android.print.PrintManager
 import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -220,6 +221,7 @@ class MainActivity : Activity() {
         }
         setContentView(root)
         Ui.styleWindow(window)
+        applySecure()
         root.requestFocus()
         if (gateMessage == null && savedInstanceState == null) handleLink(intent)
         carryUrl?.let {
@@ -681,6 +683,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (restyleIfNeeded()) return
+        applySecure()
         Clipboard.watch(this, clipListener)
         refreshClipboardButtons()
         if (!::pageArea.isInitialized) return
@@ -868,10 +871,18 @@ class MainActivity : Activity() {
     // The Shield Mode button (DECISIONS.md 134, 136, 139): on keeps every sign-in and starts recording what this session adds;
     // off asks, or follows the Settings choice, whether to delete those additions. History is not recorded while on
     // (the history list is not built yet).
+    // Screenshots in Shield Mode (DECISIONS.md 156): while it is on the window is secure, so screenshots, screen recordings
+    // and casting show nothing, unless the Settings switch allows them. Shield Mode off: never secure.
+    private fun applySecure() {
+        val secure = privateOn && !Prefs.get(this, Prefs.SHIELD_SHOTS)
+        if (secure) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+
     private fun togglePrivate(button: IconButton) {
         if (!privateOn) {
             privateOn = true
             EngineAdapter.setPrivate(true)
+            applySecure()
             button.setOn(true)
             button.contentDescription = "Shield Mode, on"
             showNotice("Shield Mode on. Your sign-ins stay.")
@@ -902,6 +913,7 @@ class MainActivity : Activity() {
         if (delete) EngineAdapter.deletePrivateAdditions()
         EngineAdapter.setPrivate(false)
         privateOn = false
+        applySecure()
         button.setOn(false)
         button.contentDescription = "Shield Mode, off"
         showNotice(if (delete) "Shield Mode off. This session's additions are deleted." else "Shield Mode off. Nothing deleted.")
