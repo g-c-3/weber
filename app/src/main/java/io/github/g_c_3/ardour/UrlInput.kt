@@ -28,6 +28,14 @@ object UrlInput {
         return if (url.startsWith("http://")) "Not secure · $host" else host
     }
 
+    // Full address for the idle bar when the Settings switch is on (DECISIONS.md 146): the address without its scheme.
+    fun displayFull(url: String): String {
+        val plain = url.startsWith("http://")
+        if (!plain && !url.startsWith("https://")) return url
+        val rest = url.substringAfter("://").removeSuffix("/")
+        return if (plain) "Not secure · $rest" else rest
+    }
+
     private val SECOND_LEVEL = setOf("co", "com", "org", "net", "gov", "edu", "ac", "ne", "or")
 
     // Where the cursor goes when the address is opened for editing: right after the site name, before the dot that

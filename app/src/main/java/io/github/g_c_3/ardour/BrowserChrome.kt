@@ -397,9 +397,13 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
         isClickable = true
     }
 
-    // Host (or the hint) shown while idle.
+    // The Settings switch for the full address changed.
+    fun refreshAddressText() = refreshLabel()
+
+    // Host, or the full address when the Settings switch is on (or the hint), shown while idle.
     private fun refreshLabel() {
-        val shown = url?.let { UrlInput.display(it) }
+        val full = Prefs.get(context, Prefs.FULL_URL)
+        val shown = url?.let { if (full) UrlInput.displayFull(it) else UrlInput.display(it) }
         if (shown.isNullOrEmpty()) {
             label.text = SearchEngines.searchHint
             label.setTextColor(0xFF9A9CA6.toInt())

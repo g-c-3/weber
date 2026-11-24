@@ -74,6 +74,8 @@ class SettingsActivity : Activity() {
         val browsing = Ui.card(this).apply {
             addView(switchRow("Pull to refresh", "Pull a page down from its top to reload it.", Prefs.PULL))
             addView(Ui.divider(this@SettingsActivity))
+            addView(switchRow("Show full address", "Shows the whole web address in the bar instead of only the site name.", Prefs.FULL_URL))
+            addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Force zoom", "Pinch to zoom on sites that block it. Applies to pages you open next.", Prefs.FORCE_ZOOM))
             addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Wrap text when zoomed", "Pinch changes the text size and fits it to the screen width instead of scaling the page. Replaces force zoom.", Prefs.WRAP))

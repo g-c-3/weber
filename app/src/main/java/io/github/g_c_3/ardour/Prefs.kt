@@ -5,6 +5,7 @@ import android.content.Context
 // User options kept on the device, in the app's private storage (DECISIONS.md 51). Switches default to off.
 object Prefs {
     const val PULL = "pull_to_refresh"
+    const val FULL_URL = "show_full_url"
     const val FORCE_ZOOM = "force_zoom"
     const val WRAP = "wrap_on_zoom"
     const val THIRD_PARTY = "third_party_cookies"

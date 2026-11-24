@@ -657,6 +657,7 @@ class MainActivity : Activity() {
         refreshClipboardButtons()
         if (!::pageArea.isInitialized) return
         pageArea.enabledPull = Prefs.get(this, Prefs.PULL)
+        if (::address.isInitialized) address.refreshAddressText()
         EngineAdapter.setZoomMode(Prefs.get(this, Prefs.FORCE_ZOOM), Prefs.get(this, Prefs.WRAP))
         EngineAdapter.setThirdPartyCookies(Prefs.get(this, Prefs.THIRD_PARTY, false))
     }
