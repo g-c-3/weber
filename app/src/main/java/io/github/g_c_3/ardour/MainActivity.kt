@@ -219,6 +219,7 @@ class MainActivity : Activity() {
             insets
         }
         setContentView(root)
+        Ui.styleWindow(window)
         root.requestFocus()
         if (gateMessage == null && savedInstanceState == null) handleLink(intent)
         carryUrl?.let {

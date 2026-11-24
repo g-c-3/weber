@@ -47,6 +47,7 @@ class DiagnosticsActivity : Activity() {
             }
         }
         setContentView(scroll)
+        Ui.styleWindow(window)
         if (savedInstanceState == null) Ui.enter((0 until column.childCount).map { column.getChildAt(it) })
     }
 
