@@ -33,6 +33,8 @@ class SettingsActivity : Activity() {
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
+        Ui.applyTheme(this)
+        setTheme(if (Ui.dark) R.style.Theme_Ardour_Dark else R.style.Theme_Ardour)
         super.onCreate(savedInstanceState)
         window.setBackgroundDrawable(ColorDrawable(Ui.PAPER))
         val pad = Ui.dp(this, 20)
@@ -99,6 +101,8 @@ class SettingsActivity : Activity() {
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Appearance"))
         column.addView(Ui.card(this).apply {
+            addView(themeChoiceRow())
+            addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The launcher may take a moment to change, and may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
                 AppIcon.set(this@SettingsActivity, it)
             })
@@ -196,6 +200,49 @@ class SettingsActivity : Activity() {
     }
 
     // What leaving Shield Mode does (DECISIONS.md 134, 136, 139): three segments, the chosen one filled ember.
+    // Appearance (DECISIONS.md 153): System follows the phone; Light and Dark are fixed. The screen is built again at once.
+    private fun themeChoiceRow(): View {
+        val ctx = this
+        val options = listOf(Prefs.THEME_SYSTEM to "System", Prefs.THEME_LIGHT to "Light", Prefs.THEME_DARK to "Dark")
+        val chosen = Prefs.getString(ctx, Prefs.THEME, Prefs.THEME_SYSTEM)
+        val segments = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        options.forEachIndexed { i, (key, text) ->
+            val on = key == chosen
+            val label = TextView(ctx).apply {
+                this.text = text
+                textSize = 13f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                gravity = Gravity.CENTER
+                setPadding(Ui.dp(ctx, 4), Ui.dp(ctx, 11), Ui.dp(ctx, 4), Ui.dp(ctx, 11))
+                setTextColor(if (on) 0xFFFFFFFF.toInt() else Ui.INK)
+                background = GradientDrawable().apply {
+                    cornerRadius = Ui.dp(ctx, 22).toFloat()
+                    if (on) setColor(Ui.EMBER) else {
+                        setColor(Ui.CARD)
+                        setStroke(Ui.dp(ctx, 1), Ui.LINE)
+                    }
+                }
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    if (key == chosen) return@setOnClickListener
+                    Prefs.setString(ctx, Prefs.THEME, key)
+                    recreate()
+                }
+            }
+            Ui.springPress(label)
+            segments.addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                if (i > 0) marginStart = Ui.dp(ctx, 8)
+            })
+        }
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 12))
+            addView(titleLine("Theme", "System follows the phone's light or dark setting. Light and Dark stay as chosen. Pages that offer a dark version follow it; other pages are not recoloured. Changing it loads the open page again.", 6))
+            addView(segments, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+    }
+
     private fun leaveChoiceRow(): View {
         val ctx = this
         val options = listOf(Prefs.LEAVE_ASK to "Ask every time", Prefs.LEAVE_DELETE to "Delete always", Prefs.LEAVE_KEEP to "Keep always")

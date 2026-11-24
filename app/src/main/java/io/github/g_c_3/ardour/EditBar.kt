@@ -283,7 +283,7 @@ class EditBar(
         clipChildren = false
         clipToPadding = false
         background = GradientDrawable().apply {
-            setColor(0xF2FFFFFF.toInt())
+            setColor(Ui.cardAlpha(0xF2))
             cornerRadius = Ui.sdp(context, 30).toFloat()
             setStroke(Ui.dp(context, 1), 0x40E8451D)
         }

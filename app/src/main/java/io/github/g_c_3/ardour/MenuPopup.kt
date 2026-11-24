@@ -276,7 +276,7 @@ class ToggleSwitch(context: Context, initial: Boolean) : View(context) {
     private val knob = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
     private val knobShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x26000000 }
     private val rect = RectF()
-    private val offColor = 0xFFE3E1DC.toInt()
+    private val offColor = if (Ui.dark) 0xFF3A3C45.toInt() else 0xFFE3E1DC.toInt()
     private val mixer = ArgbEvaluator()
     private var gradient: LinearGradient? = null
 

@@ -47,6 +47,7 @@ class MainActivity : Activity() {
     private lateinit var errorSearch: View
     private var failedUrl: String? = null
     private lateinit var buttonGroup: LinearLayout
+    private var builtDark = false
     private var privateOn = EngineAdapter.privateActive // the Private button's state (DECISIONS.md 134)
     private var startBack = false // the start screen was reached by Back through the page history (DECISIONS.md 138)
     private var lastExitBack = 0L
@@ -181,7 +182,10 @@ class MainActivity : Activity() {
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
+        Ui.applyTheme(this)
+        setTheme(if (Ui.dark) R.style.Theme_Ardour_Dark else R.style.Theme_Ardour)
         super.onCreate(savedInstanceState)
+        builtDark = Ui.dark
         CrashLog.install(this)
         SearchEngines.load(this)
         val root = LinearLayout(this).apply {
@@ -217,6 +221,23 @@ class MainActivity : Activity() {
         setContentView(root)
         root.requestFocus()
         if (gateMessage == null && savedInstanceState == null) handleLink(intent)
+        carryUrl?.let {
+            carryUrl = null
+            if (gateMessage == null) {
+                EngineAdapter.load(it)
+                beginNavigation(it)
+            }
+        }
+    }
+
+    // The screen was built with the other theme (Settings choice, or the phone's setting while the choice is System):
+    // build it again. The open page is loaded again afterwards; its back history is not kept.
+    private fun restyleIfNeeded(): Boolean {
+        Ui.applyTheme(this)
+        if (Ui.dark == builtDark || !::pageArea.isInitialized) return false
+        carryUrl = if (hasPage) EngineAdapter.currentUrl() else null
+        recreate()
+        return true
     }
 
     // singleTask: a link from another app arrives here while Ardour is already open.
@@ -393,6 +414,7 @@ class MainActivity : Activity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         if (!::floatingBar.isInitialized) return
+        if (restyleIfNeeded()) return
         val row = Ui.sdp(this, ROW_HEIGHT)
         buttonGroup.layoutParams.height = row
         address.layoutParams.height = row
@@ -446,7 +468,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(px(18), px(10), px(18), px(10))
             background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(0xF2FFFFFF.toInt())
+                setColor(Ui.cardAlpha(0xF2))
                 cornerRadius = px(22).toFloat()
                 setStroke(px(1), 0x40E8451D)
             }
@@ -657,6 +679,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (restyleIfNeeded()) return
         Clipboard.watch(this, clipListener)
         refreshClipboardButtons()
         if (!::pageArea.isInitialized) return
@@ -775,7 +798,7 @@ class MainActivity : Activity() {
         val view = reader ?: return
         reader = null
         (view.parent as? ViewGroup)?.removeView(view)
-        onReaderStyle(true)
+        onReaderStyle(!Ui.dark)
         refreshBack()
     }
 
@@ -1089,6 +1112,7 @@ class MainActivity : Activity() {
     }
 
     private companion object {
+        var carryUrl: String? = null
         const val ROW_HEIGHT = 34
         const val WEBVIEW_PAGE = "https://play.google.com/store/apps/details?id=com.google.android.webview"
     }

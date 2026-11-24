@@ -44,7 +44,7 @@ class SuggestionList(context: Context, private val onPick: (String) -> Unit) : L
         alpha = 0f
         setPadding(0, inset, 0, inset)
         background = GradientDrawable().apply {
-            setColor(0xF7FFFFFF.toInt())
+            setColor(Ui.cardAlpha(0xF7))
             cornerRadius = Ui.sdp(context, 22).toFloat()
             setStroke(Ui.dp(context, 1), 0x40E8451D)
         }

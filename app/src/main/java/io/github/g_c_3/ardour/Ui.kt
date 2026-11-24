@@ -4,6 +4,7 @@ import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Matrix
@@ -31,13 +32,29 @@ import kotlin.math.sqrt
 
 // Hand-built look shared by every screen (DECISIONS.md 30, 38): plain views, drawn here, spring motion.
 object Ui {
-    val INK = 0xFF242630.toInt()
+    // Light or dark (DECISIONS.md 153): read once per screen from the Settings choice and the phone's setting, before any
+    // view is built. Ember and amber are the same in both.
+    var dark = false
+        private set
+
+    fun applyTheme(context: Context) {
+        dark = when (Prefs.getString(context, Prefs.THEME, Prefs.THEME_SYSTEM)) {
+            Prefs.THEME_DARK -> true
+            Prefs.THEME_LIGHT -> false
+            else -> (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        }
+    }
+
+    val INK: Int get() = if (dark) 0xFFECECEF.toInt() else 0xFF242630.toInt()
     val EMBER = 0xFFE8451D.toInt()
-    val PAPER = 0xFFF6F5F3.toInt()
-    val CARD = 0xFFFFFFFF.toInt()
-    val LINE = 0xFFE8E6E2.toInt()
-    val MUTED = 0xFF646875.toInt()
+    val PAPER: Int get() = if (dark) 0xFF121214.toInt() else 0xFFF6F5F3.toInt()
+    val CARD: Int get() = if (dark) 0xFF1E1F24.toInt() else 0xFFFFFFFF.toInt()
+    val LINE: Int get() = if (dark) 0xFF30323A.toInt() else 0xFFE8E6E2.toInt()
+    val MUTED: Int get() = if (dark) 0xFF9A9CA8.toInt() else 0xFF646875.toInt()
     val AMBER = 0xFFF2791A.toInt()
+
+    // The card colour with its own opacity, for bars floating over the page.
+    fun cardAlpha(alpha: Int): Int = (alpha shl 24) or (CARD and 0x00FFFFFF)
 
     fun dp(context: Context, n: Int): Int = (n * context.resources.displayMetrics.density + 0.5f).toInt()
 
@@ -116,7 +133,7 @@ object Ui {
     // Ink gradient with a faint ember rim and an ember-tinted shadow: the glow marks the primary action.
     private fun glowPill(context: Context, radiusDp: Int) = GradientDrawable(
         GradientDrawable.Orientation.TOP_BOTTOM,
-        intArrayOf(0xFF33354A.toInt(), 0xFF1E202B.toInt()),
+        if (dark) intArrayOf(0xFF4A4D66.toInt(), 0xFF2F3145.toInt()) else intArrayOf(0xFF33354A.toInt(), 0xFF1E202B.toInt()),
     ).apply {
         cornerRadius = dp(context, radiusDp).toFloat()
         setStroke(dp(context, 1), 0x40FF6A3D)

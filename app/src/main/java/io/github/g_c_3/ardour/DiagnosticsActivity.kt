@@ -13,6 +13,8 @@ import android.widget.ScrollView
 class DiagnosticsActivity : Activity() {
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
+        Ui.applyTheme(this)
+        setTheme(if (Ui.dark) R.style.Theme_Ardour_Dark else R.style.Theme_Ardour)
         super.onCreate(savedInstanceState)
         window.setBackgroundDrawable(ColorDrawable(Ui.PAPER))
         val pad = Ui.dp(this, 20)
