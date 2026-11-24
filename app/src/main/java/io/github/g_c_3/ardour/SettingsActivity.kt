@@ -47,6 +47,11 @@ class SettingsActivity : Activity() {
         column.addView(Ui.title(this, "Settings").apply {
             setPadding(Ui.dp(this@SettingsActivity, 4), Ui.dp(this@SettingsActivity, 20), 0, 0)
         })
+        var filter: SettingsFilter? = null
+        column.addView(SearchField(this) { filter?.update(it) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 48)).apply {
+            topMargin = Ui.dp(this@SettingsActivity, 16)
+        })
+        val firstGroup = column.childCount
         column.addView(Ui.sectionLabel(this, "About"))
         // Version row with the update button beside it (sideload build only); the line under it becomes the download bar.
         // Padding gives the button's glow room inside the slot.
@@ -99,6 +104,16 @@ class SettingsActivity : Activity() {
                 topMargin = Ui.dp(this@SettingsActivity, 20)
             })
         }
+
+        val nothingFound = Ui.body(this, "Nothing found.").apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            setPadding(0, Ui.dp(this@SettingsActivity, 32), 0, Ui.dp(this@SettingsActivity, 8))
+        }
+        filter = SettingsFilter(column, firstGroup, column.childCount, nothingFound)
+        column.addView(nothingFound)
+        // Keep the search field from taking focus when the page opens.
+        column.isFocusableInTouchMode = true
 
         val scroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
