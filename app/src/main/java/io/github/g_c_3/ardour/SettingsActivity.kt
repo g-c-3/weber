@@ -97,6 +97,12 @@ class SettingsActivity : Activity() {
             addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Quick clean also removes earlier sign-ins", "A long press on the shield cleans the open page's site at once, Shield Mode on or off. Off: it removes only what the site added since you first opened it in this app run. On: every cookie and all saved data of the site, sign-ins included.", Prefs.QUICK_CLEAN_SIGNINS))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        column.addView(Ui.sectionLabel(this, "Appearance"))
+        column.addView(Ui.card(this).apply {
+            addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The launcher may take a moment to change, and may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
+                AppIcon.set(this@SettingsActivity, it)
+            })
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(NavCard.build(this, "Diagnostics", "Page load trace and crash log.") {
             startActivity(Intent(this, DiagnosticsActivity::class.java))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -307,7 +313,7 @@ class SettingsActivity : Activity() {
     }
 
     // One option: title and info button on the left, a switch on the right; a tap anywhere else on the row flips it.
-    private fun switchRow(label: String, note: String, key: String, default: Boolean = false): View {
+    private fun switchRow(label: String, note: String, key: String, default: Boolean = false, onChange: ((Boolean) -> Unit)? = null): View {
         val ctx = this
         val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -322,6 +328,7 @@ class SettingsActivity : Activity() {
         row.setOnClickListener {
             switch.on = !switch.on
             Prefs.set(ctx, key, switch.on)
+            onChange?.invoke(switch.on)
         }
         return row
     }

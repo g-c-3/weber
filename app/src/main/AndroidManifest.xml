@@ -37,10 +37,6 @@
             android:windowSoftInputMode="stateUnspecified|adjustResize"
             android:launchMode="singleTask"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
             <!-- Web links from other apps and the default-browser role; only http and https (DECISIONS.md 54). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -50,6 +46,31 @@
                 <data android:scheme="https" />
             </intent-filter>
         </activity>
+        <!-- Launcher entries (DECISIONS.md 152): exactly one is enabled; Settings > Appearance > Dark app icon swaps them. -->
+        <activity-alias
+            android:name=".IconDark"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Ardour"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconLight"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_light"
+            android:label="Ardour"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 
 </manifest>

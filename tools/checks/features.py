@@ -36,7 +36,7 @@ def run(docs=None):
         if uses == 0:
             out.append(Finding("warn", NAME, "Prefs.kt", f"preference {const} is never read or written"))
     for manifest in SRC.rglob("AndroidManifest.xml"):
-        for name in re.findall(r'<activity[^>]*android:name="\.?([\w.]+)"', read(manifest)):
+        for name in re.findall(r'<activity\s[^>]*android:name="\.?([\w.]+)"', read(manifest)):
             if not re.search(r"class\s+" + re.escape(name.split(".")[-1]) + r"\b", allsrc):
                 out.append(Finding("error", NAME, rel(manifest), f"activity {name} is declared but its class does not exist"))
     for res in (SRC / "main" / "res").rglob("*.xml") if (SRC / "main" / "res").exists() else []:
