@@ -543,6 +543,12 @@ object EngineAdapter {
     // True when the tab was opened before, but its page view ended with an earlier screen: it must load its address again.
     fun sleeping(index: Int): Boolean = tabList.getOrNull(index)?.let { it.engineView == null && !it.blank && it.url != null } == true
 
+    // The app theme changed under the open page views: they read it again, so pages that follow the colour scheme can
+    // change without being loaded again (DECISIONS.md 164).
+    fun themeChanged() {
+        for (tab in tabList) tab.engineView?.let { it.dispatchConfigurationChanged(it.resources.configuration) }
+    }
+
     fun canGoForward(): Boolean = webView?.canGoForward() == true
 
     // The active page's load progress, 100 when it is not loading or there is none.

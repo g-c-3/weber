@@ -133,6 +133,8 @@ class SettingsActivity : Activity() {
         column.isFocusableInTouchMode = true
 
         val scroll = ScrollView(this).apply {
+            // A fixed id lets the system keep the scroll position when the page is built again for a theme change.
+            id = 0x00A4D001
             isVerticalScrollBarEnabled = false
             addView(column, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             // Edge to edge at target SDK 36: keep content clear of the system bars.

@@ -207,6 +207,15 @@ class MainActivity : Activity() {
         builtDark = Ui.dark
         CrashLog.install(this)
         SearchEngines.load(this)
+        val gateMessage = buildScreen()
+        if (gateMessage == null) restoreTabState()
+        if (gateMessage == null && savedInstanceState == null) handleLink(intent)
+    }
+
+    // The whole browser screen: the gate message when the engine is too old, else the browser with the tab list beside it.
+    // Built at launch and again, in place, when the theme changes (DECISIONS.md 164).
+    @Suppress("DEPRECATION")
+    private fun buildScreen(): String? {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Ui.PAPER)
@@ -245,16 +254,30 @@ class MainActivity : Activity() {
         Ui.styleWindow(window)
         applySecure()
         root.requestFocus()
-        if (gateMessage == null) restoreTabState()
-        if (gateMessage == null && savedInstanceState == null) handleLink(intent)
+        return gateMessage
     }
 
-    // The screen was built with the other theme (Settings choice, or the phone's setting while the choice is System):
-    // build it again. The tabs stay; the open page is loaded again afterwards and its back history is not kept.
+    // The screen was built with the other theme (Settings choice, or the phone's setting while the choice is System).
     private fun restyleIfNeeded(): Boolean {
         Ui.applyTheme(this)
         if (Ui.dark == builtDark || !::pageArea.isInitialized) return false
-        recreate()
+        // Built again in place: the page views are taken out of the old screen and put into the new one, so every tab
+        // keeps its page, history and scroll (DECISIONS.md 164).
+        saveTabState()
+        if (finding) closeFind()
+        if (reader != null) closeReader()
+        sheet.dismiss()
+        widthAnim?.cancel()
+        noticeView = null
+        pageView?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        pageView = null
+        setTheme(if (Ui.dark) R.style.Theme_Ardour_Dark else R.style.Theme_Ardour)
+        builtDark = Ui.dark
+        if (buildScreen() == null) {
+            showTabState()
+            refreshShield()
+            EngineAdapter.themeChanged()
+        }
         return true
     }
 

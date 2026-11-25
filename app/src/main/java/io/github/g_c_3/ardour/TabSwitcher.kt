@@ -59,6 +59,7 @@ class TabSwitcher(
     private var pullY = 0f
     private var pullX = 0f
     private var pulling = false
+    private var pullEmpty = true
     private var pulled = false
 
     init {
@@ -67,17 +68,17 @@ class TabSwitcher(
         val head = FrameLayout(context)
         val filters = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(allButton, LinearLayout.LayoutParams(Ui.dp(context, 66), Ui.dp(context, 48)))
-            addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 66), Ui.dp(context, 48)).apply { marginStart = Ui.dp(context, 10) })
+            addView(allButton, LinearLayout.LayoutParams(Ui.dp(context, 58), Ui.dp(context, 42)))
+            addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 58), Ui.dp(context, 42)).apply { marginStart = Ui.dp(context, 8) })
         }
         head.addView(filters, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.CENTER_VERTICAL))
-        head.addView(plus, LayoutParams(Ui.dp(context, 48), Ui.dp(context, 48), Gravity.END or Gravity.CENTER_VERTICAL))
+        head.addView(plus, LayoutParams(Ui.dp(context, 42), Ui.dp(context, 42), Gravity.END or Gravity.CENTER_VERTICAL))
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(Ui.dp(context, 14), Ui.dp(context, 10), Ui.dp(context, 14), Ui.dp(context, 60))
-            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 58)))
+            setPadding(Ui.dp(context, 14), 0, Ui.dp(context, 14), Ui.dp(context, 60))
+            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 46)))
             addView(grid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = Ui.dp(context, 8)
+                topMargin = Ui.dp(context, 4)
             })
         }
         scroll.apply {
@@ -109,8 +110,8 @@ class TabSwitcher(
         items = list
         active = activeIndex
         shieldOnly = false
-        // Light mode lets more of the browser through than dark mode.
-        setBackgroundColor(((if (Ui.dark) 0xEB else 0xB0) shl 24) or (Ui.PAPER and 0x00FFFFFF))
+        // Light mode lets more of the browser through than dark mode, but is a little grey and less see-through than before.
+        setBackgroundColor(if (Ui.dark) ((0xEB shl 24) or (Ui.PAPER and 0x00FFFFFF)) else 0xE6DCDCDF.toInt())
         render()
         scroll.scrollTo(0, 0)
         showing = true
@@ -119,6 +120,8 @@ class TabSwitcher(
         alpha = 0f
         translationY = Ui.dp(context, 56).toFloat()
         animate().alpha(1f).translationY(0f).setDuration(340).setInterpolator(SpringInterpolator()).start()
+        // A sheet that has never been laid out has no width yet: draw the cards again once it has one.
+        if (width == 0) post { if (showing) render() }
     }
 
     // The list changed while it is open (a tab closed or opened): drawn again in place.
@@ -145,18 +148,27 @@ class TabSwitcher(
         if (showing && w != oldw) render()
     }
 
-    // A pull down that starts on empty space (not on a card or a button) while the list is at its top closes the sheet.
+    // A pull down closes the sheet once the list is at its top: from empty space with a short pull, from a card with a longer
+    // one, so a card is not closed by accident. A pull that starts on a button does nothing. When the list is scrolled, the
+    // pull counts from the moment it reaches the top.
     override fun dispatchTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 pullX = e.rawX
-                pullY = e.rawY
                 pulled = false
-                pulling = scroll.scrollY == 0 && !onControl(e.rawX, e.rawY)
+                pulling = !onButton(e.rawX, e.rawY)
+                pullEmpty = !onCard(e.rawX, e.rawY)
+                pullY = if (scroll.scrollY == 0) e.rawY else -1f
             }
             MotionEvent.ACTION_MOVE -> if (pulling && !pulled) {
-                val dy = e.rawY - pullY
-                if (dy > Ui.dp(context, 64) && dy > abs(e.rawX - pullX) * 1.5f) {
+                if (scroll.scrollY == 0) {
+                    if (pullY < 0f) pullY = e.rawY
+                } else {
+                    pullY = -1f
+                }
+                val dy = if (pullY < 0f) 0f else e.rawY - pullY
+                val need = Ui.dp(context, if (pullEmpty) 64 else 150)
+                if (dy > need && dy > abs(e.rawX - pullX) * 1.5f) {
                     pulled = true
                     val cancel = MotionEvent.obtain(e)
                     cancel.action = MotionEvent.ACTION_CANCEL
@@ -173,16 +185,18 @@ class TabSwitcher(
         return super.dispatchTouchEvent(e)
     }
 
-    private fun onControl(x: Float, y: Float): Boolean {
-        fun inside(v: View): Boolean {
-            val at = IntArray(2)
-            v.getLocationOnScreen(at)
-            return x >= at[0] && x <= at[0] + v.width && y >= at[1] && y <= at[1] + v.height
-        }
-        if (inside(allButton) || inside(shieldButton) || inside(plus)) return true
+    private fun inside(v: View, x: Float, y: Float): Boolean {
+        val at = IntArray(2)
+        v.getLocationOnScreen(at)
+        return x >= at[0] && x <= at[0] + v.width && y >= at[1] && y <= at[1] + v.height
+    }
+
+    private fun onButton(x: Float, y: Float) = inside(allButton, x, y) || inside(shieldButton, x, y) || inside(plus, x, y)
+
+    private fun onCard(x: Float, y: Float): Boolean {
         for (r in 0 until grid.childCount) {
             val row = grid.getChildAt(r) as? ViewGroup ?: continue
-            for (c in 0 until row.childCount) if (row.getChildAt(c) is TabCard && inside(row.getChildAt(c))) return true
+            for (c in 0 until row.childCount) if (row.getChildAt(c) is TabCard && inside(row.getChildAt(c), x, y)) return true
         }
         return false
     }
@@ -207,9 +221,9 @@ class TabSwitcher(
         // Columns follow the width: about 170 dp per card, two at the least, five at the most.
         val columns = (inner / Ui.dp(context, 170)).coerceIn(2, 5)
         val cardWidth = inner / columns - 2 * gap
-        // Twice as long as wide for a phone held upright; on a short screen no taller than most of it.
-        val height = min((cardWidth * 1.6f).toInt(), ((this.height - paddingTop - paddingBottom) * 0.78f).toInt())
-            .coerceAtLeast(Ui.dp(context, 170))
+        // A quarter shorter than the first version (DECISIONS.md 164); on a short screen no taller than most of it.
+        val height = min((cardWidth * 1.2f).toInt(), ((this.height - paddingTop - paddingBottom) * 0.6f).toInt())
+            .coerceAtLeast(Ui.dp(context, 128))
         var i = 0
         while (i < shown.size) {
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
@@ -226,6 +240,7 @@ class TabSwitcher(
             grid.addView(row)
             i += columns
         }
+        grid.requestLayout()
     }
 }
 
@@ -315,7 +330,6 @@ private class CountButton(context: Context, private val shield: Boolean, private
 // The + at the top right: a tap adds a tab, a long press a Shield tab.
 @SuppressLint("ViewConstructor")
 private class PlusDisc(context: Context, private val tap: () -> Unit, private val hold: () -> Unit) : View(context) {
-    private val disc = Paint(Paint.ANTI_ALIAS_FLAG)
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -345,13 +359,9 @@ private class PlusDisc(context: Context, private val tap: () -> Unit, private va
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
-        val r = min(width, height) / 2f - Ui.dp(context, 3)
-        disc.color = Ui.CARD
-        disc.setShadowLayer(Ui.dp(context, 4).toFloat(), 0f, Ui.dp(context, 1).toFloat(), 0x33000000)
-        canvas.drawCircle(cx, cy, r, disc)
         line.color = Ui.INK
-        line.strokeWidth = Ui.dp(context, 2).toFloat()
-        val k = r * 0.42f
+        line.strokeWidth = Ui.dp(context, 4).toFloat()
+        val k = min(width, height) * 0.30f
         canvas.drawLine(cx - k, cy, cx + k, cy, line)
         canvas.drawLine(cx, cy - k, cx, cy + k, line)
     }
@@ -382,6 +392,7 @@ private class TabCard(
     private val clip = Path()
     private val srcRect = Rect()
     private val dstRect = RectF()
+    private val pill = RectF()
     private val shieldPath = Path()
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
     private var downX = 0f
@@ -406,7 +417,7 @@ private class TabCard(
         if (active) fill.setShadowLayer(d(7), 0f, d(1), 0x66E8451D) else fill.clearShadowLayer()
         canvas.drawRoundRect(box, radius, radius, fill)
 
-        val band = d(54)
+        val band = d(58)
         val pictureBottom = box.bottom - band
         canvas.save()
         clip.reset()
@@ -429,43 +440,38 @@ private class TabCard(
             val cy = (box.top + pictureBottom) / 2f
             canvas.drawText(initialOf(), box.centerX(), cy - (letter.ascent() + letter.descent()) / 2f, letter)
         }
-        // Band with the title.
         fill.clearShadowLayer()
         fill.color = Ui.CARD
         canvas.drawRect(box.left, pictureBottom, box.right, box.bottom, fill)
-        line.strokeWidth = d(1)
-        line.color = Ui.LINE
-        canvas.drawLine(box.left, pictureBottom, box.right, pictureBottom, line)
         canvas.restore()
 
-        val pad = d(10)
-        val r = d(12)
-        val cx = box.left + pad + r
-        val cy = pictureBottom + band / 2f
-        fill.color = (0x26 shl 24) or (Ui.EMBER and 0x00FFFFFF)
-        canvas.drawCircle(cx, cy, r, fill)
-        letter.color = Ui.EMBER
-        letter.alpha = 255
-        letter.textSize = Ui.textPx(context, 13f)
-        canvas.drawText(initialOf(), cx, cy - (letter.ascent() + letter.descent()) / 2f, letter)
-        val textLeft = cx + r + d(8)
-        val textWidth = (box.right - pad - textLeft).coerceAtLeast(1f)
+        // The address pill: ember outline; its text is centred when it fits and starts at the left when it is long.
+        pill.set(box.left + d(8), pictureBottom + d(7), box.right - d(8), box.bottom - d(8))
+        line.strokeWidth = d(1)
+        line.color = Ui.EMBER
+        canvas.drawRoundRect(pill, d(13), d(13), line)
+        val textWidth = (pill.width() - d(20)).coerceAtLeast(1f)
         titlePaint.color = Ui.INK
         titlePaint.textSize = Ui.textPx(context, 13f)
         hostPaint.color = Ui.MUTED
         hostPaint.textSize = Ui.textPx(context, 11f)
         val title = TextUtils.ellipsize(item.title, titlePaint, textWidth, TextUtils.TruncateAt.END).toString()
         val host = TextUtils.ellipsize(item.host, hostPaint, textWidth, TextUtils.TruncateAt.END).toString()
-        canvas.drawText(title, textLeft, cy - d(2), titlePaint)
-        canvas.drawText(host, textLeft, cy + d(13), hostPaint)
+        val mid = pill.centerY()
+        canvas.drawText(title, textStart(pill, titlePaint.measureText(title), textWidth), mid - d(2), titlePaint)
+        canvas.drawText(host, textStart(pill, hostPaint.measureText(host), textWidth), mid + d(12), hostPaint)
 
-        // Outline last, over the picture.
+        // Outline last, over the picture: the open tab is ringed in ember all round.
         line.strokeWidth = if (active) d(2) else d(1)
         line.color = if (active) Ui.EMBER else Ui.LINE
         canvas.drawRoundRect(box, radius, radius, line)
 
         if (item.shield) drawShield(canvas, box.right - d(22), box.top + d(24))
     }
+
+    // Centred in the pill when the text fits in `room`, from the left edge when it fills it.
+    private fun textStart(pill: RectF, measured: Float, room: Float): Float =
+        if (measured < room - d(2)) pill.centerX() - measured / 2f else pill.left + d(10)
 
     private fun initialOf(): String =
         if (item.start) "A" else (item.host.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "•")
