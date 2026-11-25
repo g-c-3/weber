@@ -19,6 +19,7 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
+import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Message
 import android.os.Looper
@@ -77,6 +78,9 @@ class Tab {
     // The start screen is shown over the tab's page (Home, or Back past the first page), and whether Back brought it.
     var home = false
     var startBack = false
+
+    // A small picture of the tab for the tab list (DECISIONS.md 162); memory only, gone with the app.
+    var preview: Bitmap? = null
 }
 
 // The only file that calls android.webkit or androidx.webkit (DECISIONS.md 26). An engine API change is fixed here.

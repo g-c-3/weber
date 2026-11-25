@@ -129,7 +129,7 @@ class MainActivity : Activity() {
                 }
             }
             backButton.isEnabled = if (homeOver) !startBack else canGoBack || hasPage
-            forwardButton.isEnabled = canGoForward
+            forwardButton.isEnabled = canGoForward || (homeOver && startBack)
             reloadButton.isEnabled = hasPage
             refreshBack()
         }
@@ -235,7 +235,11 @@ class MainActivity : Activity() {
             }
             insets
         }
-        setContentView(root)
+        // The tab list covers the whole screen, so it sits beside the browser, not inside it (DECISIONS.md 162).
+        val screen = FrameLayout(this)
+        screen.addView(root, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        if (gateMessage == null) screen.addView(tabSwitcher, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        setContentView(screen)
         Ui.styleWindow(window)
         applySecure()
         root.requestFocus()
@@ -301,8 +305,8 @@ class MainActivity : Activity() {
         forwardButton = IconButton(this, IconButton.Kind.FORWARD).apply {
             contentDescription = "Forward"
             isEnabled = false
-            setOnClickListener { EngineAdapter.goForward() }
-            onSwipeDown = { EngineAdapter.goForward() }
+            setOnClickListener { stepForward() }
+            onSwipeDown = { stepForward() }
         }
         reloadButton = IconButton(this, IconButton.Kind.RELOAD).apply {
             contentDescription = "Reload"
@@ -405,7 +409,6 @@ class MainActivity : Activity() {
             },
         )
         tabSwitcher = TabSwitcher(this, ::switchTo, ::closeTabAt, ::openNewTab)
-        content.addView(tabSwitcher, fill)
         root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         findBar = FindBar(this, { EngineAdapter.findAll(it) }, { EngineAdapter.findNext(it) }, ::closeFind).apply { visibility = View.GONE }
@@ -747,7 +750,7 @@ class MainActivity : Activity() {
         address.showUrl(if (start) "" else tab.url.orEmpty())
         listener.onLoading(hasPage && EngineAdapter.activeProgress() < 100)
         backButton.isEnabled = if (homeOver) !startBack else EngineAdapter.canGoBack() || hasPage
-        forwardButton.isEnabled = EngineAdapter.canGoForward()
+        forwardButton.isEnabled = EngineAdapter.canGoForward() || (homeOver && startBack)
         reloadButton.isEnabled = hasPage
         refreshBack()
     }
@@ -771,12 +774,45 @@ class MainActivity : Activity() {
 
     private fun tabItems(): List<TabSwitcher.Item> {
         val active = EngineAdapter.activeIndex()
+        // Shield Mode is one switch for every tab until it is per tab (DECISIONS.md 134, 162).
+        val shield = privateOn
+        val showPicture = !shield || Prefs.get(this, Prefs.SHIELD_PREVIEW)
         return EngineAdapter.tabs.mapIndexed { i, tab ->
-            val blank = if (i == active) !hasPage && !homeOver else tab.blank
+            // A tab whose start screen is up is listed as the start page, whatever page lies under it.
+            val start = if (i == active) !hasPage else tab.blank || tab.home
             val url = tab.url
             val host = url?.let { android.net.Uri.parse(it).host }?.removePrefix("www.").orEmpty()
             val title = tab.title?.trim().orEmpty().ifEmpty { host }.ifEmpty { "New tab" }
-            TabSwitcher.Item(if (blank) "New tab" else title, if (blank) "Start page" else host, blank)
+            TabSwitcher.Item(
+                if (start) "Start page" else title,
+                if (start) "Ardour" else host,
+                start,
+                shield,
+                if (showPicture) tab.preview else null,
+            )
+        }
+    }
+
+    // A small picture of what the active tab shows, for its card. Taken only when it will be shown: not for a Shield tab
+    // unless Settings allows its preview. Memory only (DECISIONS.md 162).
+    private fun capturePreview() {
+        val tab = EngineAdapter.activeTab() ?: return
+        if (privateOn && !Prefs.get(this, Prefs.SHIELD_PREVIEW)) {
+            tab.preview = null
+            return
+        }
+        val source: View = (if (!hasPage) startView else pageView) ?: return
+        if (source.width <= 0 || source.height <= 0) return
+        try {
+            val scale = 360f / source.width
+            val bmp = android.graphics.Bitmap.createBitmap(360, (source.height * scale).toInt().coerceAtLeast(1), android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bmp)
+            canvas.scale(scale, scale)
+            canvas.drawColor(Ui.PAPER)
+            source.draw(canvas)
+            tab.preview = bmp
+        } catch (e: Exception) {
+            tab.preview = null
         }
     }
 
@@ -789,6 +825,7 @@ class MainActivity : Activity() {
         if (address.input.hasFocus()) leaveAddress()
         closeSuggestions()
         saveTabState()
+        capturePreview()
         tabSwitcher.show(tabItems(), EngineAdapter.activeIndex())
     }
 
@@ -801,7 +838,7 @@ class MainActivity : Activity() {
 
     private fun openNewTab() {
         if (EngineAdapter.tabs.size >= EngineAdapter.MAX_TABS) {
-            showNotice("Tab limit reached (${EngineAdapter.MAX_TABS})")
+            tabSwitcher.limitNote("Limit of ${EngineAdapter.MAX_TABS} tabs")
             return
         }
         saveTabState()
@@ -1088,6 +1125,8 @@ class MainActivity : Activity() {
         address.showUrl("")
         reloadButton.isEnabled = false
         backButton.isEnabled = !fromBack
+        // The page is kept under the start screen reached by Back, so Forward returns to it.
+        forwardButton.isEnabled = fromBack
         startView.animate().cancel()
         startView.alpha = 0f
         startView.visibility = View.VISIBLE
@@ -1106,7 +1145,13 @@ class MainActivity : Activity() {
         EngineAdapter.currentUrl()?.let { address.showUrl(it) }
         reloadButton.isEnabled = true
         backButton.isEnabled = true
+        forwardButton.isEnabled = EngineAdapter.canGoForward()
         refreshBack()
+    }
+
+    // Forward from the start screen that Back brought returns to the kept page; otherwise the page's own history.
+    private fun stepForward() {
+        if (homeOver && startBack) closeHome() else EngineAdapter.goForward()
     }
 
     // The Back button: leaves the Home screen first, walks the page history, then returns to the start screen.

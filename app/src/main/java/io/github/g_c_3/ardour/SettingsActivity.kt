@@ -99,6 +99,8 @@ class SettingsActivity : Activity() {
             addView(switchRow("Quick Sweep also removes earlier sign-ins", "A long press on the shield sweeps the open page's site at once, Shield Mode on or off. Off: it removes only what the site added since you first opened it in this app run. On: every cookie and all saved data of the site, sign-ins included.", Prefs.QUICK_CLEAN_SIGNINS))
             addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Allow screenshots in Shield Mode", "While Shield Mode is on, screenshots, screen recordings and casting show nothing. Turn this on to allow them. Off by default; Shield Mode off is never blocked.", Prefs.SHIELD_SHOTS))
+            addView(Ui.divider(this@SettingsActivity))
+            addView(switchRow("Shield tab preview", "Show the page picture of Shield tabs in the tab list. Off: they show no picture, and none is taken while Shield Mode is on. Pictures stay in memory only and are gone when the app closes. Off by default.", Prefs.SHIELD_PREVIEW))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Appearance"))
         column.addView(Ui.card(this).apply {

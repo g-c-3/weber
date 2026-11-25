@@ -30,6 +30,7 @@ object Prefs {
     const val DELETE_ALL_SIGNINS = "delete_all_signins"
     const val QUICK_CLEAN_SIGNINS = "quick_clean_signins"
     const val SHIELD_SHOTS = "shield_screenshots"
+    const val SHIELD_PREVIEW = "shield_tab_preview"
     const val PRIVATE_RECORD = "private_record"
 
     // Diagnostics only (hidden card in Settings): the desktop viewport script stays off, to test the Gmail stall.
