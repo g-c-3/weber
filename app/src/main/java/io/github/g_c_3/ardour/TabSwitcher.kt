@@ -71,8 +71,8 @@ class TabSwitcher(
             addView(allButton, LinearLayout.LayoutParams(Ui.dp(context, 58), Ui.dp(context, 42)))
             addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 58), Ui.dp(context, 42)).apply { marginStart = Ui.dp(context, 8) })
         }
-        head.addView(filters, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.CENTER_VERTICAL))
-        head.addView(plus, LayoutParams(Ui.dp(context, 42), Ui.dp(context, 42), Gravity.END or Gravity.CENTER_VERTICAL))
+        head.addView(filters, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        head.addView(plus, LayoutParams(Ui.dp(context, 34), Ui.dp(context, 34), Gravity.END or Gravity.CENTER_VERTICAL))
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(Ui.dp(context, 14), 0, Ui.dp(context, 14), Ui.dp(context, 60))
@@ -360,8 +360,8 @@ private class PlusDisc(context: Context, private val tap: () -> Unit, private va
         val cx = width / 2f
         val cy = height / 2f
         line.color = Ui.INK
-        line.strokeWidth = Ui.dp(context, 4).toFloat()
-        val k = min(width, height) * 0.30f
+        line.strokeWidth = Ui.dp(context, 3).toFloat()
+        val k = min(width, height) * 0.34f
         canvas.drawLine(cx - k, cy, cx + k, cy, line)
         canvas.drawLine(cx, cy - k, cx, cy + k, line)
     }

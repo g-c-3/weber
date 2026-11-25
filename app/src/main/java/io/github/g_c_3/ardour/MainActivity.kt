@@ -269,6 +269,10 @@ class MainActivity : Activity() {
         sheet.dismiss()
         widthAnim?.cancel()
         noticeView = null
+        // Sizes measured for the old top bar: the new one is sized again when its row width is known (DECISIONS.md 165).
+        rowWidth = 0
+        idleWidth = 0
+        expanded = false
         pageView?.let { (it.parent as? ViewGroup)?.removeView(it) }
         pageView = null
         setTheme(if (Ui.dark) R.style.Theme_Ardour_Dark else R.style.Theme_Ardour)
@@ -348,6 +352,11 @@ class MainActivity : Activity() {
             contentDescription = "Tabs"
             setOnClickListener { openTabs() }
             onSwipeDown = { openTabs() }
+            // A long press opens a new tab (DECISIONS.md 165).
+            setOnLongClickListener {
+                newTabFromBar()
+                true
+            }
         }
         privateButton = IconButton(this, IconButton.Kind.PRIVATE).apply {
             contentDescription = if (privateOn) "Shield Mode, on" else "Shield Mode, off"
@@ -866,6 +875,17 @@ class MainActivity : Activity() {
         if (index == EngineAdapter.activeIndex()) return
         saveTabState()
         activate(index)
+    }
+
+    // The Tabs button's long press: a new tab, shown at once.
+    private fun newTabFromBar() {
+        if (EngineAdapter.tabs.size >= EngineAdapter.MAX_TABS) {
+            showNotice("Tab limit reached (${EngineAdapter.MAX_TABS})")
+            return
+        }
+        tabsButton.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        saveTabState()
+        activate(EngineAdapter.newTab())
     }
 
     // A tap on + opens a normal tab, a long press a Shield tab (DECISIONS.md 163).
