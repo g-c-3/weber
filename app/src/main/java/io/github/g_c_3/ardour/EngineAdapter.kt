@@ -20,6 +20,7 @@ import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
 import android.os.Handler
+import android.os.Message
 import android.os.Looper
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
@@ -52,6 +53,30 @@ interface PageListener {
 
     // A tapped link that leaves the page: another app's address, or a Play Store page. True when it was handled.
     fun onExternal(url: String): Boolean = false
+
+    // A page opened a window after a tap: the new tab is already in the list, at `index`, and is to be shown (DECISIONS.md 161).
+    fun onTabOpened(index: Int) {}
+
+    // A page closed a window it had opened (window.close).
+    fun onTabCloseRequest(index: Int) {}
+
+    // A tap asked for a new window while the tab limit is reached.
+    fun onTabLimit() {}
+}
+
+// One browser tab (DECISIONS.md 161). `engineView` is used only in this file: it exists while the tab has been opened in
+// this screen's life; a tab never opened, or one whose screen was rebuilt, has none and gets one when selected.
+class Tab {
+    var engineView: WebView? = null
+    var url: String? = null
+    var title: String? = null
+
+    // Never navigated: the start screen shows.
+    var blank = true
+
+    // The start screen is shown over the tab's page (Home, or Back past the first page), and whether Back brought it.
+    var home = false
+    var startBack = false
 }
 
 // The only file that calls android.webkit or androidx.webkit (DECISIONS.md 26). An engine API change is fixed here.
@@ -63,7 +88,12 @@ object EngineAdapter {
         WebViewClient.ERROR_IO,
     )
     private const val ERROR_FAILED_SSL_HANDSHAKE = WebViewClient.ERROR_FAILED_SSL_HANDSHAKE
+    // The active tab's page view; every call below that works on "the page" works on this one.
     private var webView: WebView? = null
+    private val tabList = ArrayList<Tab>()
+    private var activeTab: Tab? = null
+    private var engineLost: () -> Unit = {}
+    const val MAX_TABS = 10
     private var defaultAgent: String? = null
     private var defaultMetadata: UserAgentMetadata? = null
     private var bypassCache = false
@@ -447,11 +477,72 @@ object EngineAdapter {
     // When the engine last reported a page start.
     private var startedAt = 0L
 
-    @SuppressLint("SetJavaScriptEnabled")
-    @Suppress("DEPRECATION")
+    val tabs: List<Tab> get() = tabList
+
+    fun activeTab(): Tab? = activeTab
+
+    fun activeIndex(): Int = tabList.indexOf(activeTab)
+
+    // Builds the active tab's page view for a new browser screen: the first tab on a fresh start, or the one that was
+    // active before the screen was rebuilt. The other tabs wake when selected.
     fun createView(context: Context, listener: PageListener, onEngineLost: () -> Unit): View {
         pageListener = listener
         appContext = context.applicationContext
+        engineLost = onEngineLost
+        if (tabList.isEmpty()) tabList.add(Tab())
+        return select(maxOf(activeIndex(), 0), context)
+    }
+
+    // Makes the tab at `index` the active one and returns its page view, built now if it has none.
+    fun select(index: Int, context: Context): View {
+        val tab = tabList[index.coerceIn(0, tabList.lastIndex)]
+        val view = tab.engineView ?: makeView(context, pageListener!!).also { tab.engineView = it }
+        activeTab = tab
+        webView = view
+        return view
+    }
+
+    // A new empty tab at the end; returns its index. Its page view is built when it is selected.
+    fun newTab(): Int {
+        tabList.add(Tab())
+        return tabList.lastIndex
+    }
+
+    // Removes the tab and ends its page view. When it was the active one there is no active tab until `select`.
+    fun closeTab(index: Int) {
+        if (index !in tabList.indices) return
+        val tab = tabList.removeAt(index)
+        tab.engineView?.let {
+            (it.parent as? ViewGroup)?.removeView(it)
+            it.destroy()
+        }
+        tab.engineView = null
+        if (activeTab === tab) {
+            activeTab = null
+            webView = null
+        }
+    }
+
+    private fun tabOf(view: WebView): Tab? = tabList.firstOrNull { it.engineView === view }
+
+    // Keeps the tab's address and title as the page reports them, for the tab list and for a rebuilt screen.
+    private fun record(view: WebView) {
+        val tab = tabOf(view) ?: return
+        view.url?.let { tab.url = it }
+        tab.title = view.title
+    }
+
+    // True when the tab was opened before, but its page view ended with an earlier screen: it must load its address again.
+    fun sleeping(index: Int): Boolean = tabList.getOrNull(index)?.let { it.engineView == null && !it.blank && it.url != null } == true
+
+    fun canGoForward(): Boolean = webView?.canGoForward() == true
+
+    // The active page's load progress, 100 when it is not loading or there is none.
+    fun activeProgress(): Int = webView?.progress ?: 100
+
+    @SuppressLint("SetJavaScriptEnabled")
+    @Suppress("DEPRECATION")
+    private fun makeView(context: Context, listener: PageListener): WebView {
         val view = WebView(context)
         // Profile first: no other call on the view before it (ROADMAP 2). Named Space profiles arrive in Phase 12.
         WebViewCompat.setProfile(view, Profile.DEFAULT_PROFILE_NAME)
@@ -471,6 +562,8 @@ object EngineAdapter {
             useWideViewPort = true
             loadWithOverviewMode = true
             layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+            // A tapped link or script that asks for a new window gets one, as a tab (DECISIONS.md 161).
+            setSupportMultipleWindows(true)
         }
         defaultAgent = view.settings.userAgentString
         if (WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) {
@@ -484,8 +577,34 @@ object EngineAdapter {
         view.setBackgroundColor(Ui.PAPER)
         view.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, newProgress: Int) {
+                if (view !== webView) return
                 Trace.progress(newProgress)
                 listener.onProgress(newProgress)
+            }
+
+            // A new window asked for after a tap opens as a tab in front, next to the active one; one a script asks for
+            // without a tap is refused (DECISIONS.md 161).
+            override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+                val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
+                if (!isUserGesture || view !== webView) return false
+                if (tabList.size >= MAX_TABS) {
+                    listener.onTabLimit()
+                    return false
+                }
+                val tab = Tab()
+                tab.blank = false
+                val fresh = makeView(view.context, listener)
+                tab.engineView = fresh
+                tabList.add((tabList.indexOf(activeTab) + 1).coerceIn(0, tabList.size), tab)
+                transport.webView = fresh
+                resultMsg.sendToTarget()
+                listener.onTabOpened(tabList.indexOf(tab))
+                return true
+            }
+
+            override fun onCloseWindow(window: WebView) {
+                val index = tabList.indexOfFirst { it.engineView === window }
+                if (index >= 0) listener.onTabCloseRequest(index)
             }
 
             // Page script errors go to the trace only (addresses reduced); the engine's own handling is kept.
@@ -495,12 +614,14 @@ object EngineAdapter {
             }
         }
         // Find in page results: active match is 0-based, total is the match count.
-        view.setFindListener { active, total, _ -> listener.onFind(active, total) }
+        view.setFindListener { active, total, _ -> if (view === webView) listener.onFind(active, total) }
         view.webViewClient = object : WebViewClient() {
             // Only web addresses load in the view; other schemes are dropped until Ardour handles them itself.
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val scheme = request.url.scheme
                 val web = scheme == "http" || scheme == "https"
+                // A tab in the background loads on its own; the screen hears only from the active one (DECISIONS.md 161).
+                if (view !== webView) return !web
                 val now = SystemClock.uptimeMillis()
                 if (web && request.isForMainFrame) mainFrameHost = request.url.host?.lowercase()
                 Trace.log("NAV", "main=${request.isForMainFrame} redirect=${request.isRedirect} gesture=${request.hasGesture()} ${request.method} ${Trace.safe(request.url.toString())}")
@@ -526,6 +647,14 @@ object EngineAdapter {
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
                 // Only web pages count as loading; an address handed to another app must not leave the bar running.
                 val scheme = url?.substringBefore(':', "")
+                if (view !== webView) {
+                    if (scheme == "http" || scheme == "https") {
+                        noteOpenedSite(url)
+                        notePrivateSite(url)
+                        tabOf(view)?.url = url
+                    }
+                    return
+                }
                 Trace.log("STARTED", "${Trace.safe(url)} back=${view.canGoBack()}")
                 navPending = false
                 startedAt = SystemClock.uptimeMillis()
@@ -542,6 +671,7 @@ object EngineAdapter {
             }
 
             override fun onPageCommitVisible(view: WebView, url: String?) {
+                if (view !== webView) return
                 Trace.log("COMMIT", Trace.safe(url))
                 // A page with another address than the last one fades in; a reload of the same page does not.
                 val fresh = url != lastCommitUrl
@@ -551,6 +681,8 @@ object EngineAdapter {
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
+                record(view)
+                if (view !== webView) return
                 Trace.log("FINISHED", "${Trace.safe(url)} progress=${view.progress} bypassCache=$bypassCache")
                 // A tap or a Desktop switch makes the engine end the replaced page (progress under 100), before or just after the new page starts: not the new load, so the bar and the no-cache mode stay (DECISIONS.md 97).
                 if ((bypassCache || navPending || SystemClock.uptimeMillis() - startedAt < 400L) && view.progress < 100) return
@@ -566,7 +698,7 @@ object EngineAdapter {
             // Main-frame failures only; the screen shows its own page instead of the engine's (DECISIONS.md 46).
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 Trace.log("ERROR", "main=${request.isForMainFrame} code=${error.errorCode} ${error.description} ${Trace.safe(request.url.toString())}")
-                if (!request.isForMainFrame) return
+                if (!request.isForMainFrame || view !== webView) return
                 val text = error.description?.toString().orEmpty()
                 val kind = when {
                     "CLEARTEXT" in text -> PageError.NOT_SECURE
@@ -587,7 +719,7 @@ object EngineAdapter {
                 val main = host == null || host in pageHosts
                 Trace.log("SSLERR", "main=$main primary=${error.primaryError} ${Trace.safe(error.url)}")
                 handler.cancel()
-                if (main) listener.onError(error.url, PageError.SECURITY)
+                if (main && view === webView) listener.onError(error.url, PageError.SECURITY)
             }
 
             // Trace only: the resources a page asks for, up to 80 per page; the last ones before a stall show what it waits on.
@@ -608,20 +740,31 @@ object EngineAdapter {
 
             override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
                 Trace.log("HISTORY", "${Trace.safe(url)} reload=$isReload back=${view.canGoBack()} forward=${view.canGoForward()}")
+                record(view)
+                if (view !== webView) return
                 listener.onPage(url, view.canGoBack(), view.canGoForward())
             }
 
             // Renderer ended: drop the view and let the app build a new one; returning false would end the app.
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                 Trace.log("RENDERER", "ended, crashed=${detail.didCrash()}")
+                val tab = tabOf(view)
                 (view.parent as? ViewGroup)?.removeView(view)
                 view.destroy()
-                if (webView === view) webView = null
-                onEngineLost()
+                tab?.engineView = null
+                if (webView === view) {
+                    // The active tab starts empty again, so a page that ends the renderer is not loaded in a loop.
+                    webView = null
+                    tab?.let {
+                        it.blank = true
+                        it.home = false
+                        it.url = null
+                    }
+                    engineLost()
+                }
                 return true
             }
         }
-        webView = view
         return view
     }
 
@@ -705,6 +848,8 @@ object EngineAdapter {
         Trace.log("COOKIES", cookieNames(view.url))
         view.stopLoading()
         applyDesktop(view)
+        // The other open tabs get the same agent; they keep their page until it is loaded again.
+        for (tab in tabList) tab.engineView?.let { if (it !== view) applyDesktop(it) }
         if (!reloadPage) return
         // A reload keeps the page's old zoom; a fresh load of the same address lets overview mode fit the width. The
         // cache is skipped for this one load: a cached copy would be the page made for the other kind of device.
@@ -1199,11 +1344,21 @@ object EngineAdapter {
 
     fun canGoBack(): Boolean = webView?.canGoBack() == true
 
-    fun destroy() {
-        webView?.let {
-            (it.parent as? ViewGroup)?.removeView(it)
-            it.destroy()
+    // Ends every page view with the screen. The tabs stay (address, title, state) when the screen is only rebuilt, and
+    // go when the app closes.
+    fun destroy(keepTabs: Boolean) {
+        for (tab in tabList) {
+            tab.engineView?.let {
+                record(it)
+                (it.parent as? ViewGroup)?.removeView(it)
+                it.destroy()
+            }
+            tab.engineView = null
         }
         webView = null
+        if (!keepTabs) {
+            tabList.clear()
+            activeTab = null
+        }
     }
 }

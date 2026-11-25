@@ -70,6 +70,9 @@ class MainActivity : Activity() {
     private lateinit var pageArea: PullRefreshLayout
     private var finding = false
     private lateinit var backButton: IconButton
+    private lateinit var tabsButton: IconButton
+    private lateinit var tabSwitcher: TabSwitcher
+    private var pageView: View? = null // the active tab's page view in the page area (DECISIONS.md 161)
     private lateinit var forwardButton: IconButton
     private lateinit var reloadButton: IconButton
     private var loading = false
@@ -158,6 +161,15 @@ class MainActivity : Activity() {
             return outcome.opened
         }
 
+        override fun onTabOpened(index: Int) {
+            saveTabState()
+            activate(index)
+        }
+
+        override fun onTabCloseRequest(index: Int) = closeTabAt(index)
+
+        override fun onTabLimit() = showNotice("Tab limit reached (${EngineAdapter.MAX_TABS})")
+
         override fun onCommitVisible() {
             committedId = loadId
             Trace.log("UI", "commit load=$loadId")
@@ -227,22 +239,15 @@ class MainActivity : Activity() {
         Ui.styleWindow(window)
         applySecure()
         root.requestFocus()
+        if (gateMessage == null) restoreTabState()
         if (gateMessage == null && savedInstanceState == null) handleLink(intent)
-        carryUrl?.let {
-            carryUrl = null
-            if (gateMessage == null) {
-                EngineAdapter.load(it)
-                beginNavigation(it)
-            }
-        }
     }
 
     // The screen was built with the other theme (Settings choice, or the phone's setting while the choice is System):
-    // build it again. The open page is loaded again afterwards; its back history is not kept.
+    // build it again. The tabs stay; the open page is loaded again afterwards and its back history is not kept.
     private fun restyleIfNeeded(): Boolean {
         Ui.applyTheme(this)
         if (Ui.dark == builtDark || !::pageArea.isInitialized) return false
-        carryUrl = if (hasPage) EngineAdapter.currentUrl() else null
         recreate()
         return true
     }
@@ -263,6 +268,7 @@ class MainActivity : Activity() {
         if ((scheme != "http" && scheme != "https") || uri.host.isNullOrEmpty()) return
         if (finding) closeFind()
         if (reader != null) closeReader()
+        if (tabSwitcher.showing) tabSwitcher.hide()
         EngineAdapter.load(uri.toString())
         beginNavigation(uri.toString())
         leaveAddress()
@@ -309,10 +315,10 @@ class MainActivity : Activity() {
             setOnClickListener { showHome() }
             onSwipeDown = { showHome() }
         }
-        val tabsButton = IconButton(this, IconButton.Kind.TABS).apply {
+        tabsButton = IconButton(this, IconButton.Kind.TABS).apply {
             contentDescription = "Tabs"
-            setOnClickListener { showNotice("Tabs come in a later update") }
-            onSwipeDown = { showNotice("Tabs come in a later update") }
+            setOnClickListener { openTabs() }
+            onSwipeDown = { openTabs() }
         }
         val privateButton = IconButton(this, IconButton.Kind.PRIVATE).apply {
             contentDescription = if (privateOn) "Shield Mode, on" else "Shield Mode, off"
@@ -357,12 +363,14 @@ class MainActivity : Activity() {
 
         val content = PullRefreshLayout(
             this,
-            { hasPage && errorView.visibility != View.VISIBLE && EngineAdapter.atTop() },
+            { hasPage && errorView.visibility != View.VISIBLE && !(::tabSwitcher.isInitialized && tabSwitcher.showing) && EngineAdapter.atTop() },
             { EngineAdapter.reload() },
         )
         pageArea = content
         val fill = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        content.addView(EngineAdapter.createView(this, listener) { root.post { recreate() } }, fill)
+        val first = EngineAdapter.createView(this, listener) { root.post { recreate() } }
+        pageView = first
+        content.addView(first, fill)
         EngineAdapter.cleanLeftover(this)
         startView = startScreen()
         content.addView(startView, fill)
@@ -396,11 +404,14 @@ class MainActivity : Activity() {
                 topMargin = px(8) + Ui.sdp(this@MainActivity, 36) + px(10) + px(8)
             },
         )
+        tabSwitcher = TabSwitcher(this, ::switchTo, ::closeTabAt, ::openNewTab)
+        content.addView(tabSwitcher, fill)
         root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         findBar = FindBar(this, { EngineAdapter.findAll(it) }, { EngineAdapter.findNext(it) }, ::closeFind).apply { visibility = View.GONE }
         root.addView(findBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         Ui.enter(listOf(top, startView))
+        refreshTabCount()
         refreshBack()
     }
 
@@ -693,8 +704,134 @@ class MainActivity : Activity() {
         if (!::pageArea.isInitialized) return
         pageArea.enabledPull = Prefs.get(this, Prefs.PULL)
         if (::address.isInitialized) address.refreshAddressText()
+        applyEnginePrefs()
+    }
+
+    // The Settings choices that live on the page view; applied to the active tab each time the screen resumes or the
+    // active tab changes.
+    private fun applyEnginePrefs() {
         EngineAdapter.setZoomMode(Prefs.get(this, Prefs.FORCE_ZOOM), Prefs.get(this, Prefs.WRAP))
         EngineAdapter.setThirdPartyCookies(Prefs.get(this, Prefs.THIRD_PARTY, false))
+    }
+
+    // Tabs (DECISIONS.md 161). Each tab keeps its own page, history and start-screen state; the screen shows one.
+    private fun refreshTabCount() {
+        tabsButton.count = EngineAdapter.tabs.size
+    }
+
+    // The active tab's start-screen state is held by the screen while it is shown; copied to its tab before the screen
+    // leaves it (a switch, or the screen ending).
+    private fun saveTabState() {
+        val tab = EngineAdapter.activeTab() ?: return
+        tab.blank = !hasPage && !homeOver
+        tab.home = homeOver
+        tab.startBack = startBack
+    }
+
+    // A tab that was never navigated shows the start screen; one with a page shows it.
+    private fun showTabState() {
+        val tab = EngineAdapter.activeTab() ?: return
+        if (reader != null) closeReader()
+        if (finding) closeFind()
+        if (address.input.hasFocus()) leaveAddress()
+        closeSuggestions()
+        errorView.visibility = View.GONE
+        homeOver = tab.home
+        startBack = tab.startBack
+        hasPage = !tab.blank && !tab.home
+        val start = tab.blank || tab.home
+        searchBlock.reset()
+        startView.animate().cancel()
+        startView.alpha = 1f
+        startView.visibility = if (start) View.VISIBLE else View.GONE
+        address.showUrl(if (start) "" else tab.url.orEmpty())
+        listener.onLoading(hasPage && EngineAdapter.activeProgress() < 100)
+        backButton.isEnabled = if (homeOver) !startBack else EngineAdapter.canGoBack() || hasPage
+        forwardButton.isEnabled = EngineAdapter.canGoForward()
+        reloadButton.isEnabled = hasPage
+        refreshBack()
+    }
+
+    // Puts the tab at `index` on screen: its page view replaces the current one. A tab whose view was ended with an
+    // earlier screen loads its last address now.
+    private fun activate(index: Int) {
+        val wakeUrl = if (EngineAdapter.sleeping(index)) EngineAdapter.tabs[index].url else null
+        pageView?.let { pageArea.removeView(it) }
+        val view = EngineAdapter.select(index, this)
+        pageArea.addView(view, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        pageView = view
+        applyEnginePrefs()
+        showTabState()
+        if (wakeUrl != null) {
+            EngineAdapter.load(wakeUrl)
+            if (hasPage) beginNavigation(wakeUrl)
+        }
+        refreshTabCount()
+    }
+
+    private fun tabItems(): List<TabSwitcher.Item> {
+        val active = EngineAdapter.activeIndex()
+        return EngineAdapter.tabs.mapIndexed { i, tab ->
+            val blank = if (i == active) !hasPage && !homeOver else tab.blank
+            val url = tab.url
+            val host = url?.let { android.net.Uri.parse(it).host }?.removePrefix("www.").orEmpty()
+            val title = tab.title?.trim().orEmpty().ifEmpty { host }.ifEmpty { "New tab" }
+            TabSwitcher.Item(if (blank) "New tab" else title, if (blank) "Start page" else host, blank)
+        }
+    }
+
+    private fun openTabs() {
+        if (tabSwitcher.showing) {
+            tabSwitcher.hide()
+            return
+        }
+        if (finding) closeFind()
+        if (address.input.hasFocus()) leaveAddress()
+        closeSuggestions()
+        saveTabState()
+        tabSwitcher.show(tabItems(), EngineAdapter.activeIndex())
+    }
+
+    private fun switchTo(index: Int) {
+        tabSwitcher.hide()
+        if (index == EngineAdapter.activeIndex()) return
+        saveTabState()
+        activate(index)
+    }
+
+    private fun openNewTab() {
+        if (EngineAdapter.tabs.size >= EngineAdapter.MAX_TABS) {
+            showNotice("Tab limit reached (${EngineAdapter.MAX_TABS})")
+            return
+        }
+        saveTabState()
+        tabSwitcher.hide()
+        activate(EngineAdapter.newTab())
+    }
+
+    // Closes a tab. The next one (or, for the last, a new empty one) takes its place when it was the active one.
+    private fun closeTabAt(index: Int) {
+        if (index !in EngineAdapter.tabs.indices) return
+        val wasActive = index == EngineAdapter.activeIndex()
+        if (wasActive) {
+            pageView?.let { pageArea.removeView(it) }
+            pageView = null
+        } else {
+            saveTabState()
+        }
+        EngineAdapter.closeTab(index)
+        if (EngineAdapter.tabs.isEmpty()) EngineAdapter.newTab()
+        if (wasActive) activate(minOf(index, EngineAdapter.tabs.lastIndex)) else refreshTabCount()
+        tabSwitcher.update(tabItems(), EngineAdapter.activeIndex())
+    }
+
+    // A screen built again (theme change, ended renderer) shows the active tab's page again.
+    private fun restoreTabState() {
+        val tab = EngineAdapter.activeTab() ?: return
+        val url = tab.url ?: return
+        if (tab.blank) return
+        EngineAdapter.load(url)
+        beginNavigation(url)
     }
 
     private fun showMenu(anchor: View) {
@@ -1032,6 +1169,10 @@ class MainActivity : Activity() {
 
     // True when back was used: closes the editor first, then walks the page history.
     private fun handleBack(): Boolean {
+        if (tabSwitcher.showing) {
+            tabSwitcher.hide()
+            return true
+        }
         if (sheet.showing) {
             sheet.dismiss()
             return true
@@ -1058,6 +1199,11 @@ class MainActivity : Activity() {
         }
         if (hasPage && !homeOver) {
             showHome(fromBack = true)
+            return true
+        }
+        // With other tabs open, Back from the start screen closes this tab; the last one asks to be pressed twice to exit.
+        if (EngineAdapter.tabs.size > 1) {
+            closeTabAt(EngineAdapter.activeIndex())
             return true
         }
         return exitOnSecondBack()
@@ -1137,12 +1283,12 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         if (isFinishing && privateOn && Prefs.get(this, Prefs.PRIVATE_CLOSE)) EngineAdapter.deletePrivateAdditions()
-        EngineAdapter.destroy()
+        saveTabState()
+        EngineAdapter.destroy(keepTabs = !isFinishing)
         super.onDestroy()
     }
 
     private companion object {
-        var carryUrl: String? = null
         const val ROW_HEIGHT = 34
         const val WEBVIEW_PAGE = "https://play.google.com/store/apps/details?id=com.google.android.webview"
     }
