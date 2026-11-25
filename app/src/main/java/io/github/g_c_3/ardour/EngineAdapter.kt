@@ -81,6 +81,10 @@ class Tab {
 
     // A small picture of the tab for the tab list (DECISIONS.md 162); memory only, gone with the app.
     var preview: Bitmap? = null
+
+    // Shield Mode for this tab, and the hosts it opened while shielded (DECISIONS.md 134, 163).
+    var shield = false
+    val hosts = LinkedHashSet<String>()
 }
 
 // The only file that calls android.webkit or androidx.webkit (DECISIONS.md 26). An engine API change is fixed here.
@@ -597,6 +601,8 @@ object EngineAdapter {
                 }
                 val tab = Tab()
                 tab.blank = false
+                // A window a Shield tab opens is a Shield tab too (DECISIONS.md 163).
+                tab.shield = activeTab?.shield == true
                 val fresh = makeView(view.context, listener)
                 tab.engineView = fresh
                 tabList.add((tabList.indexOf(activeTab) + 1).coerceIn(0, tabList.size), tab)
@@ -654,7 +660,7 @@ object EngineAdapter {
                 if (view !== webView) {
                     if (scheme == "http" || scheme == "https") {
                         noteOpenedSite(url)
-                        notePrivateSite(url)
+                        noteShieldPage(view, url)
                         tabOf(view)?.url = url
                     }
                     return
@@ -667,7 +673,7 @@ object EngineAdapter {
                 if (scheme == "http" || scheme == "https") mainFrameHost = Uri.parse(url).host?.lowercase()
                 if (scheme == "http" || scheme == "https") {
                     noteOpenedSite(url)
-                    notePrivateSite(url)
+                    noteShieldPage(view, url)
                 }
                 if (scheme != null && scheme != "http" && scheme != "https" && scheme != "about") return
                 listener.onLoading(true)
@@ -1040,17 +1046,56 @@ object EngineAdapter {
     private fun cookieNameSet(url: String): Set<String> =
         CookieManager.getInstance().getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() }?.toSet().orEmpty()
 
-    // Private mode on or off. Turning it on starts an empty record; turning it off forgets the record (call
-    // `deletePrivateAdditions` first to remove what the session added).
-    fun setPrivate(on: Boolean) {
-        privateSites = if (on) LinkedHashMap() else null
-        privateSchemes.clear()
-        Trace.log("ACTION", "private ${if (on) "on" else "off"}")
-        if (on) notePrivateSite(webView?.url) // the page already open counts as the first visit to its host
+    // Shield Mode is per tab (DECISIONS.md 134, 163). One record (host, cookie names at the first visit) serves every Shield
+    // tab; each Shield tab lists the hosts it opened. Turning a tab's shield on starts the record when it is the first.
+    fun startShield(tab: Tab) {
+        tab.shield = true
+        if (privateSites == null) {
+            privateSites = LinkedHashMap()
+            privateSchemes.clear()
+        }
+        Trace.log("ACTION", "shield on")
+        // The page already open counts as the first visit to its host.
+        tab.engineView?.url?.let { noteShieldHost(tab, it) }
         persistPrivate()
     }
 
-    val privateActive: Boolean get() = privateSites != null
+    // Turning a tab's shield off, or closing it. `delete` removes what the tab added on the hosts no other Shield tab has
+    // open; the record keeps those hosts only while a Shield tab still lists them.
+    fun endShield(tab: Tab, delete: Boolean) {
+        val mine = tab.hosts.filter { host -> tabList.none { it !== tab && it.shield && host in it.hosts } }
+        val sites = privateSites
+        if (sites != null) {
+            if (delete) {
+                val subset = LinkedHashMap<String, Set<String>>()
+                for (host in mine) sites[host]?.let { subset[host] = it }
+                val removed = removeAdditions(subset, privateSchemes)
+                webView?.clearCache(true)
+                Trace.log("ACTION", "shield delete $removed cookies, ${subset.size} sites, cache")
+            }
+            for (host in mine) {
+                sites.remove(host)
+                privateSchemes.remove(host)
+            }
+        }
+        tab.shield = false
+        tab.hosts.clear()
+        if (tabList.none { it.shield }) privateSites = null
+        Trace.log("ACTION", "shield off delete=$delete")
+        persistPrivate()
+    }
+
+    private fun noteShieldPage(view: WebView, url: String?) {
+        val tab = tabOf(view) ?: return
+        if (tab.shield) noteShieldHost(tab, url)
+    }
+
+    private fun noteShieldHost(tab: Tab, url: String?) {
+        notePrivateSite(url)
+        Uri.parse(url ?: return).host?.lowercase()?.let { tab.hosts.add(it) }
+    }
+
+    val privateActive: Boolean get() = tabList.any { it.shield }
 
     // With the close option on (DECISIONS.md 137) the record (host, scheme, cookie names; no values) is kept in the app's
     // private storage, so a close Android does not announce can still be cleaned at the next launch.
@@ -1363,6 +1408,8 @@ object EngineAdapter {
         if (!keepTabs) {
             tabList.clear()
             activeTab = null
+            privateSites = null
+            privateSchemes.clear()
         }
     }
 }

@@ -101,6 +101,12 @@ class ConfirmSheet(private val activity: Activity, private val onChange: () -> U
         // A destructive confirm sits faded in neon red and lights up when pressed; the other button becomes the glowing one.
         val cancel = if (dangerConfirm) {
             Ui.pillButton(activity, cancelLabel).apply {
+                // Ember outline over the glow (DECISIONS.md 163).
+                foreground = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = Ui.dp(activity, 28).toFloat()
+                    setColor(0)
+                    setStroke(Ui.dp(activity, 2), Ui.EMBER)
+                }
                 setOnClickListener {
                     dismiss()
                     onCancelTap?.invoke()

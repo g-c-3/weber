@@ -15,24 +15,26 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.TextView
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-// The open tabs over the whole browser screen (DECISIONS.md 162): a translucent sheet that fades in from the bottom, a
-// filter (All, Shield), and cards with a picture of the page. Tap opens a tab, a swipe to either side closes it, the cross at
-// the top right (or Back) closes the list. The number of columns follows the width: two on a phone held upright, more on a
-// wide screen.
+// The open tabs over the whole browser screen (DECISIONS.md 162, 163): a translucent sheet that fades in from the bottom.
+// At the top two buttons, the tab square with the number of tabs (all) and the ember shield with the number of Shield
+// tabs, filter the list; a + at the right adds a tab, a long press on it a Shield tab. Cards show a picture of the page.
+// Tap opens a tab, a swipe to either side closes it, a pull down on empty space or Back closes the sheet. The number of
+// columns follows the width: two on a phone held upright, more on a wide screen.
 class TabSwitcher(
     context: Context,
     private val onPick: (Int) -> Unit,
     private val onClose: (Int) -> Unit,
-    private val onNew: () -> Unit,
+    private val onNew: (Boolean) -> Unit,
+    private val onHidden: () -> Unit,
 ) : FrameLayout(context) {
     class Item(
         val title: String,
@@ -49,58 +51,42 @@ class TabSwitcher(
     private var active = 0
     private var shieldOnly = false
 
-    private val subtitle = Ui.body(context, "")
     private val grid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-    private val allChip = chip("All") { setFilter(false) }
-    private val shieldChip = chip("Shield") { setFilter(true) }
-    private val newButton = Ui.pillButton(context, "New tab").apply {
-        contentDescription = "New tab"
-        setOnClickListener { onNew() }
-    }
-    private val resetPill = Runnable { newButton.text = "New tab" }
+    private val allButton = CountButton(context, false) { setFilter(false) }
+    private val shieldButton = CountButton(context, true) { setFilter(true) }
+    private val plus = PlusDisc(context, { onNew(false) }, { onNew(true) })
+    private val scroll = ScrollView(context)
+    private var pullY = 0f
+    private var pullX = 0f
+    private var pulling = false
+    private var pulled = false
 
     init {
         isClickable = true
         visibility = GONE
         val head = FrameLayout(context)
-        val titles = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(Ui.title(context, "Tabs").apply { textSize = 28f })
-            addView(subtitle.apply { setPadding(0, Ui.dp(context, 2), 0, 0) })
-        }
-        head.addView(titles, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.CENTER_VERTICAL))
-        val close = CloseDisc(context).apply {
-            contentDescription = "Close tab list"
-            setOnClickListener { hide() }
-        }
-        head.addView(close, LayoutParams(Ui.dp(context, 44), Ui.dp(context, 44), Gravity.END or Gravity.CENTER_VERTICAL))
         val filters = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(allChip, LinearLayout.LayoutParams(Ui.dp(context, 84), Ui.dp(context, 38)))
-            addView(shieldChip, LinearLayout.LayoutParams(Ui.dp(context, 96), Ui.dp(context, 38)).apply { marginStart = Ui.dp(context, 8) })
+            addView(allButton, LinearLayout.LayoutParams(Ui.dp(context, 66), Ui.dp(context, 48)))
+            addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 66), Ui.dp(context, 48)).apply { marginStart = Ui.dp(context, 10) })
         }
+        head.addView(filters, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.CENTER_VERTICAL))
+        head.addView(plus, LayoutParams(Ui.dp(context, 48), Ui.dp(context, 48), Gravity.END or Gravity.CENTER_VERTICAL))
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(Ui.dp(context, 14), Ui.dp(context, 10), Ui.dp(context, 14), Ui.dp(context, 100))
-            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 56)))
-            addView(filters, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = Ui.dp(context, 10)
-                bottomMargin = Ui.dp(context, 8)
+            setPadding(Ui.dp(context, 14), Ui.dp(context, 10), Ui.dp(context, 14), Ui.dp(context, 60))
+            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 58)))
+            addView(grid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = Ui.dp(context, 8)
             })
-            addView(grid)
         }
-        val scroll = ScrollView(context).apply {
+        scroll.apply {
             isVerticalScrollBarEnabled = false
             overScrollMode = OVER_SCROLL_NEVER
+            isFillViewport = true
             addView(column)
         }
         addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        addView(
-            newButton,
-            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-                bottomMargin = Ui.dp(context, 22)
-            },
-        )
         // The sheet covers the system bars too; its content keeps clear of them.
         setOnApplyWindowInsetsListener { v, insets ->
             if (android.os.Build.VERSION.SDK_INT >= 30) {
@@ -111,16 +97,6 @@ class TabSwitcher(
             }
             insets
         }
-    }
-
-    private fun chip(text: String, tap: () -> Unit) = TextView(context).apply {
-        this.text = text
-        textSize = 14f
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        gravity = Gravity.CENTER
-        isClickable = true
-        setOnClickListener { tap() }
-        Ui.springPress(this)
     }
 
     private fun setFilter(shield: Boolean) {
@@ -136,6 +112,7 @@ class TabSwitcher(
         // Light mode lets more of the browser through than dark mode.
         setBackgroundColor(((if (Ui.dark) 0xEB else 0xB0) shl 24) or (Ui.PAPER and 0x00FFFFFF))
         render()
+        scroll.scrollTo(0, 0)
         showing = true
         animate().cancel()
         visibility = VISIBLE
@@ -144,7 +121,7 @@ class TabSwitcher(
         animate().alpha(1f).translationY(0f).setDuration(340).setInterpolator(SpringInterpolator()).start()
     }
 
-    // The list changed while it is open (a tab closed): drawn again in place.
+    // The list changed while it is open (a tab closed or opened): drawn again in place.
     fun update(list: List<Item>, activeIndex: Int) {
         items = list
         active = activeIndex
@@ -154,28 +131,65 @@ class TabSwitcher(
     fun hide() {
         if (!showing) return
         showing = false
+        onHidden()
         animate().cancel()
         animate().alpha(0f).translationY(Ui.dp(context, 40).toFloat()).setDuration(220)
             .withEndAction { if (!showing) visibility = GONE }.start()
     }
 
-    // The New tab pill says so when the limit is reached.
-    fun limitNote(text: String) {
-        newButton.text = text
-        newButton.removeCallbacks(resetPill)
-        newButton.postDelayed(resetPill, 1800)
-    }
+    // The + shakes when the limit of tabs is reached.
+    fun limitNote() = plus.shake()
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (showing && w != oldw) render()
     }
 
+    // A pull down that starts on empty space (not on a card or a button) while the list is at its top closes the sheet.
+    override fun dispatchTouchEvent(e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                pullX = e.rawX
+                pullY = e.rawY
+                pulled = false
+                pulling = scroll.scrollY == 0 && !onControl(e.rawX, e.rawY)
+            }
+            MotionEvent.ACTION_MOVE -> if (pulling && !pulled) {
+                val dy = e.rawY - pullY
+                if (dy > Ui.dp(context, 64) && dy > abs(e.rawX - pullX) * 1.5f) {
+                    pulled = true
+                    val cancel = MotionEvent.obtain(e)
+                    cancel.action = MotionEvent.ACTION_CANCEL
+                    super.dispatchTouchEvent(cancel)
+                    cancel.recycle()
+                    hide()
+                }
+            }
+        }
+        if (pulled) {
+            if (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL) pulled = false
+            return true
+        }
+        return super.dispatchTouchEvent(e)
+    }
+
+    private fun onControl(x: Float, y: Float): Boolean {
+        fun inside(v: View): Boolean {
+            val at = IntArray(2)
+            v.getLocationOnScreen(at)
+            return x >= at[0] && x <= at[0] + v.width && y >= at[1] && y <= at[1] + v.height
+        }
+        if (inside(allButton) || inside(shieldButton) || inside(plus)) return true
+        for (r in 0 until grid.childCount) {
+            val row = grid.getChildAt(r) as? ViewGroup ?: continue
+            for (c in 0 until row.childCount) if (row.getChildAt(c) is TabCard && inside(row.getChildAt(c))) return true
+        }
+        return false
+    }
+
     private fun render() {
-        val shields = items.count { it.shield }
-        subtitle.text = (if (items.size == 1) "1 open" else "${items.size} open") + if (shields > 0) ", $shields in Shield" else ""
-        Ui.choiceLook(context, allChip, !shieldOnly)
-        Ui.choiceLook(context, shieldChip, shieldOnly)
+        allButton.set(items.size, !shieldOnly)
+        shieldButton.set(items.count { it.shield }, shieldOnly)
         grid.removeAllViews()
         val shown = items.withIndex().filter { !shieldOnly || it.value.shield }
         if (shown.isEmpty()) {
@@ -215,9 +229,92 @@ class TabSwitcher(
     }
 }
 
-// The round cross at the top right of the sheet.
+// The shield of the Shield button (DECISIONS.md 129) as one drawing for the tab list: body in `body`, keyhole in `hole`.
+private fun drawShieldGlyph(canvas: Canvas, path: Path, paint: Paint, cx: Float, cy: Float, r: Float, body: Int, hole: Int?) {
+    path.reset()
+    path.moveTo(cx, cy - r * 1.08f)
+    path.lineTo(cx + r * 0.92f, cy - r * 0.72f)
+    path.lineTo(cx + r * 0.92f, cy + r * 0.08f)
+    path.quadTo(cx + r * 0.92f, cy + r * 0.78f, cx, cy + r * 1.1f)
+    path.quadTo(cx - r * 0.92f, cy + r * 0.78f, cx - r * 0.92f, cy + r * 0.08f)
+    path.lineTo(cx - r * 0.92f, cy - r * 0.72f)
+    path.close()
+    paint.style = Paint.Style.FILL
+    paint.color = body
+    canvas.drawPath(path, paint)
+    if (hole == null) return
+    paint.color = hole
+    canvas.drawCircle(cx, cy - r * 0.22f, r * 0.27f, paint)
+    path.reset()
+    path.moveTo(cx - r * 0.12f, cy - r * 0.05f)
+    path.lineTo(cx + r * 0.12f, cy - r * 0.05f)
+    path.lineTo(cx + r * 0.22f, cy + r * 0.55f)
+    path.lineTo(cx - r * 0.22f, cy + r * 0.55f)
+    path.close()
+    canvas.drawPath(path, paint)
+}
+
+// A filter button with a number inside: the tab square (all tabs) or the ember shield (Shield tabs). The number is centred
+// for one digit and for two. The chosen filter has an ember outline.
 @SuppressLint("ViewConstructor")
-private class CloseDisc(context: Context) : View(context) {
+private class CountButton(context: Context, private val shield: Boolean, private val tap: () -> Unit) : View(context) {
+    private var count = 0
+    private var chosen = false
+    private val back = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val glyph = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val path = Path()
+    private val box = RectF()
+    private val digits = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        textAlign = Paint.Align.CENTER
+    }
+
+    init {
+        isClickable = true
+        contentDescription = if (shield) "Shield tabs" else "All tabs"
+        setOnClickListener { tap() }
+        Ui.springPress(this)
+    }
+
+    fun set(number: Int, selected: Boolean) {
+        count = number
+        chosen = selected
+        invalidate()
+    }
+
+    private fun d(n: Int) = Ui.dp(context, n).toFloat()
+
+    override fun onDraw(canvas: Canvas) {
+        box.set(d(2), d(2), width - d(2), height - d(2))
+        back.color = Ui.CARD
+        canvas.drawRoundRect(box, d(16), d(16), back)
+        line.strokeWidth = if (chosen) d(2) else d(1)
+        line.color = if (chosen) Ui.EMBER else Ui.LINE
+        canvas.drawRoundRect(box, d(16), d(16), line)
+        val cx = width / 2f
+        val cy = height / 2f
+        val text = if (count > 99) "99" else count.toString()
+        digits.textSize = Ui.textPx(context, if (count > 9) 11f else 14f)
+        val baseline = cy - (digits.ascent() + digits.descent()) / 2f
+        if (shield) {
+            drawShieldGlyph(canvas, path, glyph, cx, cy, d(14), Ui.EMBER, null)
+            digits.color = 0xFFFFFFFF.toInt()
+            canvas.drawText(text, cx, baseline - d(1), digits)
+        } else {
+            line.strokeWidth = d(2)
+            line.color = Ui.INK
+            val half = d(12)
+            canvas.drawRoundRect(cx - half, cy - half, cx + half, cy + half, d(6), d(6), line)
+            digits.color = Ui.INK
+            canvas.drawText(text, cx, baseline, digits)
+        }
+    }
+}
+
+// The + at the top right: a tap adds a tab, a long press a Shield tab.
+@SuppressLint("ViewConstructor")
+private class PlusDisc(context: Context, private val tap: () -> Unit, private val hold: () -> Unit) : View(context) {
     private val disc = Paint(Paint.ANTI_ALIAS_FLAG)
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -226,7 +323,23 @@ private class CloseDisc(context: Context) : View(context) {
 
     init {
         isClickable = true
+        contentDescription = "New tab. Long press for a new Shield tab"
+        setOnClickListener { tap() }
+        setOnLongClickListener {
+            performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            hold()
+            true
+        }
         Ui.springPress(this)
+    }
+
+    fun shake() {
+        animate().cancel()
+        animate().translationX(-Ui.dp(context, 6).toFloat()).setDuration(50).withEndAction {
+            animate().translationX(Ui.dp(context, 6).toFloat()).setDuration(80).withEndAction {
+                animate().translationX(0f).setDuration(80).start()
+            }.start()
+        }.start()
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -238,9 +351,9 @@ private class CloseDisc(context: Context) : View(context) {
         canvas.drawCircle(cx, cy, r, disc)
         line.color = Ui.INK
         line.strokeWidth = Ui.dp(context, 2).toFloat()
-        val k = r * 0.32f
-        canvas.drawLine(cx - k, cy - k, cx + k, cy + k, line)
-        canvas.drawLine(cx - k, cy + k, cx + k, cy - k, line)
+        val k = r * 0.42f
+        canvas.drawLine(cx - k, cy, cx + k, cy, line)
+        canvas.drawLine(cx, cy - k, cx, cy + k, line)
     }
 }
 
@@ -351,30 +464,15 @@ private class TabCard(
         line.color = if (active) Ui.EMBER else Ui.LINE
         canvas.drawRoundRect(box, radius, radius, line)
 
-        if (item.shield) drawShield(canvas, box.right - d(24), box.top + d(24))
+        if (item.shield) drawShield(canvas, box.right - d(22), box.top + d(24))
     }
 
     private fun initialOf(): String =
         if (item.start) "A" else (item.host.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "•")
 
-    // A small ember shield on a round chip.
+    // The Shield button's shield, small, at the top right: ember with a paper keyhole.
     private fun drawShield(canvas: Canvas, cx: Float, cy: Float) {
-        fill.color = Ui.CARD
-        fill.alpha = 0xE6
-        canvas.drawCircle(cx, cy, d(14), fill)
-        fill.alpha = 255
-        val w = d(7)
-        val h = d(8)
-        shieldPath.reset()
-        shieldPath.moveTo(cx, cy - h)
-        shieldPath.lineTo(cx + w, cy - h * 0.62f)
-        shieldPath.quadTo(cx + w, cy + h * 0.35f, cx, cy + h)
-        shieldPath.quadTo(cx - w, cy + h * 0.35f, cx - w, cy - h * 0.62f)
-        shieldPath.close()
-        fill.color = Ui.EMBER
-        canvas.drawPath(shieldPath, fill)
-        fill.color = Ui.CARD
-        canvas.drawCircle(cx, cy - h * 0.1f, d(1) + 0.8f, fill)
+        drawShieldGlyph(canvas, shieldPath, fill, cx, cy, d(10), Ui.EMBER, Ui.CARD)
     }
 
     // Swipe to either side closes the tab; a tap opens it.

@@ -49,7 +49,9 @@ class MainActivity : Activity() {
     private var failedUrl: String? = null
     private lateinit var buttonGroup: LinearLayout
     private var builtDark = false
-    private var privateOn = EngineAdapter.privateActive // the Private button's state (DECISIONS.md 134)
+    // Shield Mode of the active tab (DECISIONS.md 134, 163); the Shield button shows it.
+    private val privateOn: Boolean get() = EngineAdapter.activeTab()?.shield == true
+    private lateinit var privateButton: IconButton
     private var startBack = false // the start screen was reached by Back through the page history (DECISIONS.md 138)
     private var lastExitBack = 0L
     private var homeOver = false // the start screen is shown over a page the user left with Home (DECISIONS.md 127)
@@ -324,7 +326,7 @@ class MainActivity : Activity() {
             setOnClickListener { openTabs() }
             onSwipeDown = { openTabs() }
         }
-        val privateButton = IconButton(this, IconButton.Kind.PRIVATE).apply {
+        privateButton = IconButton(this, IconButton.Kind.PRIVATE).apply {
             contentDescription = if (privateOn) "Shield Mode, on" else "Shield Mode, off"
             if (privateOn) setOn(true)
             setOnClickListener { togglePrivate(this) }
@@ -408,7 +410,7 @@ class MainActivity : Activity() {
                 topMargin = px(8) + Ui.sdp(this@MainActivity, 36) + px(10) + px(8)
             },
         )
-        tabSwitcher = TabSwitcher(this, ::switchTo, ::closeTabAt, ::openNewTab)
+        tabSwitcher = TabSwitcher(this, ::switchTo, ::closeTabAt, ::openNewTab) { applySecure() }
         root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         findBar = FindBar(this, { EngineAdapter.findAll(it) }, { EngineAdapter.findNext(it) }, ::closeFind).apply { visibility = View.GONE }
@@ -718,6 +720,13 @@ class MainActivity : Activity() {
     }
 
     // Tabs (DECISIONS.md 161). Each tab keeps its own page, history and start-screen state; the screen shows one.
+    // The Shield button and the secure window follow the active tab.
+    private fun refreshShield() {
+        privateButton.setOn(privateOn)
+        privateButton.contentDescription = if (privateOn) "Shield Mode, on" else "Shield Mode, off"
+        applySecure()
+    }
+
     private fun refreshTabCount() {
         tabsButton.count = EngineAdapter.tabs.size
     }
@@ -765,6 +774,7 @@ class MainActivity : Activity() {
         pageView = view
         applyEnginePrefs()
         showTabState()
+        refreshShield()
         if (wakeUrl != null) {
             EngineAdapter.load(wakeUrl)
             if (hasPage) beginNavigation(wakeUrl)
@@ -774,9 +784,7 @@ class MainActivity : Activity() {
 
     private fun tabItems(): List<TabSwitcher.Item> {
         val active = EngineAdapter.activeIndex()
-        // Shield Mode is one switch for every tab until it is per tab (DECISIONS.md 134, 162).
-        val shield = privateOn
-        val showPicture = !shield || Prefs.get(this, Prefs.SHIELD_PREVIEW)
+        val pictureForShield = Prefs.get(this, Prefs.SHIELD_PREVIEW)
         return EngineAdapter.tabs.mapIndexed { i, tab ->
             // A tab whose start screen is up is listed as the start page, whatever page lies under it.
             val start = if (i == active) !hasPage else tab.blank || tab.home
@@ -787,8 +795,8 @@ class MainActivity : Activity() {
                 if (start) "Start page" else title,
                 if (start) "Ardour" else host,
                 start,
-                shield,
-                if (showPicture) tab.preview else null,
+                tab.shield,
+                if (!tab.shield || pictureForShield) tab.preview else null,
             )
         }
     }
@@ -797,7 +805,7 @@ class MainActivity : Activity() {
     // unless Settings allows its preview. Memory only (DECISIONS.md 162).
     private fun capturePreview() {
         val tab = EngineAdapter.activeTab() ?: return
-        if (privateOn && !Prefs.get(this, Prefs.SHIELD_PREVIEW)) {
+        if (tab.shield && !Prefs.get(this, Prefs.SHIELD_PREVIEW)) {
             tab.preview = null
             return
         }
@@ -827,6 +835,7 @@ class MainActivity : Activity() {
         saveTabState()
         capturePreview()
         tabSwitcher.show(tabItems(), EngineAdapter.activeIndex())
+        applySecure()
     }
 
     private fun switchTo(index: Int) {
@@ -836,19 +845,56 @@ class MainActivity : Activity() {
         activate(index)
     }
 
-    private fun openNewTab() {
+    // A tap on + opens a normal tab, a long press a Shield tab (DECISIONS.md 163).
+    private fun openNewTab(shield: Boolean) {
         if (EngineAdapter.tabs.size >= EngineAdapter.MAX_TABS) {
-            tabSwitcher.limitNote("Limit of ${EngineAdapter.MAX_TABS} tabs")
+            tabSwitcher.limitNote()
             return
         }
         saveTabState()
         tabSwitcher.hide()
-        activate(EngineAdapter.newTab())
+        val index = EngineAdapter.newTab()
+        if (shield) EngineAdapter.startShield(EngineAdapter.tabs[index])
+        activate(index)
     }
 
-    // Closes a tab. The next one (or, for the last, a new empty one) takes its place when it was the active one.
+    // Closes a tab. A Shield tab first follows the Settings choice for leaving Shield Mode: delete what it added, keep, or ask.
     private fun closeTabAt(index: Int) {
-        if (index !in EngineAdapter.tabs.indices) return
+        val tab = EngineAdapter.tabs.getOrNull(index) ?: return
+        if (!tab.shield) {
+            removeTab(tab)
+            return
+        }
+        when (Prefs.getString(this, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_ASK)) {
+            Prefs.LEAVE_DELETE -> {
+                EngineAdapter.endShield(tab, true)
+                removeTab(tab)
+            }
+            Prefs.LEAVE_KEEP -> {
+                EngineAdapter.endShield(tab, false)
+                removeTab(tab)
+            }
+            else -> sheet.show(
+                title = "Close Shield tab?",
+                body = "Delete all removes the cookies, site data and cache this tab's Shield Mode session added. Sign-ins you already had stay.",
+                confirm = "Delete all",
+                cancelLabel = "Continue as is",
+                onCancelTap = {
+                    EngineAdapter.endShield(tab, false)
+                    removeTab(tab)
+                },
+                dangerConfirm = true,
+            ) {
+                EngineAdapter.endShield(tab, true)
+                removeTab(tab)
+            }
+        }
+    }
+
+    // The next tab (or, for the last, a new empty one) takes its place when the closed one was the active one.
+    private fun removeTab(tab: Tab) {
+        val index = EngineAdapter.tabs.indexOf(tab)
+        if (index < 0) return
         val wasActive = index == EngineAdapter.activeIndex()
         if (wasActive) {
             pageView?.let { pageArea.removeView(it) }
@@ -860,6 +906,7 @@ class MainActivity : Activity() {
         if (EngineAdapter.tabs.isEmpty()) EngineAdapter.newTab()
         if (wasActive) activate(minOf(index, EngineAdapter.tabs.lastIndex)) else refreshTabCount()
         tabSwitcher.update(tabItems(), EngineAdapter.activeIndex())
+        applySecure()
     }
 
     // A screen built again (theme change, ended renderer) shows the active tab's page again.
@@ -1052,14 +1099,15 @@ class MainActivity : Activity() {
     // Screenshots in Shield Mode (DECISIONS.md 156): while it is on the window is secure, so screenshots, screen recordings
     // and casting show nothing, unless the Settings switch allows them. Shield Mode off: never secure.
     private fun applySecure() {
-        val secure = privateOn && !Prefs.get(this, Prefs.SHIELD_SHOTS)
+        // Secure while the active tab is shielded, and while the tab list is up and any tab is.
+        val listUp = ::tabSwitcher.isInitialized && tabSwitcher.showing && EngineAdapter.privateActive
+        val secure = (privateOn || listUp) && !Prefs.get(this, Prefs.SHIELD_SHOTS)
         if (secure) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 
     private fun togglePrivate(button: IconButton) {
         if (!privateOn) {
-            privateOn = true
-            EngineAdapter.setPrivate(true)
+            EngineAdapter.activeTab()?.let { EngineAdapter.startShield(it) }
             applySecure()
             button.setOn(true)
             button.contentDescription = "Shield Mode, on"
@@ -1071,7 +1119,7 @@ class MainActivity : Activity() {
             Prefs.LEAVE_KEEP -> leavePrivate(button, false)
             else -> sheet.show(
                 title = "Leave Shield Mode?",
-                body = "Delete all removes the cookies, site data and cache this Shield Mode session added. Sign-ins you already had stay.",
+                body = "Delete all removes the cookies, site data and cache this tab's Shield Mode session added. Sign-ins you already had stay.",
                 confirm = "Delete all",
                 cancelLabel = "Continue as is",
                 onCancelTap = { leavePrivate(button, false) },
@@ -1101,9 +1149,7 @@ class MainActivity : Activity() {
     }
 
     private fun leavePrivate(button: IconButton, delete: Boolean) {
-        if (delete) EngineAdapter.deletePrivateAdditions()
-        EngineAdapter.setPrivate(false)
-        privateOn = false
+        EngineAdapter.activeTab()?.let { EngineAdapter.endShield(it, delete) }
         applySecure()
         button.setOn(false)
         button.contentDescription = "Shield Mode, off"
@@ -1327,7 +1373,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        if (isFinishing && privateOn && Prefs.get(this, Prefs.PRIVATE_CLOSE)) EngineAdapter.deletePrivateAdditions()
+        if (isFinishing && EngineAdapter.privateActive && Prefs.get(this, Prefs.PRIVATE_CLOSE)) EngineAdapter.deletePrivateAdditions()
         saveTabState()
         EngineAdapter.destroy(keepTabs = !isFinishing)
         super.onDestroy()
