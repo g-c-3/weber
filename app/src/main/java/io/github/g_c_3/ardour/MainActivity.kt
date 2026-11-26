@@ -711,7 +711,10 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         setBackgroundColor(Ui.PAPER)
         clipChildren = false
-        searchBlock = StartSearch(this@MainActivity) { submit(it) }.also { it.onEngineChanged = { address.refreshHint() } }
+        searchBlock = StartSearch(this@MainActivity) { submit(it) }.also {
+            it.onEngineChanged = { address.refreshHint() }
+            it.onBoxFocus = { focused -> fadeField(address, !focused) }
+        }
         addView(searchBlock, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             marginStart = px(24)
             marginEnd = px(24)
@@ -1410,8 +1413,21 @@ class MainActivity : Activity() {
     private fun onAddressFocus(focused: Boolean) {
         if (focused && finding) closeFind()
         if (!focused) closeSuggestions()
+        if (::searchBlock.isInitialized) fadeField(searchBlock, !focused)
         setExpanded(focused)
         refreshBack()
+    }
+
+    // On the start page only one of the two search fields shows while the other is in use: the top address bar and the box
+    // in the middle do the same thing (DECISIONS.md 175). The faded one keeps its place, so nothing moves.
+    private fun fadeField(v: View, show: Boolean) {
+        v.animate().cancel()
+        if (show) {
+            v.visibility = View.VISIBLE
+            v.animate().alpha(1f).setDuration(240).start()
+        } else {
+            v.animate().alpha(0f).setDuration(200).withEndAction { v.visibility = View.INVISIBLE }.start()
+        }
     }
 
     private fun leaveAddress() {
@@ -1440,6 +1456,10 @@ class MainActivity : Activity() {
         }
         if (address.input.hasFocus()) {
             leaveAddress()
+            return true
+        }
+        if (::searchBlock.isInitialized && searchBlock.boxFocused()) {
+            searchBlock.leaveBox()
             return true
         }
         if (homeOver && !startBack) {

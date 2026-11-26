@@ -44,6 +44,15 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
     private val glowShader = RadialGradient(0f, 0f, Ui.dp(context, 7).toFloat(), intArrayOf(0x70F2791A, 0x00F2791A), null, Shader.TileMode.CLAMP)
     private val rect = RectF()
     private var progress = 0f
+
+    // When a strip splits and when its cells come away, in strip time (1 is the bottom). A strip stays whole through the upper
+    // part of the screen and is dust before the bottom; on a landscape screen, which is short, only a fraction of that whole
+    // stretch is kept (DECISIONS.md 175).
+    private var splitAt = 0.66f
+    private var splitSpan = 0.2f
+    private var thetaMin = 0.78f
+    private var thetaSpan = 0.18f
+    private var morph = 0.08f
     private var animator: ValueAnimator? = null
 
     init {
@@ -72,7 +81,7 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
     private fun offX(col: Int, cw: Float, jitter: Float, split: Float) =
         (col - 1) * cw + (col - 1) * Ui.dp(context, 1) * 1.4f * split + jitter * Ui.dp(context, 1) * 2.5f * split
 
-    private fun offY(row: Int, ch: Float, split: Float) = (row - (ROWS - 1) / 2f) * ch * (1f + 0.5f * split)
+    private fun offY(row: Int, ch: Float, split: Float) = (row - (ROWS - 1) / 2f) * ch * (1f + 0.25f * split)
 
     private fun start() {
         if (width == 0 || height == 0) {
@@ -80,6 +89,13 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
             return
         }
         val random = Random(System.nanoTime())
+        if (width > height) {
+            splitAt = 0.32f
+            splitSpan = 0.25f
+            thetaMin = 0.44f
+            thetaSpan = 0.36f
+            morph = 0.1f
+        }
         val slotTop = slotY.toFloat()
         val fall = height - slotTop
         val sway = Ui.dp(context, 5)
@@ -104,8 +120,8 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
             for (c in 0 until N) {
                 val row = c / COLS
                 // The tail (top rows) comes away first, the leading end last, with chance in between.
-                theta[c] = 0.26f + 0.5f * (0.6f * random.nextFloat() + 0.4f * row / (ROWS - 1f))
-                val split = smooth((theta[c] - 0.15f) / 0.3f)
+                theta[c] = thetaMin + thetaSpan * (0.6f * random.nextFloat() + 0.4f * row / (ROWS - 1f))
+                val split = smooth((theta[c] - splitAt) / splitSpan)
                 val ox = offX(c % COLS, cw, jx[c], split)
                 val oy = offY(row, ch, split)
                 val tilt = (spin * sin(theta[c] * PI.toFloat()) * PI / 180.0).toFloat()
@@ -119,7 +135,7 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
                     // Strips leave the line in a loose sweep from the left with some jitter.
                     delay = (i.toFloat() / count) * 0.24f + random.nextFloat() * 0.08f,
                     phase = phase, spin = spin, theta = theta, wx = wx, wy = wy, ease0 = e0,
-                    slow = FloatArray(N) { 0.45f + random.nextFloat() * 0.4f },
+                    slow = FloatArray(N) { 0.2f + random.nextFloat() * 0.3f },
                     drift = FloatArray(N) { (random.nextFloat() - 0.5f) * Ui.dp(context, 52) },
                     size = FloatArray(N) { Ui.dp(context, 1) * (0.7f + random.nextFloat() * 1.3f) },
                     tone = IntArray(N) { if (random.nextFloat() < 0.7f) color else PALETTE[random.nextInt(PALETTE.size)] },
@@ -167,7 +183,7 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
         val tilt = s.spin * sin(min(t, 1f) * PI.toFloat())
         val appear = min(t / 0.08f, 1f)
         fill.color = (s.color and 0x00FFFFFF) or ((255 * appear).toInt() shl 24)
-        if (t < 0.15f) {
+        if (t < splitAt) {
             // Whole: one strip.
             canvas.save()
             canvas.translate(cx, cy)
@@ -184,7 +200,7 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
         }
         val cw = s.w / COLS
         val ch = s.len / ROWS
-        val split = smooth((t - 0.15f) / 0.3f)
+        val split = smooth((t - splitAt) / splitSpan)
         // Cells still in the strip: drawn in its tilted frame.
         canvas.save()
         canvas.translate(cx, cy)
@@ -200,11 +216,11 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
         // Cells that came away: they shrink to scraps, fall slower than the strip, flutter, and fade before the bottom.
         val e = ease(t)
         val timeFade = ((END - t) / 0.25f).coerceIn(0f, 1f)
-        val zone = Ui.dp(context, 24).toFloat()
+        val zone = Ui.dp(context, 36).toFloat()
         for (c in 0 until N) {
             if (t < s.theta[c]) continue
             val u = t - s.theta[c]
-            val k = smooth(u / MORPH)
+            val k = smooth(u / morph)
             val y = s.wy[c] + fall * (e - s.ease0[c]) * s.slow[c]
             val a = ((bottom - y) / zone).coerceIn(0f, 1f) * timeFade
             if (a <= 0f) continue
@@ -241,12 +257,11 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
     }
 
     private companion object {
-        // Strip time t runs 0 to END; a strip would meet the bottom at t = 1, but is dust by about 0.85. FALL is the share of
-        // the animation one unit of t takes; LINE the share the line takes to fill. MORPH is how long a cell takes to shrink.
+        // Strip time t runs 0 to END; a strip would meet the bottom at t = 1, but is dust before it. FALL is the share of
+        // the animation one unit of t takes; LINE the share the line takes to fill. 
         const val FALL = 0.5f
         const val END = 1.35f
         const val LINE = 0.3f
-        const val MORPH = 0.1f
         const val COLS = 3
         const val ROWS = 6
         const val N = COLS * ROWS

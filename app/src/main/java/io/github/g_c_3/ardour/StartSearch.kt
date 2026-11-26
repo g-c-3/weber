@@ -93,6 +93,9 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
 
     // Set by the activity: the top address bar follows an engine change made here.
     var onEngineChanged: (() -> Unit)? = null
+
+    // The box gained or lost focus: the top address bar fades for it (DECISIONS.md 175).
+    var onBoxFocus: ((Boolean) -> Unit)? = null
     private val suggestList = SuggestionList(activity) { pick ->
         closeSuggestions()
         submitTyped(pick)
@@ -109,7 +112,10 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
         slot.addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         addView(slot, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.sdp(activity, 54)))
         addView(box, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.sdp(activity, 50)))
-        box.onFocus = ::showBar
+        box.onFocus = { focused ->
+            showBar(focused)
+            onBoxFocus?.invoke(focused)
+        }
         box.input.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -247,6 +253,10 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
         mic.setListening(false)
         showStatus(null)
     }
+
+    fun boxFocused(): Boolean = box.input.hasFocus()
+
+    fun leaveBox() = box.hideKeyboard()
 
     // The start page is hidden or shown again: nothing typed, heard or listening stays.
     fun reset() {
