@@ -546,7 +546,12 @@ object EngineAdapter {
     // The app theme changed under the open page views: they read it again, so pages that follow the colour scheme can
     // change without being loaded again (DECISIONS.md 164).
     fun themeChanged() {
-        for (tab in tabList) tab.engineView?.let { it.dispatchConfigurationChanged(it.resources.configuration) }
+        for (tab in tabList) {
+            tab.engineView?.let {
+                it.setBackgroundColor(Ui.PAPER)
+                it.dispatchConfigurationChanged(it.resources.configuration)
+            }
+        }
     }
 
     fun canGoForward(): Boolean = webView?.canGoForward() == true

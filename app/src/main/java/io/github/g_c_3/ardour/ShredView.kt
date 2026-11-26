@@ -48,8 +48,9 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
             return
         }
         val random = Random(System.nanoTime())
-        val count = 78
-        val unit = width.toFloat() / count
+        // Strip width is the same on every screen: 78 across a 360 dp wide portrait screen, more across a wider one (DECISIONS.md 168).
+        val unit = Ui.dp(context, 360).toFloat() / 78f
+        val count = (width / unit).toInt().coerceAtLeast(1)
         val gap = Ui.dp(context, 1) * 0.6f
         for (i in 0 until count) {
             strips.add(

@@ -77,10 +77,10 @@ class TabSwitcher(
             addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 58), Ui.dp(context, 42)).apply { marginStart = Ui.dp(context, 8) })
         }
         head.addView(filters, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
-        head.addView(plus, LayoutParams(Ui.dp(context, 34), Ui.dp(context, 34), Gravity.END or Gravity.CENTER_VERTICAL))
+        head.addView(plus, LayoutParams(Ui.dp(context, 26), Ui.dp(context, 26), Gravity.END or Gravity.CENTER_VERTICAL))
         head.addView(
             viewToggle,
-            LayoutParams(Ui.dp(context, 34), Ui.dp(context, 34), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = Ui.dp(context, 44) },
+            LayoutParams(Ui.dp(context, 26), Ui.dp(context, 26), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = Ui.dp(context, 38) },
         )
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -385,7 +385,7 @@ private class ViewToggle(context: Context, private val tap: () -> Unit) : View(c
         val cy = height / 2f
         val k = min(width, height) * 0.34f
         line.color = Ui.INK
-        line.strokeWidth = Ui.dp(context, 3).toFloat()
+        line.strokeWidth = Ui.dp(context, 2.5f).toFloat()
         if (Prefs.get(context, Prefs.TAB_LIST)) {
             val g = k * 0.18f
             for (i in 0..1) for (j in 0..1) {
@@ -433,7 +433,7 @@ private class PlusDisc(context: Context, private val tap: () -> Unit, private va
         val cx = width / 2f
         val cy = height / 2f
         line.color = Ui.INK
-        line.strokeWidth = Ui.dp(context, 3).toFloat()
+        line.strokeWidth = Ui.dp(context, 2.5f).toFloat()
         val k = min(width, height) * 0.34f
         canvas.drawLine(cx - k, cy, cx + k, cy, line)
         canvas.drawLine(cx, cy - k, cx, cy + k, line)

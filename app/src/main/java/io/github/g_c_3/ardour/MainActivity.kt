@@ -822,7 +822,9 @@ class MainActivity : Activity() {
         val start = tab.blank || tab.home
         searchBlock.reset()
         startView.animate().cancel()
+        // A cancelled slide-in leaves the view part way: put it in place (DECISIONS.md 168, NOTES 23).
         startView.alpha = 1f
+        startView.translationY = 0f
         startView.visibility = if (start) View.VISIBLE else View.GONE
         address.showUrl(if (start) "" else tab.url.orEmpty())
         listener.onLoading(hasPage && EngineAdapter.activeProgress() < 100)
