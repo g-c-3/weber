@@ -168,7 +168,8 @@ class IconButton(context: Context, kind: Kind) : View(context) {
     init {
         isClickable = true
         isFocusable = true
-        Ui.springPress(this) { warm(it) }
+        // The menu dots have no press animation: no squeeze, no colour change, no follow of a swipe (DECISIONS.md 169).
+        if (kind != Kind.MENU) Ui.springPress(this) { warm(it) }
     }
 
     override fun setEnabled(enabled: Boolean) {
@@ -216,7 +217,7 @@ class IconButton(context: Context, kind: Kind) : View(context) {
                 val dy = event.rawY - downY
                 val dx = event.rawX - downX
                 if (!swiped) {
-                    if (dy > 0f && dy > abs(dx)) translationY = min(dy * 0.35f, followLimit)
+                    if (kind != Kind.MENU && dy > 0f && dy > abs(dx)) translationY = min(dy * 0.35f, followLimit)
                     if (dy >= swipeDistance && dy > abs(dx) * 1.2f) {
                         swiped = true
                         val cancel = MotionEvent.obtain(event)
@@ -338,9 +339,9 @@ class IconButton(context: Context, kind: Kind) : View(context) {
                 canvas.drawPath(path, keyhole)
             }
             Kind.MENU -> {
-                // The dots span the same height as the Tabs square (DECISIONS.md 128).
-                val dotR = Ui.dp(context, 2).toFloat() * 1.05f
-                val gap = (r * 1.9f + stroke.strokeWidth) / 2f - dotR
+                // Smaller dots, close together (DECISIONS.md 169).
+                val dotR = Ui.dp(context, 1.5f)
+                val gap = dotR * 3.6f
                 for (i in -1..1) canvas.drawCircle(cx, cy + i * gap, dotR, dot)
             }
         }

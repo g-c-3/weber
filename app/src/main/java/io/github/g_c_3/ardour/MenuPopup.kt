@@ -5,10 +5,7 @@ import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.LinearGradient
-import android.graphics.Shader
 import android.graphics.Paint
-import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.TypedValue
 import android.graphics.drawable.ColorDrawable
@@ -262,23 +259,19 @@ object MenuPopup {
     }
 }
 
-// Slim pill switch (DECISIONS.md 140, 141): the track fills with an ember to amber gradient when on, with no glow; the
-// knob is white with a faint shadow and stretches while it travels, settling with the shared spring.
+// Line switch (DECISIONS.md 169): a thin track with a round knob. Off: a grey line and a hollow cream knob with a grey ring
+// at the left; on: an ember line up to a solid ember knob at the right. The knob travels with the shared spring.
 class ToggleSwitch(context: Context, initial: Boolean) : View(context) {
     private var pos = if (initial) 1f else 0f
     private var anim: ValueAnimator? = null
-    private val track = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = Ui.dp(context, 1).toFloat()
-        color = 0x1F000000
+        strokeCap = Paint.Cap.ROUND
     }
-    private val knob = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
-    private val knobShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x26000000 }
-    private val rect = RectF()
-    private val offColor = if (Ui.dark) 0xFF3A3C45.toInt() else 0xFFE3E1DC.toInt()
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
     private val mixer = ArgbEvaluator()
-    private var gradient: LinearGradient? = null
 
     var on: Boolean = initial
         set(v) {
@@ -296,38 +289,28 @@ class ToggleSwitch(context: Context, initial: Boolean) : View(context) {
             }
         }
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        gradient = LinearGradient(0f, 0f, w.toFloat(), 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
-    }
-
     override fun onDraw(canvas: Canvas) {
         val w = width.toFloat()
-        val h = height.toFloat()
+        val cy = height / 2f
         val p = pos.coerceIn(0f, 1f)
-        rect.set(0f, 0f, w, h)
-        track.shader = null
-        track.color = mixer.evaluate(p, offColor, Ui.EMBER) as Int
-        canvas.drawRoundRect(rect, h / 2f, h / 2f, track)
+        val r = Ui.dp(context, 8).toFloat()
+        val margin = r + Ui.dp(context, 2)
+        val cx = margin + (w - 2f * margin) * pos.coerceIn(-0.06f, 1.06f)
+        line.strokeWidth = Ui.dp(context, 2).toFloat()
+        line.color = if (Ui.dark) 0xFF4A4C55.toInt() else 0xFFCFCDC8.toInt()
+        canvas.drawLine(margin, cy, w - margin, cy, line)
+        line.color = Ui.EMBER
+        canvas.drawLine(margin, cy, cx, cy, line)
         if (p > 0.01f) {
-            track.shader = gradient
-            track.alpha = (255 * p).toInt()
-            canvas.drawRoundRect(rect, h / 2f, h / 2f, track)
-            track.shader = null
+            glow.color = Ui.EMBER
+            glow.alpha = (0x30 * p).toInt()
+            canvas.drawCircle(cx, cy, r + Ui.dp(context, 3), glow)
         }
-        rect.inset(edge.strokeWidth / 2f, edge.strokeWidth / 2f)
-        edge.alpha = (0x1F * (1f - p)).toInt()
-        canvas.drawRoundRect(rect, h / 2f, h / 2f, edge)
-        val inset = Ui.dp(context, 2).toFloat()
-        val d = h - 2f * inset
-        val stretch = d * 0.4f * kotlin.math.sin(Math.PI * pos.coerceIn(0f, 1f)).toFloat()
-        val kw = d + stretch
-        val left = inset + (w - 2f * inset - kw) * pos
-        rect.set(left, inset, left + kw, inset + d)
-        val lift = Ui.dp(context, 1).toFloat()
-        rect.offset(0f, lift)
-        canvas.drawRoundRect(rect, d / 2f, d / 2f, knobShadow)
-        rect.offset(0f, -lift)
-        canvas.drawRoundRect(rect, d / 2f, d / 2f, knob)
+        fill.color = mixer.evaluate(p, if (Ui.dark) 0xFF2B2C33.toInt() else 0xFFFFF7EF.toInt(), Ui.EMBER) as Int
+        canvas.drawCircle(cx, cy, r, fill)
+        ring.strokeWidth = Ui.dp(context, 2).toFloat()
+        ring.color = mixer.evaluate(p, if (Ui.dark) 0xFF6A6C76.toInt() else 0xFFB4B2AD.toInt(), Ui.EMBER) as Int
+        canvas.drawCircle(cx, cy, r - ring.strokeWidth / 2f, ring)
     }
 
     override fun onDetachedFromWindow() {

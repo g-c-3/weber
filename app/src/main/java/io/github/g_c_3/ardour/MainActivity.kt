@@ -379,7 +379,8 @@ class MainActivity : Activity() {
         buttonGroup = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             for (b in listOf(backButton, forwardButton, reloadButton, homeButton, tabsButton, privateButton, menuButton)) {
-                addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+                // The menu button is narrower; the other six share its room (DECISIONS.md 169).
+                addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, if (b === menuButton) 0.7f else 1f))
             }
         }
         address = AddressField(this, ::submit, ::onAddressFocus)
