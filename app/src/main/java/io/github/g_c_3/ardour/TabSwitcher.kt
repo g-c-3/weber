@@ -52,6 +52,11 @@ class TabSwitcher(
     private var active = 0
     private var shieldOnly = false
 
+    // The card of the open tab, and whether the next drawing scrolls to it: on opening the sheet and after a rotation, so the open
+    // tab is in view however many tabs there are (DECISIONS.md 177). It works on rows, so it holds for more rows in landscape.
+    private var activeCard: View? = null
+    private var centreNext = false
+
     private val grid = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_VERTICAL
@@ -131,6 +136,7 @@ class TabSwitcher(
         shieldOnly = false
         // Light mode lets more of the browser through than dark mode, but is clearly grey (not dark) and much less see-through.
         setBackgroundColor(if (Ui.dark) ((0xEB shl 24) or (Ui.PAPER and 0x00FFFFFF)) else 0xF0C4C5CA.toInt())
+        centreNext = true
         render()
         scroll.scrollTo(0, 0)
         showing = true
@@ -168,6 +174,7 @@ class TabSwitcher(
     private fun queueRender() {
         if (renderQueued) return
         renderQueued = true
+        centreNext = true
         post {
             renderQueued = false
             if (showing) render()
@@ -237,7 +244,30 @@ class TabSwitcher(
         return false
     }
 
+    // The open tab's card is brought to the middle of the sheet once the cards are laid out (as far as the list allows).
+    private fun finishRender() {
+        if (!centreNext || width == 0) return
+        centreNext = false
+        val card = activeCard ?: return
+        scroll.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                scroll.viewTreeObserver.removeOnPreDrawListener(this)
+                if (card.height == 0 || scroll.height == 0 || card.parent == null) return true
+                var y = 0
+                var v: View = card
+                while (v !== scroll && v.parent is View) {
+                    y += v.top
+                    v = v.parent as View
+                }
+                val content = scroll.getChildAt(0)?.height ?: 0
+                scroll.scrollTo(0, (y + card.height / 2 - scroll.height / 2).coerceIn(0, maxOf(content - scroll.height, 0)))
+                return true
+            }
+        })
+    }
+
     private fun render() {
+        activeCard = null
         allButton.set(items.size, !shieldOnly)
         shieldButton.set(items.count { it.shield }, shieldOnly)
         grid.removeAllViews()
@@ -257,12 +287,12 @@ class TabSwitcher(
             // One row to a tab: a small picture, the title and the host.
             for (entry in shown) {
                 val index = entry.index
-                grid.addView(
-                    TabCard(context, entry.value, index == active, true, { onPick(index) }, { onClose(index) }),
-                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 72)).apply { setMargins(gap, gap, gap, gap) },
-                )
+                val card = TabCard(context, entry.value, index == active, true, { onPick(index) }, { onClose(index) })
+                if (index == active) activeCard = card
+                grid.addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 72)).apply { setMargins(gap, gap, gap, gap) })
             }
             grid.requestLayout()
+            finishRender()
             return
         }
         val inner = (width - paddingLeft - paddingRight - Ui.dp(context, 28)).coerceAtLeast(Ui.dp(context, 200))
@@ -284,12 +314,15 @@ class TabSwitcher(
                     .apply { setMargins(gap, gap, gap, gap) }
                 val entry = shown[i + j]
                 val index = entry.index
-                row.addView(TabCard(context, entry.value, index == active, false, { onPick(index) }, { onClose(index) }), params)
+                val card = TabCard(context, entry.value, index == active, false, { onPick(index) }, { onClose(index) })
+                if (index == active) activeCard = card
+                row.addView(card, params)
             }
             grid.addView(row)
             i += columns
         }
         grid.requestLayout()
+        finishRender()
     }
 }
 

@@ -36,6 +36,9 @@ class TabStrip(
     private val row = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.BOTTOM
+        // The tabs overhang the row's padding by their overlap: clipped there, the outer slanted sides lost their outline.
+        clipToPadding = false
+        clipChildren = false
     }
     private val chips = LinkedHashMap<Int, TabChip>()
     private val dying = HashSet<TabChip>()
@@ -273,7 +276,7 @@ class TabStrip(
         ev.recycle()
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         c.animate().cancel()
-        c.animate().scaleX(1.07f).scaleY(1.07f).setDuration(120).start()
+        c.animate().scaleX(1.05f).setDuration(120).start()
         c.translationZ = Ui.dp(context, 8).toFloat()
         dragTo = live().indexOf(c)
         postOnAnimation(edgeScroll)
@@ -406,15 +409,18 @@ private class TabChip(context: Context) : View(context) {
         canvas.drawPath(shape, fill)
         line.color = if (open) Ui.EMBER else Ui.LINE
         canvas.drawPath(shape, line)
-        var left = d * 17
-        if (tab.shield) {
-            drawShieldGlyph(canvas, shieldPath, glyph, left + d * 4, height / 2f, d * 4.5f, Ui.EMBER, null)
-            left += d * 14
-        }
+        // The title is centred; one too long for the tab starts at the left and ends in dots.
+        val shieldW = if (tab.shield) d * 14 else 0f
+        val room = width - d * 34 - shieldW
         text.color = if (open) Ui.INK else Ui.MUTED
-        val room = width - left - d * 17
-        val label = TextUtils.ellipsize(tab.title, text, room, TextUtils.TruncateAt.END).toString()
+        val whole = text.measureText(tab.title)
+        val label = if (whole <= room) tab.title else TextUtils.ellipsize(tab.title, text, room, TextUtils.TruncateAt.END).toString()
+        var x = if (whole <= room) (width - shieldW - text.measureText(label)) / 2f else d * 17
+        if (tab.shield) {
+            drawShieldGlyph(canvas, shieldPath, glyph, x + d * 4, height / 2f, d * 4.5f, Ui.EMBER, null)
+            x += shieldW
+        }
         val base = height / 2f - (text.ascent() + text.descent()) / 2f
-        canvas.drawText(label, left, base, text)
+        canvas.drawText(label, x, base, text)
     }
 }
