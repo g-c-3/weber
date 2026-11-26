@@ -79,19 +79,19 @@ class TabSwitcher(
         val head = FrameLayout(context)
         val filters = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(allButton, LinearLayout.LayoutParams(Ui.dp(context, 66), Ui.dp(context, 48)))
-            addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 66), Ui.dp(context, 48)).apply { marginStart = Ui.dp(context, 8) })
+            addView(allButton, LinearLayout.LayoutParams(Ui.dp(context, 52), Ui.dp(context, 38)))
+            addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 52), Ui.dp(context, 38)).apply { marginStart = Ui.dp(context, 8) })
         }
         head.addView(filters, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
-        head.addView(plus, LayoutParams(Ui.dp(context, 32), Ui.dp(context, 32), Gravity.END or Gravity.CENTER_VERTICAL))
+        head.addView(plus, LayoutParams(Ui.dp(context, 23), Ui.dp(context, 23), Gravity.END or Gravity.CENTER_VERTICAL))
         head.addView(
             viewToggle,
-            LayoutParams(Ui.dp(context, 32), Ui.dp(context, 32), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = Ui.dp(context, 46) },
+            LayoutParams(Ui.dp(context, 23), Ui.dp(context, 23), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = Ui.dp(context, 35) },
         )
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(Ui.dp(context, 14), 0, Ui.dp(context, 14), Ui.dp(context, 60))
-            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 54)))
+            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 42)))
             // With few tabs the cards sit in the middle of the sheet and move up as tabs are added (DECISIONS.md 167).
             addView(grid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
                 topMargin = Ui.dp(context, 4)

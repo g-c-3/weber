@@ -112,16 +112,9 @@ class SettingsActivity : Activity() {
             addView(Ui.divider(this@SettingsActivity))
             addView(switchRow("Top bar tab switch", "Shows your open tabs in a strip above the address bar. Swipe it sideways and tap a tab to switch. After 3 seconds without a pick it glides back to the open tab. It takes about 36 dp of the page height. Off by default.", Prefs.TOP_TABS))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        column.addView(NavCard.build(this, "Diagnostics", "Page load trace and crash log.") {
-            startActivity(Intent(this, DiagnosticsActivity::class.java))
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+        column.addView(bottomRow(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             topMargin = Ui.dp(this@SettingsActivity, 20)
         })
-        defaultBrowserButton()?.let { card ->
-            column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = Ui.dp(this@SettingsActivity, 20)
-            })
-        }
 
         val nothingFound = Ui.body(this, "Nothing found.").apply {
             gravity = Gravity.CENTER
@@ -154,20 +147,68 @@ class SettingsActivity : Activity() {
         if (savedInstanceState == null) Ui.enter((0 until column.childCount).map { column.getChildAt(it) })
     }
 
+    // One line of three buttons (DECISIONS.md 179): Default App (not shown once Ardour holds the role), Ardour (the help page)
+    // and Diagnostics, whose info button explains what it holds.
+    private fun bottomRow(): View {
+        val ctx = this
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+        }
+        fun add(v: View) = row.addView(v, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            if (row.childCount > 0) marginStart = Ui.dp(ctx, 8)
+        })
+        defaultBrowserButton()?.let { add(it) }
+        add(rowButton("Ardour") { startActivity(Intent(ctx, HelpActivity::class.java)) })
+        add(diagnosticsButton())
+        return row
+    }
+
+    private fun rowButton(text: String, onTap: () -> Unit): View = Ui.secondaryButton(this, text).apply {
+        textSize = 14f
+        minHeight = Ui.dp(this@SettingsActivity, 50)
+        setPadding(Ui.dp(this@SettingsActivity, 6), 0, Ui.dp(this@SettingsActivity, 6), 0)
+        setOnClickListener { onTap() }
+    }
+
+    private fun diagnosticsButton(): View {
+        val ctx = this
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            minimumHeight = Ui.dp(ctx, 50)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Ui.CARD)
+                cornerRadius = Ui.dp(ctx, 28).toFloat()
+                setStroke(Ui.dp(ctx, 1), Ui.LINE)
+            }
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Diagnostics"
+            setOnClickListener { startActivity(Intent(ctx, DiagnosticsActivity::class.java)) }
+            Ui.springPress(this)
+            addView(TextView(ctx).apply {
+                text = "Diagnostics"
+                textSize = 14f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(Ui.INK)
+            })
+            addView(InfoButton(ctx).apply {
+                contentDescription = "About Diagnostics"
+                setOnClickListener {
+                    infoSheet.showInfo("Diagnostics", "Page load trace and crash log.\n\nFiles that show what happened when a page stalled or the app stopped. They stay on your phone and are written to Downloads only when you tap Save. Nothing is sent anywhere.")
+                }
+            }, LinearLayout.LayoutParams(Ui.dp(ctx, 30), Ui.dp(ctx, 30)))
+        }
+    }
+
     // Default browser: the system role dialog where Android shows it, otherwise the phone's Default apps screen.
     // Ardour changes nothing itself (DECISIONS.md 54). Only the button is shown, and not once Ardour already holds the role.
     private fun defaultBrowserButton(): View? {
         val roles = getSystemService(RoleManager::class.java)
         val available = roles != null && roles.isRoleAvailable(RoleManager.ROLE_BROWSER)
         if (available && roles.isRoleHeld(RoleManager.ROLE_BROWSER)) return null
-        return Ui.card(this).apply {
-            addView(Ui.secondaryButton(this@SettingsActivity, if (available) "Make Ardour the default" else "Open default apps").apply {
-                setOnClickListener { if (available) requestRole(roles) else openDefaultApps() }
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = Ui.dp(this@SettingsActivity, 8)
-                bottomMargin = Ui.dp(this@SettingsActivity, 8)
-            })
-        }
+        return rowButton("Default App") { if (available) requestRole(roles) else openDefaultApps() }
     }
 
     @Suppress("DEPRECATION")
