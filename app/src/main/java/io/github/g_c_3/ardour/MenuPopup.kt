@@ -34,7 +34,7 @@ class MenuItem(
     val onTap: () -> Unit,
 )
 
-// Card that grows out of the menu button, drawn by Ardour (DECISIONS.md 38, 104): the dots turn, the page dims softly, the
+// Card that grows out of the menu button, drawn by Ardour (DECISIONS.md 38, 104): the page dims softly, the
 // rows settle in one after another; closing reverses it. Thin lines separate the groups of rows.
 object MenuPopup {
     fun show(anchor: View, items: List<MenuItem>) {
@@ -101,10 +101,6 @@ object MenuPopup {
             if (item.dividerBefore) card.addView(divider(context))
             card.addView(row(context, item, ::close))
         }
-        // The menu button turns while the card is open and always turns back, however the card closes.
-        anchor.animate().rotation(90f).setDuration(420).setInterpolator(SpringInterpolator()).start()
-        popup.setOnDismissListener { anchor.animate().rotation(0f).setDuration(420).setInterpolator(SpringInterpolator()).start() }
-
         holder.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val loc = IntArray(2)
         anchor.getLocationOnScreen(loc)

@@ -168,8 +168,16 @@ class IconButton(context: Context, kind: Kind) : View(context) {
     init {
         isClickable = true
         isFocusable = true
-        // The menu dots have no press animation: no squeeze, no colour change, no follow of a swipe (DECISIONS.md 169).
+        // The menu dots turn ember while touched and back to ink once the finger lifts or the menu opens; they never squeeze,
+        // follow a swipe or turn (DECISIONS.md 169, 170).
         if (kind != Kind.MENU) Ui.springPress(this) { warm(it) }
+        else setOnTouchListener { _, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> warm(true)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> warm(false)
+            }
+            false
+        }
     }
 
     override fun setEnabled(enabled: Boolean) {
@@ -225,6 +233,7 @@ class IconButton(context: Context, kind: Kind) : View(context) {
                         super.onTouchEvent(cancel)
                         cancel.recycle()
                         performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        if (kind == Kind.MENU) warm(false)
                         action()
                     }
                 }

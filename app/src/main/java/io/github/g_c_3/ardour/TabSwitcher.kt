@@ -106,6 +106,7 @@ class TabSwitcher(
             } else {
                 v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
             }
+            if (showing) queueRender()
             insets
         }
     }
@@ -160,9 +161,21 @@ class TabSwitcher(
     // The + shakes when the limit of tabs is reached.
     fun limitNote() = plus.shake()
 
+    // The cards are drawn again after the layout pass, never inside it: views added during a layout pass are not measured and\n    // stay empty (a rotation left the sheet without cards, DECISIONS.md 170).
+    private var renderQueued = false
+
+    private fun queueRender() {
+        if (renderQueued) return
+        renderQueued = true
+        post {
+            renderQueued = false
+            if (showing) render()
+        }
+    }
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        if (showing && w != oldw) render()
+        if (showing && (w != oldw || h != oldh)) queueRender()
     }
 
     // A pull down closes the sheet once the list is at its top: from empty space with a short pull, from a card with a longer
@@ -260,16 +273,17 @@ class TabSwitcher(
             .coerceAtLeast(Ui.dp(context, 128))
         var i = 0
         while (i < shown.size) {
+            val inRow = min(columns, shown.size - i)
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            for (j in 0 until columns) {
-                val params = LinearLayout.LayoutParams(0, height, 1f).apply { setMargins(gap, gap, gap, gap) }
-                val entry = shown.getOrNull(i + j)
-                if (entry != null) {
-                    val index = entry.index
-                    row.addView(TabCard(context, entry.value, index == active, false, { onPick(index) }, { onClose(index) }), params)
-                } else {
-                    row.addView(View(context), params)
-                }
+            // A short row (the last one) keeps the card size and sits in the middle; full rows are unchanged (DECISIONS.md 170).
+            val short = inRow < columns
+            if (short) row.gravity = Gravity.CENTER_HORIZONTAL
+            for (j in 0 until inRow) {
+                val params = LinearLayout.LayoutParams(if (short) cardWidth else 0, height, if (short) 0f else 1f)
+                    .apply { setMargins(gap, gap, gap, gap) }
+                val entry = shown[i + j]
+                val index = entry.index
+                row.addView(TabCard(context, entry.value, index == active, false, { onPick(index) }, { onClose(index) }), params)
             }
             grid.addView(row)
             i += columns
