@@ -148,7 +148,7 @@ class ShredView(context: Context, private val slotY: Int, private val onDone: (V
         val slotTop = slotY.toFloat()
         val bottom = height.toFloat()
         val fall = bottom - slotTop
-        val sway = Ui.dp(context, 5)
+        val sway = Ui.dp(context, 5).toFloat()
         canvas.save()
         canvas.clipRect(0f, slotTop, width.toFloat(), bottom)
         for (s in strips) {
