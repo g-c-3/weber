@@ -1,5 +1,7 @@
 package io.github.g_c_3.ardour
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.ClipData
@@ -234,7 +236,7 @@ class MainActivity : Activity() {
             if (Build.VERSION.SDK_INT >= 30) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
                 v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-                liftTopBar(bars.top)
+                spaceTopBar()
             } else {
                 v.setPadding(
                     insets.systemWindowInsetLeft,
@@ -242,7 +244,7 @@ class MainActivity : Activity() {
                     insets.systemWindowInsetRight,
                     insets.systemWindowInsetBottom,
                 )
-                liftTopBar(insets.systemWindowInsetTop)
+                spaceTopBar()
             }
             insets
         }
@@ -310,14 +312,13 @@ class MainActivity : Activity() {
 
     private fun px(n: Int) = Ui.dp(this, n)
 
-    // The status bar's icons sit in the upper part of its height: lift the top row into the free strip below them
-    // (DECISIONS.md 105), never on a short status bar.
-    private fun liftTopBar(statusBarHeight: Int) {
+    // A small gap between the status bar and the top row, so the row does not touch it (DECISIONS.md 171; it replaces the lift
+    // of DECISIONS.md 105).
+    private fun spaceTopBar() {
         if (!::topBar.isInitialized) return
-        val lift = if (statusBarHeight >= px(30)) px(7) else 0
         (topBar.layoutParams as? LinearLayout.LayoutParams)?.let {
-            if (it.topMargin != -lift) {
-                it.topMargin = -lift
+            if (it.topMargin != px(5)) {
+                it.topMargin = px(5)
                 topBar.layoutParams = it
             }
         }
@@ -546,8 +547,13 @@ class MainActivity : Activity() {
     }
 
     private var topNoticeView: TextView? = null
+    private var bubbleDrop = 0f
+    private var bubbleGrow = 0f
+    private var bubbleFold = 0f
+    private var bubbleAnims = ArrayList<ValueAnimator>()
 
-    // A soft pill that slides down under the top bar (DECISIONS.md 166), for a new tab made by the Tabs button's long press.
+    // A bubble drops from the top edge as a small ember-rimmed circle, bubbles out into a pill with the text, holds, then
+    // folds back to a circle and rises away (DECISIONS.md 166, 171). For a new tab made by the Tabs button's long press.
     private fun showTopNotice(text: String) {
         val v = topNoticeView ?: TextView(this).apply {
             textSize = 14f
@@ -562,22 +568,78 @@ class MainActivity : Activity() {
             }
             elevation = px(8).toFloat()
             outlineSpotShadowColor = 0x70E8451D
-            visibility = View.GONE
+            visibility = View.INVISIBLE
             pageArea.addView(this, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = px(12) })
         }.also { topNoticeView = it }
         v.text = text
-        v.animate().cancel()
+        endBubble()
         v.removeCallbacks(hideTopNotice)
-        v.visibility = View.VISIBLE
+        bubbleDrop = 0f
+        bubbleGrow = 0f
+        bubbleFold = 0f
         v.alpha = 0f
-        v.translationY = -px(14).toFloat()
-        v.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(SpringInterpolator()).withEndAction {
-            v.postDelayed(hideTopNotice, 1400)
-        }.start()
+        v.visibility = View.INVISIBLE
+        // Started once the pill has its size: the circle it starts from is worked out from it.
+        v.post {
+            applyBubble()
+            v.visibility = View.VISIBLE
+            val drop = bubbleAnimator(0f, 1f, 380L, 0L, SpringInterpolator()) { bubbleDrop = it }
+            val grow = bubbleAnimator(0f, 1f, 520L, 230L, SpringInterpolator()) { bubbleGrow = it }
+            grow.addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (bubbleAnims.contains(grow) && bubbleGrow >= 1f) v.postDelayed(hideTopNotice, 1300)
+                }
+            })
+            bubbleAnims.addAll(listOf(drop, grow))
+            drop.start()
+            grow.start()
+        }
+    }
+
+    private fun bubbleAnimator(from: Float, to: Float, ms: Long, delay: Long, ease: android.animation.TimeInterpolator, set: (Float) -> Unit) =
+        ValueAnimator.ofFloat(from, to).apply {
+            duration = ms
+            startDelay = delay
+            interpolator = ease
+            addUpdateListener {
+                set(it.animatedValue as Float)
+                applyBubble()
+            }
+        }
+
+    private fun endBubble() {
+        for (a in bubbleAnims) a.cancel()
+        bubbleAnims.clear()
+    }
+
+    // The three stages decide everything the bubble shows: dropping in (position, fade), growing from a circle into the
+    // pill (size, then the text), folding back (the same in reverse, then up and out).
+    private fun applyBubble() {
+        val v = topNoticeView ?: return
+        if (v.width == 0 || v.height == 0) return
+        val round = px(26).toFloat()
+        val smallX = (round / v.width).coerceAtMost(1f)
+        val smallY = (round / v.height).coerceAtMost(1f)
+        val fold = bubbleFold * bubbleFold * (3f - 2f * bubbleFold)
+        val open = bubbleGrow * (1f - fold)
+        v.scaleX = smallX + (1f - smallX) * open
+        v.scaleY = smallY + (1f - smallY) * open
+        v.translationY = -px(36) * (1f - bubbleDrop) - px(24) * bubbleFold
+        v.alpha = minOf(bubbleDrop * 3f, 1f) * (1f - ((bubbleFold - 0.7f) / 0.3f).coerceIn(0f, 1f))
+        val ink = (255 * ((open - 0.5f) / 0.4f).coerceIn(0f, 1f)).toInt()
+        v.setTextColor((Ui.INK and 0x00FFFFFF) or (ink shl 24))
     }
 
     private val hideTopNotice = Runnable {
-        topNoticeView?.animate()?.alpha(0f)?.translationY(-px(10).toFloat())?.setDuration(260)?.withEndAction { topNoticeView?.visibility = View.GONE }?.start()
+        val v = topNoticeView ?: return@Runnable
+        val fold = bubbleAnimator(0f, 1f, 480L, 0L, android.view.animation.AccelerateDecelerateInterpolator()) { bubbleFold = it }
+        fold.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                if (bubbleFold >= 1f) v.visibility = View.INVISIBLE
+            }
+        })
+        bubbleAnims.add(fold)
+        fold.start()
     }
 
     private val hideNotice = Runnable {
