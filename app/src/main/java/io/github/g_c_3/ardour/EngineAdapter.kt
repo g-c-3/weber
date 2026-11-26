@@ -65,9 +65,14 @@ interface PageListener {
     fun onTabLimit() {}
 }
 
+private var nextId = 1
+
 // One browser tab (DECISIONS.md 161). `engineView` is used only in this file: it exists while the tab has been opened in
 // this screen's life; a tab never opened, or one whose screen was rebuilt, has none and gets one when selected.
 class Tab {
+    // Stays the same while the tab lives, wherever it sits in the list (the tab strip follows tabs by it).
+    val id: Int = nextId++
+
     var engineView: WebView? = null
     var url: String? = null
     var title: String? = null
@@ -511,6 +516,12 @@ object EngineAdapter {
     }
 
     // A new empty tab at the end; returns its index. Its page view is built when it is selected.
+    // A tab moved to another place in the list (the tab strip's long press and drag); the open tab stays the open tab.
+    fun moveTab(from: Int, to: Int) {
+        if (from !in tabList.indices || to !in tabList.indices || from == to) return
+        tabList.add(to, tabList.removeAt(from))
+    }
+
     fun newTab(): Int {
         tabList.add(Tab())
         return tabList.lastIndex

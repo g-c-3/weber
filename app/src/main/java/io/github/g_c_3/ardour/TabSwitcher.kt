@@ -42,6 +42,7 @@ class TabSwitcher(
         val start: Boolean,
         val shield: Boolean,
         val preview: Bitmap?,
+        val key: Int = 0,
     )
 
     var showing = false

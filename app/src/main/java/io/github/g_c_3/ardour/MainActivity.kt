@@ -401,7 +401,7 @@ class MainActivity : Activity() {
         // The loading line lives inside the pill, so the row is only as tall as the pill plus room for its glow.
         top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.sdp(this, ROW_HEIGHT) + px(2)))
         // The tab strip above the row, when the Settings switch is on (DECISIONS.md 173).
-        tabStrip = TabStrip(this, ::switchTo)
+        tabStrip = TabStrip(this, ::switchTo, ::closeTabAt, ::moveTab)
         tabStrip.visibility = if (Prefs.get(this, Prefs.TOP_TABS)) View.VISIBLE else View.GONE
         top.addView(tabStrip, 0, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(32)).apply { bottomMargin = px(4) })
         topBar = top
@@ -876,6 +876,13 @@ class MainActivity : Activity() {
         refreshStrip()
     }
 
+    // A tab dragged to another place in the strip (DECISIONS.md 176).
+    private fun moveTab(from: Int, to: Int) {
+        EngineAdapter.moveTab(from, to)
+        refreshTabCount()
+        if (::tabSwitcher.isInitialized) tabSwitcher.update(tabItems(), EngineAdapter.activeIndex())
+    }
+
     // The tab strip follows the tabs, their titles and the open tab.
     private fun refreshStrip() {
         if (!::tabStrip.isInitialized || tabStrip.visibility != View.VISIBLE) return
@@ -950,6 +957,7 @@ class MainActivity : Activity() {
                 start,
                 tab.shield,
                 if (!tab.shield || pictureForShield) tab.preview else null,
+                tab.id,
             )
         }
     }
