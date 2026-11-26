@@ -312,13 +312,12 @@ class MainActivity : Activity() {
 
     private fun px(n: Int) = Ui.dp(this, n)
 
-    // A small gap between the status bar and the top row, so the row does not touch it (DECISIONS.md 171; it replaces the lift
-    // of DECISIONS.md 105).
+    // The top row sits 1 dp above the top of the page area, between the old lift of 7 dp and the gap of 5 dp (DECISIONS.md 105, 171, 172).
     private fun spaceTopBar() {
         if (!::topBar.isInitialized) return
         (topBar.layoutParams as? LinearLayout.LayoutParams)?.let {
-            if (it.topMargin != px(5)) {
-                it.topMargin = px(5)
+            if (it.topMargin != -px(1)) {
+                it.topMargin = -px(1)
                 topBar.layoutParams = it
             }
         }
@@ -564,7 +563,7 @@ class MainActivity : Activity() {
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(Ui.cardAlpha(0xF2))
                 cornerRadius = px(22).toFloat()
-                setStroke(px(1), 0x40E8451D)
+                setStroke(Ui.dp(this@MainActivity, 1.5f).toInt(), Ui.EMBER)
             }
             elevation = px(8).toFloat()
             outlineSpotShadowColor = 0x70E8451D
