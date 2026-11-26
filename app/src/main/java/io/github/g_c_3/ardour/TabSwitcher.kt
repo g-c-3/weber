@@ -51,10 +51,15 @@ class TabSwitcher(
     private var active = 0
     private var shieldOnly = false
 
-    private val grid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+    private val grid = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER_VERTICAL
+    }
     private val allButton = CountButton(context, false) { setFilter(false) }
     private val shieldButton = CountButton(context, true) { setFilter(true) }
     private val plus = PlusDisc(context, { onNew(false) }, { onNew(true) })
+    private var listMode = Prefs.get(context, Prefs.TAB_LIST)
+    private val viewToggle = ViewToggle(context) { setListMode(!listMode) }
     private val scroll = ScrollView(context)
     private var pullY = 0f
     private var pullX = 0f
@@ -73,11 +78,16 @@ class TabSwitcher(
         }
         head.addView(filters, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         head.addView(plus, LayoutParams(Ui.dp(context, 34), Ui.dp(context, 34), Gravity.END or Gravity.CENTER_VERTICAL))
+        head.addView(
+            viewToggle,
+            LayoutParams(Ui.dp(context, 34), Ui.dp(context, 34), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = Ui.dp(context, 44) },
+        )
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(Ui.dp(context, 14), 0, Ui.dp(context, 14), Ui.dp(context, 60))
             addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 46)))
-            addView(grid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            // With few tabs the cards sit in the middle of the sheet and move up as tabs are added (DECISIONS.md 167).
+            addView(grid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
                 topMargin = Ui.dp(context, 4)
             })
         }
@@ -100,6 +110,13 @@ class TabSwitcher(
         }
     }
 
+    private fun setListMode(on: Boolean) {
+        if (listMode == on) return
+        listMode = on
+        Prefs.set(context, Prefs.TAB_LIST, on)
+        render()
+    }
+
     private fun setFilter(shield: Boolean) {
         if (shieldOnly == shield) return
         shieldOnly = shield
@@ -110,8 +127,8 @@ class TabSwitcher(
         items = list
         active = activeIndex
         shieldOnly = false
-        // Light mode lets more of the browser through than dark mode, but is a little grey and less see-through than before.
-        setBackgroundColor(if (Ui.dark) ((0xEB shl 24) or (Ui.PAPER and 0x00FFFFFF)) else 0xE6DCDCDF.toInt())
+        // Light mode lets more of the browser through than dark mode, but is clearly grey (not dark) and much less see-through.
+        setBackgroundColor(if (Ui.dark) ((0xEB shl 24) or (Ui.PAPER and 0x00FFFFFF)) else 0xF0C4C5CA.toInt())
         render()
         scroll.scrollTo(0, 0)
         showing = true
@@ -191,11 +208,16 @@ class TabSwitcher(
         return x >= at[0] && x <= at[0] + v.width && y >= at[1] && y <= at[1] + v.height
     }
 
-    private fun onButton(x: Float, y: Float) = inside(allButton, x, y) || inside(shieldButton, x, y) || inside(plus, x, y)
+    private fun onButton(x: Float, y: Float) = inside(allButton, x, y) || inside(shieldButton, x, y) || inside(plus, x, y) || inside(viewToggle, x, y)
 
     private fun onCard(x: Float, y: Float): Boolean {
         for (r in 0 until grid.childCount) {
-            val row = grid.getChildAt(r) as? ViewGroup ?: continue
+            val child = grid.getChildAt(r)
+            if (child is TabCard) {
+                if (inside(child, x, y)) return true
+                continue
+            }
+            val row = child as? ViewGroup ?: continue
             for (c in 0 until row.childCount) if (row.getChildAt(c) is TabCard && inside(row.getChildAt(c), x, y)) return true
         }
         return false
@@ -217,6 +239,18 @@ class TabSwitcher(
             return
         }
         val gap = Ui.dp(context, 4)
+        if (listMode) {
+            // One row to a tab: a small picture, the title and the host.
+            for (entry in shown) {
+                val index = entry.index
+                grid.addView(
+                    TabCard(context, entry.value, index == active, true, { onPick(index) }, { onClose(index) }),
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 72)).apply { setMargins(gap, gap, gap, gap) },
+                )
+            }
+            grid.requestLayout()
+            return
+        }
         val inner = (width - paddingLeft - paddingRight - Ui.dp(context, 28)).coerceAtLeast(Ui.dp(context, 200))
         // Columns follow the width: about 170 dp per card, two at the least, five at the most.
         val columns = (inner / Ui.dp(context, 170)).coerceIn(2, 5)
@@ -232,7 +266,7 @@ class TabSwitcher(
                 val entry = shown.getOrNull(i + j)
                 if (entry != null) {
                     val index = entry.index
-                    row.addView(TabCard(context, entry.value, index == active, { onPick(index) }, { onClose(index) }), params)
+                    row.addView(TabCard(context, entry.value, index == active, false, { onPick(index) }, { onClose(index) }), params)
                 } else {
                     row.addView(View(context), params)
                 }
@@ -327,6 +361,45 @@ private class CountButton(context: Context, private val shield: Boolean, private
     }
 }
 
+// The view switch left of the +: three lines (switch to the list) or four squares (back to the grid), no circle.
+@SuppressLint("ViewConstructor")
+private class ViewToggle(context: Context, private val tap: () -> Unit) : View(context) {
+    private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+    }
+    private val box = RectF()
+
+    init {
+        isClickable = true
+        contentDescription = "Switch between grid and list"
+        setOnClickListener {
+            tap()
+            invalidate()
+        }
+        Ui.springPress(this)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val cx = width / 2f
+        val cy = height / 2f
+        val k = min(width, height) * 0.34f
+        line.color = Ui.INK
+        line.strokeWidth = Ui.dp(context, 3).toFloat()
+        if (Prefs.get(context, Prefs.TAB_LIST)) {
+            val g = k * 0.18f
+            for (i in 0..1) for (j in 0..1) {
+                val l = cx - k + i * (k + g)
+                val t = cy - k + j * (k + g)
+                box.set(l, t, l + k - g, t + k - g)
+                canvas.drawRoundRect(box, Ui.dp(context, 2).toFloat(), Ui.dp(context, 2).toFloat(), line)
+            }
+        } else {
+            for (i in -1..1) canvas.drawLine(cx - k, cy + i * k * 0.8f, cx + k, cy + i * k * 0.8f, line)
+        }
+    }
+}
+
 // The + at the top right: a tap adds a tab, a long press a Shield tab.
 @SuppressLint("ViewConstructor")
 private class PlusDisc(context: Context, private val tap: () -> Unit, private val hold: () -> Unit) : View(context) {
@@ -374,6 +447,7 @@ private class TabCard(
     context: Context,
     private val item: TabSwitcher.Item,
     private val active: Boolean,
+    private val row: Boolean,
     private val onOpen: () -> Unit,
     private val onShut: () -> Unit,
 ) : View(context) {
@@ -409,7 +483,56 @@ private class TabCard(
 
     private fun d(n: Int) = Ui.dp(context, n).toFloat()
 
+    // List mode: a wide row with a small picture, the title and the host, and the shield at the right.
+    private fun drawRow(canvas: Canvas) {
+        box.set(d(4), d(4), width - d(4), height - d(4))
+        val radius = d(16)
+        fill.color = Ui.CARD
+        if (active) fill.setShadowLayer(d(6), 0f, d(1), 0x66E8451D) else fill.clearShadowLayer()
+        canvas.drawRoundRect(box, radius, radius, fill)
+        fill.clearShadowLayer()
+        val pad = d(8)
+        val th = box.height() - 2 * pad
+        pill.set(box.left + pad, box.top + pad, box.left + pad + th * 0.8f, box.bottom - pad)
+        canvas.save()
+        clip.reset()
+        clip.addRoundRect(pill, d(10), d(10), Path.Direction.CW)
+        canvas.clipPath(clip)
+        val bmp = item.preview
+        if (bmp != null && !bmp.isRecycled) {
+            val scale = pill.width() / bmp.width
+            val srcHeight = min(bmp.height.toFloat(), pill.height() / scale)
+            srcRect.set(0, 0, bmp.width, srcHeight.toInt().coerceAtLeast(1))
+            dstRect.set(pill.left, pill.top, pill.right, pill.top + srcHeight * scale)
+            canvas.drawBitmap(bmp, srcRect, dstRect, picture)
+        } else {
+            fill.color = Ui.PAPER
+            canvas.drawRect(pill, fill)
+            letter.color = Ui.MUTED
+            letter.alpha = 110
+            letter.textSize = Ui.textPx(context, 22f)
+            canvas.drawText(initialOf(), pill.centerX(), pill.centerY() - (letter.ascent() + letter.descent()) / 2f, letter)
+        }
+        canvas.restore()
+        val left = pill.right + d(12)
+        val room = (box.right - pad - (if (item.shield) d(30) else 0f) - left).coerceAtLeast(1f)
+        titlePaint.color = Ui.INK
+        titlePaint.textSize = Ui.textPx(context, 14f)
+        hostPaint.color = Ui.MUTED
+        hostPaint.textSize = Ui.textPx(context, 12f)
+        canvas.drawText(TextUtils.ellipsize(item.title, titlePaint, room, TextUtils.TruncateAt.END).toString(), left, box.centerY() - d(3), titlePaint)
+        canvas.drawText(TextUtils.ellipsize(item.host, hostPaint, room, TextUtils.TruncateAt.END).toString(), left, box.centerY() + d(15), hostPaint)
+        line.strokeWidth = if (active) d(2) else d(1)
+        line.color = if (active) Ui.EMBER else Ui.LINE
+        canvas.drawRoundRect(box, radius, radius, line)
+        if (item.shield) drawShield(canvas, box.right - d(24), box.centerY())
+    }
+
     override fun onDraw(canvas: Canvas) {
+        if (row) {
+            drawRow(canvas)
+            return
+        }
         val inset = d(6)
         box.set(inset, inset, width - inset, height - inset)
         val radius = d(18)

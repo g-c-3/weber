@@ -10,7 +10,16 @@ import android.content.pm.PackageManager
 object AppIcon {
     private val namespace = MainActivity::class.java.name.substringBeforeLast('.')
 
-    fun set(context: Context, dark: Boolean) {
+    // The launcher entry is switched when the app is closed, not while it runs: with the entry that started the running
+    // task disabled, Android ended the app on the screen (DECISIONS.md 166).
+    fun applyPending(context: Context) {
+        val wanted = Prefs.get(context, Prefs.ICON_DARK, true)
+        if (wanted == Prefs.get(context, Prefs.ICON_APPLIED, true)) return
+        set(context, wanted)
+        Prefs.set(context, Prefs.ICON_APPLIED, wanted)
+    }
+
+    private fun set(context: Context, dark: Boolean) {
         val manager = context.packageManager
         val on = ComponentName(context, "$namespace.${if (dark) "IconDark" else "IconLight"}")
         val off = ComponentName(context, "$namespace.${if (dark) "IconLight" else "IconDark"}")

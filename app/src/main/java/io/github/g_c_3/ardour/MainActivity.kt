@@ -269,6 +269,7 @@ class MainActivity : Activity() {
         sheet.dismiss()
         widthAnim?.cancel()
         noticeView = null
+        topNoticeView = null
         // Sizes measured for the old top bar: the new one is sized again when its row width is known (DECISIONS.md 165).
         rowWidth = 0
         idleWidth = 0
@@ -541,6 +542,41 @@ class MainActivity : Activity() {
         v.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(SpringInterpolator()).withEndAction {
             v.postDelayed(hideNotice, 1800)
         }.start()
+    }
+
+    private var topNoticeView: TextView? = null
+
+    // A soft pill that slides down under the top bar (DECISIONS.md 166), for a new tab made by the Tabs button's long press.
+    private fun showTopNotice(text: String) {
+        val v = topNoticeView ?: TextView(this).apply {
+            textSize = 14f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            setTextColor(Ui.INK)
+            gravity = Gravity.CENTER
+            setPadding(px(18), px(9), px(18), px(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Ui.cardAlpha(0xF2))
+                cornerRadius = px(22).toFloat()
+                setStroke(px(1), 0x40E8451D)
+            }
+            elevation = px(8).toFloat()
+            outlineSpotShadowColor = 0x70E8451D
+            visibility = View.GONE
+            pageArea.addView(this, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = px(12) })
+        }.also { topNoticeView = it }
+        v.text = text
+        v.animate().cancel()
+        v.removeCallbacks(hideTopNotice)
+        v.visibility = View.VISIBLE
+        v.alpha = 0f
+        v.translationY = -px(14).toFloat()
+        v.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(SpringInterpolator()).withEndAction {
+            v.postDelayed(hideTopNotice, 1400)
+        }.start()
+    }
+
+    private val hideTopNotice = Runnable {
+        topNoticeView?.animate()?.alpha(0f)?.translationY(-px(10).toFloat())?.setDuration(260)?.withEndAction { topNoticeView?.visibility = View.GONE }?.start()
     }
 
     private val hideNotice = Runnable {
@@ -886,6 +922,7 @@ class MainActivity : Activity() {
         tabsButton.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
         saveTabState()
         activate(EngineAdapter.newTab())
+        showTopNotice("New Tab")
     }
 
     // A tap on + opens a normal tab, a long press a Shield tab (DECISIONS.md 163).
@@ -1419,6 +1456,7 @@ class MainActivity : Activity() {
         if (isFinishing && EngineAdapter.privateActive && Prefs.get(this, Prefs.PRIVATE_CLOSE)) EngineAdapter.deletePrivateAdditions()
         saveTabState()
         EngineAdapter.destroy(keepTabs = !isFinishing)
+        if (isFinishing) AppIcon.applyPending(this)
         super.onDestroy()
     }
 
