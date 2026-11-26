@@ -79,19 +79,19 @@ class TabSwitcher(
         val head = FrameLayout(context)
         val filters = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(allButton, LinearLayout.LayoutParams(Ui.dp(context, 58), Ui.dp(context, 42)))
-            addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 58), Ui.dp(context, 42)).apply { marginStart = Ui.dp(context, 8) })
+            addView(allButton, LinearLayout.LayoutParams(Ui.dp(context, 66), Ui.dp(context, 48)))
+            addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 66), Ui.dp(context, 48)).apply { marginStart = Ui.dp(context, 8) })
         }
         head.addView(filters, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
-        head.addView(plus, LayoutParams(Ui.dp(context, 26), Ui.dp(context, 26), Gravity.END or Gravity.CENTER_VERTICAL))
+        head.addView(plus, LayoutParams(Ui.dp(context, 32), Ui.dp(context, 32), Gravity.END or Gravity.CENTER_VERTICAL))
         head.addView(
             viewToggle,
-            LayoutParams(Ui.dp(context, 26), Ui.dp(context, 26), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = Ui.dp(context, 38) },
+            LayoutParams(Ui.dp(context, 32), Ui.dp(context, 32), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = Ui.dp(context, 46) },
         )
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(Ui.dp(context, 14), 0, Ui.dp(context, 14), Ui.dp(context, 60))
-            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 46)))
+            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 54)))
             // With few tabs the cards sit in the middle of the sheet and move up as tabs are added (DECISIONS.md 167).
             addView(grid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
                 topMargin = Ui.dp(context, 4)
@@ -391,18 +391,20 @@ private class CountButton(context: Context, private val shield: Boolean, private
         canvas.drawRoundRect(box, d(16), d(16), line)
         val cx = width / 2f
         val cy = height / 2f
+        // Drawn for a 42 dp tall button and scaled with its height.
+        val k = height / d(42)
         val text = if (count > 99) "99" else count.toString()
-        digits.textSize = Ui.textPx(context, if (count > 9) 11f else 14f)
+        digits.textSize = Ui.textPx(context, (if (count > 9) 11f else 14f) * k)
         val baseline = cy - (digits.ascent() + digits.descent()) / 2f
         if (shield) {
-            drawShieldGlyph(canvas, path, glyph, cx, cy, d(14), Ui.EMBER, null)
+            drawShieldGlyph(canvas, path, glyph, cx, cy, d(14) * k, Ui.EMBER, null)
             digits.color = 0xFFFFFFFF.toInt()
             canvas.drawText(text, cx, baseline - d(1), digits)
         } else {
             line.strokeWidth = d(2)
             line.color = Ui.INK
-            val half = d(12)
-            canvas.drawRoundRect(cx - half, cy - half, cx + half, cy + half, d(6), d(6), line)
+            val half = d(12) * k
+            canvas.drawRoundRect(cx - half, cy - half, cx + half, cy + half, d(6) * k, d(6) * k, line)
             digits.color = Ui.INK
             canvas.drawText(text, cx, baseline, digits)
         }
