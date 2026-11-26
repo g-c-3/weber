@@ -76,6 +76,7 @@ class MainActivity : Activity() {
     private lateinit var backButton: IconButton
     private lateinit var tabsButton: IconButton
     private lateinit var tabSwitcher: TabSwitcher
+    private lateinit var tabStrip: TabStrip
     private var pageView: View? = null // the active tab's page view in the page area (DECISIONS.md 161)
     private lateinit var forwardButton: IconButton
     private lateinit var reloadButton: IconButton
@@ -136,6 +137,7 @@ class MainActivity : Activity() {
             forwardButton.isEnabled = canGoForward || (homeOver && startBack)
             reloadButton.isEnabled = hasPage
             refreshBack()
+            refreshStrip()
         }
 
         override fun onError(url: String?, kind: PageError) = showError(url, kind)
@@ -195,6 +197,7 @@ class MainActivity : Activity() {
             if (loading) errorView.visibility = View.GONE
             if (loading && finding) closeFind()
             if (!loading) pageArea.finish()
+            if (!loading) refreshStrip()
             reloadButton.kind = if (loading) IconButton.Kind.STOP else IconButton.Kind.RELOAD
             // Until the engine reports its first progress the bar sweeps, so a slow connection looks alive.
             address.setLoading(loading)
@@ -397,6 +400,10 @@ class MainActivity : Activity() {
         }
         // The loading line lives inside the pill, so the row is only as tall as the pill plus room for its glow.
         top.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.sdp(this, ROW_HEIGHT) + px(2)))
+        // The tab strip above the row, when the Settings switch is on (DECISIONS.md 173).
+        tabStrip = TabStrip(this, ::switchTo)
+        tabStrip.visibility = if (Prefs.get(this, Prefs.TOP_TABS)) View.VISIBLE else View.GONE
+        top.addView(tabStrip, 0, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(32)).apply { bottomMargin = px(4) })
         topBar = top
         root.clipToPadding = false
         root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -838,6 +845,10 @@ class MainActivity : Activity() {
         refreshClipboardButtons()
         if (!::pageArea.isInitialized) return
         pageArea.enabledPull = Prefs.get(this, Prefs.PULL)
+        if (::tabStrip.isInitialized) {
+            tabStrip.visibility = if (Prefs.get(this, Prefs.TOP_TABS)) View.VISIBLE else View.GONE
+            refreshStrip()
+        }
         if (::address.isInitialized) address.refreshAddressText()
         applyEnginePrefs()
     }
@@ -859,6 +870,13 @@ class MainActivity : Activity() {
 
     private fun refreshTabCount() {
         tabsButton.count = EngineAdapter.tabs.size
+        refreshStrip()
+    }
+
+    // The tab strip follows the tabs, their titles and the open tab.
+    private fun refreshStrip() {
+        if (!::tabStrip.isInitialized || tabStrip.visibility != View.VISIBLE) return
+        tabStrip.set(tabItems(), EngineAdapter.activeIndex())
     }
 
     // The active tab's start-screen state is held by the screen while it is shown; copied to its tab before the screen

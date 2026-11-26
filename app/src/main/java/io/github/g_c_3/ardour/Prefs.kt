@@ -8,6 +8,7 @@ object Prefs {
     const val FULL_URL = "show_full_url"
     const val FADE_PAGES = "fade_pages"
     const val ICON_DARK = "icon_dark"
+    const val TOP_TABS = "top_bar_tabs" // the tab strip above the address bar (DECISIONS.md 173)
     const val TAB_LIST = "tab_list_view" // the tab list as rows instead of cards (DECISIONS.md 167)
     const val ICON_APPLIED = "icon_applied" // the launcher entry that is enabled now (DECISIONS.md 166)
     const val THEME = "theme"

@@ -109,6 +109,8 @@ class SettingsActivity : Activity() {
             addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The icon changes when you close Ardour, and the launcher may take a moment; it may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
                 IconToast.show(this@SettingsActivity, it)
             })
+            addView(Ui.divider(this@SettingsActivity))
+            addView(switchRow("Top bar tab switch", "Shows your open tabs in a strip above the address bar. Swipe it sideways and tap a tab to switch. After 3 seconds without a pick it glides back to the open tab. It takes about 36 dp of the page height. Off by default.", Prefs.TOP_TABS))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(NavCard.build(this, "Diagnostics", "Page load trace and crash log.") {
             startActivity(Intent(this, DiagnosticsActivity::class.java))

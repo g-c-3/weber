@@ -293,7 +293,7 @@ class TabSwitcher(
 }
 
 // The shield of the Shield button (DECISIONS.md 129) as one drawing for the tab list: body in `body`, keyhole in `hole`.
-private fun drawShieldGlyph(canvas: Canvas, path: Path, paint: Paint, cx: Float, cy: Float, r: Float, body: Int, hole: Int?) {
+fun drawShieldGlyph(canvas: Canvas, path: Path, paint: Paint, cx: Float, cy: Float, r: Float, body: Int, hole: Int?) {
     path.reset()
     path.moveTo(cx, cy - r * 1.08f)
     path.lineTo(cx + r * 0.92f, cy - r * 0.72f)
