@@ -719,7 +719,7 @@ class MainActivity : Activity() {
             marginStart = px(24)
             marginEnd = px(24)
         })
-        addView(TextView(context).apply {
+        val mark = TextView(context).apply {
             text = "Ardour"
             textSize = 44f
             typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
@@ -727,7 +727,14 @@ class MainActivity : Activity() {
             setTextColor(Ui.EMBER)
             paint.shader = LinearGradient(0f, 0f, paint.measureText("Ardour"), 0f, Ui.EMBER, Ui.AMBER, Shader.TileMode.CLAMP)
             setPadding(0, Ui.dp(context, 28), 0, Ui.dp(context, 96))
-        }, centered())
+        }
+        addView(mark, centered())
+        // A short page area (landscape, or the keyboard up) has no room for the generous padding, which cut the name off.
+        addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            if (bottom - top == oldBottom - oldTop) return@addOnLayoutChangeListener
+            val tight = bottom - top < Ui.dp(context, 520)
+            mark.setPadding(0, Ui.dp(context, if (tight) 10 else 28), 0, Ui.dp(context, if (tight) 10 else 96))
+        }
     }
 
     private fun centered() = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)

@@ -23,7 +23,7 @@ import android.widget.LinearLayout
 import kotlin.math.abs
 import kotlin.math.hypot
 
-// The open tabs as a strip above the address bar (DECISIONS.md 173, 176), shown by the Settings switch "Top bar tab switch".
+// The open tabs as a strip above the address bar (DECISIONS.md 173, 176), shown by the Settings switch "Top bar tab header".
 // Tabs are trapezium shaped with rounded top corners over a grey separator line. Sliding sideways moves the strip, a tap opens
 // a tab, a swipe down on a tab opens it, a swipe up closes it, and a long press then a drag moves it to where it is let go.
 // 3 seconds after the last touch the strip glides back to the open tab.

@@ -89,13 +89,25 @@ class SettingsActivity : Activity() {
         }
         column.addView(browsing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Tabs"))
+        val widthRow = sizeRow("Tab width", "How wide the tabs of the top bar tab header are: XS, S, M or L. S is the default. On a landscape screen the tabs are wider still. Works while the top bar tab header is on.", Prefs.TAB_WIDTH)
+        val heightRow = sizeRow("Tab height", "How tall the tabs of the top bar tab header are: XS, S, M or L. S is the default. A taller header leaves less of the page. Works while the top bar tab header is on.", Prefs.TAB_HEIGHT)
+        // The two size rows only work while the top bar tab header is on.
+        fun gateSizes(on: Boolean) {
+            for (r in listOf(widthRow, heightRow)) {
+                r.alpha = if (on) 1f else 0.4f
+                (r.tag as? StepSlider)?.isEnabled = on
+            }
+        }
         column.addView(Ui.card(this).apply {
+            addView(switchRow("Top bar tab header", "Shows your open tabs in a header above the address bar. Swipe it sideways and tap a tab to switch. After 3 seconds without a pick it glides back to the open tab. It takes some of the page height. Off by default.", Prefs.TOP_TABS) { gateSizes(it) })
+            addView(Ui.divider(this@SettingsActivity))
             addView(maxTabsRow())
             addView(Ui.divider(this@SettingsActivity))
-            addView(sizeRow("Tab width", "How wide the tabs of the top bar tab strip are: XS, S, M or L. S is the default. On a landscape screen the tabs are wider still.", Prefs.TAB_WIDTH))
+            addView(widthRow)
             addView(Ui.divider(this@SettingsActivity))
-            addView(sizeRow("Tab height", "How tall the tabs of the top bar tab strip are: XS, S, M or L. S is the default. A taller strip leaves less of the page.", Prefs.TAB_HEIGHT))
+            addView(heightRow)
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        gateSizes(Prefs.get(this, Prefs.TOP_TABS, false))
         column.addView(Ui.sectionLabel(this, "Shield Mode"))
         column.addView(Ui.card(this).apply {
             addView(leaveChoiceRow())
@@ -117,8 +129,6 @@ class SettingsActivity : Activity() {
             addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The icon changes when you close Ardour, and the launcher may take a moment; it may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
                 IconToast.show(this@SettingsActivity, it)
             })
-            addView(Ui.divider(this@SettingsActivity))
-            addView(switchRow("Top bar tab switch", "Shows your open tabs in a strip above the address bar. Swipe it sideways and tap a tab to switch. After 3 seconds without a pick it glides back to the open tab. It takes about 36 dp of the page height. Off by default.", Prefs.TOP_TABS))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(bottomRow(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             topMargin = Ui.dp(this@SettingsActivity, 20)
@@ -277,7 +287,7 @@ class SettingsActivity : Activity() {
                 textSize = 13f
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 gravity = Gravity.CENTER
-                setPadding(Ui.dp(ctx, 4), Ui.dp(ctx, 11), Ui.dp(ctx, 4), Ui.dp(ctx, 11))
+                setPadding(Ui.dp(ctx, 2), Ui.dp(ctx, 8), Ui.dp(ctx, 2), Ui.dp(ctx, 8))
                 Ui.choiceLook(ctx, this, on)
                 isClickable = true
                 isFocusable = true
@@ -289,14 +299,15 @@ class SettingsActivity : Activity() {
             }
             Ui.springPress(label)
             segments.addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                if (i > 0) marginStart = Ui.dp(ctx, 8)
+                if (i > 0) marginStart = Ui.dp(ctx, 6)
             })
         }
         return LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 12))
-            addView(titleLine("Theme", "System follows the phone's light or dark setting. Light and Dark stay as chosen. Pages that offer a dark version follow it; other pages are not recoloured. Changing it loads the open page again.", 6))
-            addView(segments, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, Ui.dp(ctx, 6), 0, Ui.dp(ctx, 6))
+            addView(titleLine("Theme", "System follows the phone's light or dark setting. Light and Dark stay as chosen. Pages that offer a dark version follow it; other pages are not recoloured. Changing it loads the open page again."))
+            addView(segments, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 8) })
         }
     }
 
@@ -415,19 +426,35 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, Ui.dp(ctx, 6), 0, Ui.dp(ctx, 6))
-            addView(titleLine("Maximum tabs", "The most tabs that can be open at once, from 1 to 26. Scroll the wheel to choose. A new tab past the limit is refused with a notice; tabs already open stay open. 12 by default."), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(titleLine("Maximum tabs", "The most tabs that can be open at once, from 1 to 26. Slide the wheel sideways to choose. A new tab past the limit is refused with a notice; tabs already open stay open. 12 by default."), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(NumberWheel(ctx, 1, 26, Prefs.getInt(ctx, Prefs.TAB_MAX, 12)) { Prefs.setInt(ctx, Prefs.TAB_MAX, it) })
         }
     }
 
-    // A title with its info button, and under it a four-stop slider (XS, S, M, L) stored as the stop's number.
+    // One line: the title with its info button, a four-stop slider (XS, S, M, L) and its value at the end. Stored as the stop's number.
     private fun sizeRow(label: String, info: String, key: String): View {
         val ctx = this
+        val start = Prefs.getInt(ctx, key, 1).coerceIn(0, 3)
+        val value = TextView(ctx).apply {
+            text = TabSizes.labels[start]
+            textSize = 14f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(Ui.EMBER)
+            gravity = Gravity.CENTER
+            minWidth = Ui.dp(ctx, 28)
+        }
+        val slider = StepSlider(ctx, TabSizes.labels, start, compact = true, onMove = { value.text = TabSizes.labels[it] }) {
+            value.text = TabSizes.labels[it]
+            Prefs.setInt(ctx, key, it)
+        }
         return LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, Ui.dp(ctx, 8), 0, Ui.dp(ctx, 4))
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 4))
+            tag = slider
             addView(titleLine(label, info))
-            addView(StepSlider(ctx, TabSizes.labels, Prefs.getInt(ctx, key, 1)) { Prefs.setInt(ctx, key, it) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(slider, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 4) })
+            addView(value)
         }
     }
 

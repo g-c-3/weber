@@ -36,8 +36,8 @@ object HelpContent {
                 "The button with a number opens all your tabs as cards. The sheet opens on the tab you are using.",
                 "In the sheet: the square button shows all tabs, the shield button only Shield tabs; the switch beside + changes between cards and a list; + opens a new tab.",
                 "A long press on the number button opens a new tab at once.",
-                "Settings > Tabs sets the most tabs open at once (1 to 26, 12 by default) and the width and height of the tabs in the strip, XS to L.",
-                "Settings > Appearance > Top bar tab switch shows your tabs in a strip above the address bar. Slide it sideways, tap a tab or swipe it down to open it, swipe it up to close it, or press and hold a tab and drag it to a new place. It glides back to your open tab after 3 seconds.",
+                "Settings > Tabs has the Top bar tab header switch, the most tabs open at once (1 to 26, 12 by default) and the width and height of the header's tabs, XS to L, which work while the header is on.",
+                "The Top bar tab header (Settings > Tabs) shows your tabs above the address bar. Slide it sideways, tap a tab or swipe it down to open it, swipe it up to close it, or press and hold a tab and drag it to a new place. It glides back to your open tab after 3 seconds.",
             ),
         ),
         HelpSection(
