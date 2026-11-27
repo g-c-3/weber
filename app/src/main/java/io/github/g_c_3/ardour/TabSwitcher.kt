@@ -79,6 +79,7 @@ class TabSwitcher(
         val head = FrameLayout(context)
         val filters = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
+            // Header sizes (DECISIONS.md 179): filter buttons 52 x 38 dp, list switch and + 23 dp, header 42 dp.
             addView(allButton, LinearLayout.LayoutParams(Ui.dp(context, 52), Ui.dp(context, 38)))
             addView(shieldButton, LinearLayout.LayoutParams(Ui.dp(context, 52), Ui.dp(context, 38)).apply { marginStart = Ui.dp(context, 8) })
         }
