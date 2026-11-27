@@ -88,6 +88,14 @@ class SettingsActivity : Activity() {
             addView(switchRow("Third-party cookies", "Lets content embedded in a page, such as ads and sign-in frames, set cookies. This also lets those sites recognise you across the pages that embed them. Off by default; some sites need them to work. Applies to pages you open next.", Prefs.THIRD_PARTY))
         }
         column.addView(browsing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        column.addView(Ui.sectionLabel(this, "Tabs"))
+        column.addView(Ui.card(this).apply {
+            addView(maxTabsRow())
+            addView(Ui.divider(this@SettingsActivity))
+            addView(sizeRow("Tab width", "How wide the tabs of the top bar tab strip are: XS, S, M or L. S is the default. On a landscape screen the tabs are wider still.", Prefs.TAB_WIDTH))
+            addView(Ui.divider(this@SettingsActivity))
+            addView(sizeRow("Tab height", "How tall the tabs of the top bar tab strip are: XS, S, M or L. S is the default. A taller strip leaves less of the page.", Prefs.TAB_HEIGHT))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Shield Mode"))
         column.addView(Ui.card(this).apply {
             addView(leaveChoiceRow())
@@ -397,6 +405,29 @@ class SettingsActivity : Activity() {
                 contentDescription = "About $label"
                 setOnClickListener { infoSheet.showInfo(label, info) }
             }, LinearLayout.LayoutParams(Ui.dp(ctx, 30), Ui.dp(ctx, 30)))
+        }
+    }
+
+    // Maximum tabs (DECISIONS.md 181): a wheel from 1 to 26, 12 by default.
+    private fun maxTabsRow(): View {
+        val ctx = this
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, Ui.dp(ctx, 6), 0, Ui.dp(ctx, 6))
+            addView(titleLine("Maximum tabs", "The most tabs that can be open at once, from 1 to 26. Scroll the wheel to choose. A new tab past the limit is refused with a notice; tabs already open stay open. 12 by default."), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(NumberWheel(ctx, 1, 26, Prefs.getInt(ctx, Prefs.TAB_MAX, 12)) { Prefs.setInt(ctx, Prefs.TAB_MAX, it) })
+        }
+    }
+
+    // A title with its info button, and under it a four-stop slider (XS, S, M, L) stored as the stop's number.
+    private fun sizeRow(label: String, info: String, key: String): View {
+        val ctx = this
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, Ui.dp(ctx, 8), 0, Ui.dp(ctx, 4))
+            addView(titleLine(label, info))
+            addView(StepSlider(ctx, TabSizes.labels, Prefs.getInt(ctx, key, 1)) { Prefs.setInt(ctx, key, it) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
     }
 

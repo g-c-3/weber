@@ -106,7 +106,8 @@ object EngineAdapter {
     private val tabList = ArrayList<Tab>()
     private var activeTab: Tab? = null
     private var engineLost: () -> Unit = {}
-    const val MAX_TABS = 10
+    // The most tabs open at once; the Settings value, read by the activity (DECISIONS.md 181).
+    var maxTabs = 12
     private var defaultAgent: String? = null
     private var defaultMetadata: UserAgentMetadata? = null
     private var bypassCache = false
@@ -617,7 +618,7 @@ object EngineAdapter {
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
                 val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
                 if (!isUserGesture || view !== webView) return false
-                if (tabList.size >= MAX_TABS) {
+                if (tabList.size >= maxTabs) {
                     listener.onTabLimit()
                     return false
                 }

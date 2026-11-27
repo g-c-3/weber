@@ -358,7 +358,7 @@ class SearchBox(context: Context, private val onGo: (String) -> Unit) : FrameLay
             }
         }
         addView(input, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        align.reset(false)
+        align.reset()
     }
 
     private fun fadeRim(target: Int) {

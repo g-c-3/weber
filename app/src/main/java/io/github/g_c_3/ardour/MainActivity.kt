@@ -174,7 +174,7 @@ class MainActivity : Activity() {
 
         override fun onTabCloseRequest(index: Int) = closeTabAt(index)
 
-        override fun onTabLimit() = showNotice("Tab limit reached (${EngineAdapter.MAX_TABS})")
+        override fun onTabLimit() = showNotice("Tab limit reached (${EngineAdapter.maxTabs})")
 
         override fun onCommitVisible() {
             committedId = loadId
@@ -403,7 +403,7 @@ class MainActivity : Activity() {
         // The tab strip above the row, when the Settings switch is on (DECISIONS.md 173).
         tabStrip = TabStrip(this, ::switchTo, ::closeTabAt, ::moveTab)
         tabStrip.visibility = if (Prefs.get(this, Prefs.TOP_TABS)) View.VISIBLE else View.GONE
-        top.addView(tabStrip, 0, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(32)).apply { bottomMargin = px(4) })
+        top.addView(tabStrip, 0, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, TabSizes.height(this)).apply { bottomMargin = px(4) })
         topBar = top
         root.clipToPadding = false
         root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -848,8 +848,16 @@ class MainActivity : Activity() {
         refreshClipboardButtons()
         if (!::pageArea.isInitialized) return
         pageArea.enabledPull = Prefs.get(this, Prefs.PULL)
+        EngineAdapter.maxTabs = Prefs.getInt(this, Prefs.TAB_MAX, 12).coerceIn(1, 26)
         if (::tabStrip.isInitialized) {
             tabStrip.visibility = if (Prefs.get(this, Prefs.TOP_TABS)) View.VISIBLE else View.GONE
+            (tabStrip.layoutParams as? LinearLayout.LayoutParams)?.let {
+                if (it.height != TabSizes.height(this)) {
+                    it.height = TabSizes.height(this)
+                    tabStrip.layoutParams = it
+                }
+            }
+            tabStrip.applySize()
             refreshStrip()
         }
         if (::address.isInitialized) address.refreshAddressText()
@@ -1008,8 +1016,8 @@ class MainActivity : Activity() {
 
     // The Tabs button's long press: a new tab, shown at once.
     private fun newTabFromBar() {
-        if (EngineAdapter.tabs.size >= EngineAdapter.MAX_TABS) {
-            showNotice("Tab limit reached (${EngineAdapter.MAX_TABS})")
+        if (EngineAdapter.tabs.size >= EngineAdapter.maxTabs) {
+            showNotice("Tab limit reached (${EngineAdapter.maxTabs})")
             return
         }
         tabsButton.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
@@ -1020,7 +1028,7 @@ class MainActivity : Activity() {
 
     // A tap on + opens a normal tab, a long press a Shield tab (DECISIONS.md 163).
     private fun openNewTab(shield: Boolean) {
-        if (EngineAdapter.tabs.size >= EngineAdapter.MAX_TABS) {
+        if (EngineAdapter.tabs.size >= EngineAdapter.maxTabs) {
             tabSwitcher.limitNote()
             return
         }

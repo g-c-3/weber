@@ -46,7 +46,6 @@ class TabStrip(
     private val glideBack = Runnable { centreActive() }
     private val rule = Paint()
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
-    private val chipWidth = Ui.dp(context, 124)
     private val overlap = Ui.dp(context, 5)
 
     private enum class Mode { NONE, SCROLL, VERTICAL, DRAG }
@@ -89,8 +88,22 @@ class TabStrip(
         row.setPadding(Ui.dp(context, 8), 0, Ui.dp(context, 8), 0)
     }
 
+    // The tab width follows the Settings size and the screen's shape; the open tab is brought into view after it changes.
+    fun applySize() {
+        val w = TabSizes.width(context)
+        for (c in live()) {
+            val params = c.layoutParams as LinearLayout.LayoutParams
+            if (params.width != w) {
+                params.width = w
+                c.layoutParams = params
+            }
+        }
+        removeCallbacks(glideBack)
+        post { centreActive() }
+    }
+
     private fun lp(): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(chipWidth, ViewGroup.LayoutParams.MATCH_PARENT).apply { setMargins(-overlap, 0, -overlap, 0) }
+        LinearLayout.LayoutParams(TabSizes.width(context), ViewGroup.LayoutParams.MATCH_PARENT).apply { setMargins(-overlap, 0, -overlap, 0) }
 
     // Live tabs in order (those not shrinking away).
     private fun live(): List<TabChip> = (0 until row.childCount).map { row.getChildAt(it) as TabChip }.filter { it !in dying }
@@ -342,10 +355,7 @@ class TabStrip(
     // A rotation or a new width: the open tab is brought into view again (DECISIONS.md 180).
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        if (w != oldw) {
-            removeCallbacks(glideBack)
-            post { centreActive() }
-        }
+        if (w != oldw) applySize()
     }
 
     override fun onDetachedFromWindow() {
@@ -421,6 +431,7 @@ private class TabChip(context: Context) : View(context) {
         // The title is centred; one too long for the tab starts at the left and ends in dots.
         val shieldW = if (tab.shield) d * 14 else 0f
         val room = width - d * 34 - shieldW
+        text.textSize = Ui.dp(context, 12) * (height / Ui.dp(context, 32).toFloat()).coerceIn(0.85f, 1.4f)
         text.color = if (open) Ui.INK else Ui.MUTED
         val whole = text.measureText(tab.title)
         val label = if (whole <= room) tab.title else TextUtils.ellipsize(tab.title, text, room, TextUtils.TruncateAt.END).toString()
@@ -432,4 +443,20 @@ private class TabChip(context: Context) : View(context) {
         val base = height / 2f - (text.ascent() + text.descent()) / 2f
         canvas.drawText(label, x, base, text)
     }
+}
+
+// The sizes of the tabs of the strip (DECISIONS.md 181): width and height each XS, S, M or L; S is the default. A landscape
+// screen has wider tabs.
+object TabSizes {
+    private val widths = intArrayOf(96, 124, 152, 180)
+    private val heights = intArrayOf(26, 32, 38, 44)
+    val labels = listOf("XS", "S", "M", "L")
+
+    fun width(context: Context): Int {
+        val base = widths[Prefs.getInt(context, Prefs.TAB_WIDTH, 1).coerceIn(0, 3)]
+        val landscape = context.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        return Ui.dp(context, if (landscape) (base * 1.25f).toInt() else base)
+    }
+
+    fun height(context: Context): Int = Ui.dp(context, heights[Prefs.getInt(context, Prefs.TAB_HEIGHT, 1).coerceIn(0, 3)])
 }

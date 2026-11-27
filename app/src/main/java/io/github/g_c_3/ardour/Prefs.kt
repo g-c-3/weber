@@ -8,6 +8,9 @@ object Prefs {
     const val FULL_URL = "show_full_url"
     const val FADE_PAGES = "fade_pages"
     const val ICON_DARK = "icon_dark"
+    const val TAB_MAX = "tab_max" // the most tabs open at once, 1 to 26 (DECISIONS.md 181)
+    const val TAB_WIDTH = "tab_width" // 0 XS, 1 S, 2 M, 3 L: the tabs of the top bar tab strip
+    const val TAB_HEIGHT = "tab_height"
     const val TOP_TABS = "top_bar_tabs" // the tab strip above the address bar (DECISIONS.md 173)
     const val TAB_LIST = "tab_list_view" // the tab list as rows instead of cards (DECISIONS.md 167)
     const val ICON_APPLIED = "icon_applied" // the launcher entry that is enabled now (DECISIONS.md 166)
