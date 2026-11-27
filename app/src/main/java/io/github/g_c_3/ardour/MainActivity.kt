@@ -1038,7 +1038,7 @@ class MainActivity : Activity() {
             removeTab(tab)
             return
         }
-        when (Prefs.getString(this, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_ASK)) {
+        when (Prefs.getString(this, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_KEEP)) {
             Prefs.LEAVE_DELETE -> {
                 EngineAdapter.endShield(tab, true)
                 removeTab(tab)
@@ -1287,7 +1287,7 @@ class MainActivity : Activity() {
             showNotice("Shield Mode on. Your sign-ins stay.")
             return
         }
-        when (Prefs.getString(this, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_ASK)) {
+        when (Prefs.getString(this, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_KEEP)) {
             Prefs.LEAVE_DELETE -> leavePrivate(button, true)
             Prefs.LEAVE_KEEP -> leavePrivate(button, false)
             else -> sheet.show(
@@ -1312,9 +1312,10 @@ class MainActivity : Activity() {
     }
 
     // Long press on the shield (DECISIONS.md 151): cleans the open page's site at once, Shield Mode on or off, with no
-    // question and no notice; the rings on the shield show it is done. Nothing happens without a web page open.
+    // question and no notice; the rings on the shield show it is done. Nothing happens in a tab that never held a web page.
     private fun quickClean(button: IconButton) {
-        if (!hasPage || homeOver) return
+        // Any tab that was used: also one now showing the start page over its page (DECISIONS.md 180). A tab never used has no
+        // web page and nothing to clean.
         if (EngineAdapter.quickClean()) {
             button.pulseRing()
             shred()

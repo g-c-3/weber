@@ -60,13 +60,13 @@ object Ui {
 
     // Look of one button in a row of choices (DECISIONS.md 154). Selected: ember fill with white text in light; in dark an
     // ember outline and ember text on a near-black fill, so the choice does not glare. Others: card with a thin line.
-    // A chosen segment: ember outline and ember text over a dark fill (dark) or a grey fill (light); the others are plain cards.
+    // A chosen segment: ember outline and ember text over a dark fill (dark) or the card colour (light); the others have a grey rim.
     fun choiceLook(context: Context, button: TextView, selected: Boolean) {
         button.setTextColor(if (selected) EMBER else INK)
         button.background = GradientDrawable().apply {
             cornerRadius = dp(context, 22).toFloat()
             if (selected) {
-                setColor(if (dark) 0xFF0B0B0D.toInt() else 0xFFE4E5E9.toInt())
+                setColor(if (dark) 0xFF0B0B0D.toInt() else CARD)
                 setStroke(dp(context, 2), EMBER)
             } else {
                 setColor(CARD)

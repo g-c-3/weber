@@ -92,7 +92,6 @@ class TabSwitcher(
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(Ui.dp(context, 14), 0, Ui.dp(context, 14), Ui.dp(context, 60))
-            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 42)))
             // With few tabs the cards sit in the middle of the sheet and move up as tabs are added (DECISIONS.md 167).
             addView(grid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
                 topMargin = Ui.dp(context, 4)
@@ -104,7 +103,15 @@ class TabSwitcher(
             isFillViewport = true
             addView(column)
         }
-        addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        // The four buttons stay in place while the cards scroll (DECISIONS.md 180).
+        val body = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(head, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(context, 42)).apply {
+                setMargins(Ui.dp(context, 14), 0, Ui.dp(context, 14), 0)
+            })
+            addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        }
+        addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         // The sheet covers the system bars too; its content keeps clear of them.
         setOnApplyWindowInsetsListener { v, insets ->
             if (android.os.Build.VERSION.SDK_INT >= 30) {

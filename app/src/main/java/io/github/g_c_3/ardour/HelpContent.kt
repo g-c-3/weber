@@ -26,6 +26,7 @@ object HelpContent {
                 "Type a word to search or an address to open it. Suggestions appear as you type; only the text you typed is sent to the suggestion service of your search engine, with no cookie or identifier, and nothing is kept.",
                 "On the start page, select the box in the middle or the address bar at the top: the other one fades away until you leave the first.",
                 "Eng chooses the voice language, the microphone starts voice search after your tap, and the magnifier with the small arrow chooses the search engine.",
+                "A tap or a swipe down on the address bar opens it for typing; the address is centred while it fits. "+
                 "Paste lights up when the clipboard holds text. Settings > Show full address shows the whole address instead of the site name.",
             ),
         ),
@@ -51,6 +52,7 @@ object HelpContent {
             "Quick Sweep",
             listOf(
                 "Press and hold the shield. The open page's site is cleaned at once, whether Shield Mode is on or off, with no question. A short shredder animation plays.",
+                "It works in any tab that has held a page, also one that now shows the start page. "+
                 "It removes what the site added since you first opened it in this run of the app. A Settings switch makes it remove earlier sign-ins too.",
             ),
         ),

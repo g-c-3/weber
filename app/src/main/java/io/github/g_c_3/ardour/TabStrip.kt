@@ -339,6 +339,15 @@ class TabStrip(
         onMove(from, to)
     }
 
+    // A rotation or a new width: the open tab is brought into view again (DECISIONS.md 180).
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (w != oldw) {
+            removeCallbacks(glideBack)
+            post { centreActive() }
+        }
+    }
+
     override fun onDetachedFromWindow() {
         removeCallbacks(glideBack)
         removeCallbacks(startDrag)

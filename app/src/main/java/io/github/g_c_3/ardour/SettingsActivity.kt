@@ -171,11 +171,28 @@ class SettingsActivity : Activity() {
         setOnClickListener { onTap() }
     }
 
+    // Title and info button as one group in the middle of the button, a chevron at its right end (DECISIONS.md 180).
     private fun diagnosticsButton(): View {
         val ctx = this
-        return LinearLayout(ctx).apply {
+        val group = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(ctx).apply {
+                text = "Diagnostics"
+                textSize = 14f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(Ui.INK)
+                includeFontPadding = false
+            })
+            addView(InfoButton(ctx).apply {
+                contentDescription = "About Diagnostics"
+                translationY = Ui.dp(ctx, 1.5f)
+                setOnClickListener {
+                    infoSheet.showInfo("Diagnostics", "Page load trace and crash log.\n\nFiles that show what happened when a page stalled or the app stopped. They stay on your phone and are written to Downloads only when you tap Save. Nothing is sent anywhere.")
+                }
+            }, LinearLayout.LayoutParams(Ui.dp(ctx, 26), Ui.dp(ctx, 30)).apply { marginStart = -Ui.dp(ctx, 3) })
+        }
+        return FrameLayout(ctx).apply {
             minimumHeight = Ui.dp(ctx, 50)
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(Ui.CARD)
@@ -187,18 +204,8 @@ class SettingsActivity : Activity() {
             contentDescription = "Diagnostics"
             setOnClickListener { startActivity(Intent(ctx, DiagnosticsActivity::class.java)) }
             Ui.springPress(this)
-            addView(TextView(ctx).apply {
-                text = "Diagnostics"
-                textSize = 14f
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                setTextColor(Ui.INK)
-            })
-            addView(InfoButton(ctx).apply {
-                contentDescription = "About Diagnostics"
-                setOnClickListener {
-                    infoSheet.showInfo("Diagnostics", "Page load trace and crash log.\n\nFiles that show what happened when a page stalled or the app stopped. They stay on your phone and are written to Downloads only when you tap Save. Nothing is sent anywhere.")
-                }
-            }, LinearLayout.LayoutParams(Ui.dp(ctx, 30), Ui.dp(ctx, 30)))
+            addView(group, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+            addView(ChevronView(ctx), FrameLayout.LayoutParams(Ui.dp(ctx, 18), Ui.dp(ctx, 18), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = Ui.dp(ctx, 10) })
         }
     }
 
@@ -288,7 +295,7 @@ class SettingsActivity : Activity() {
     private fun leaveChoiceRow(): View {
         val ctx = this
         val options = listOf(Prefs.LEAVE_ASK to "Ask every time", Prefs.LEAVE_DELETE to "Delete always", Prefs.LEAVE_KEEP to "Keep always")
-        var chosen = Prefs.getString(ctx, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_ASK)
+        var chosen = Prefs.getString(ctx, Prefs.PRIVATE_LEAVE, Prefs.LEAVE_KEEP)
         val notes = mapOf(
             Prefs.LEAVE_ASK to "Switching Shield Mode off asks whether to delete what the Shield Mode session added.",
             Prefs.LEAVE_DELETE to "Switching Shield Mode off deletes the cookies, site data and cache the Shield Mode session added. Sign-ins you already had stay.",

@@ -438,7 +438,7 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             setOnFocusChangeListener { _, focused ->
                 focusedNow = focused
                 updateRim()
-                align.reset(!url.isNullOrEmpty())
+                align.reset()
                 filling = true
                 if (focused) {
                     setText(url ?: "")
@@ -453,6 +453,8 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             }
         }
         addView(input, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        // A swipe down on the bar opens it for typing, as a tap does (DECISIONS.md 180).
+        Gestures.onSwipeDown(input) { openForTyping() }
         progress.visibility = View.INVISIBLE
         addView(
             progress,
@@ -463,6 +465,13 @@ class AddressField(context: Context, private val onSubmit: (String) -> Unit, pri
             },
         )
         isClickable = true
+    }
+
+    // The bar opens for typing with the keyboard, as after a tap.
+    fun openForTyping() {
+        if (input.hasFocus()) return
+        input.requestFocus()
+        context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
     }
 
     // The Settings switch for the full address changed.

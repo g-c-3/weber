@@ -6,8 +6,8 @@ import android.view.Gravity
 import android.widget.EditText
 
 // Alignment of typed text (DECISIONS.md 120): while the text, or the hint of an empty field, is shorter than the field it
-// is centred and stays centred as it grows; once it fills the width it starts at the left. An address that was already
-// in the field keeps the left start until the field is emptied.
+// is centred and stays centred as it grows; once it fills the width it starts at the left. An address already in the field
+// is centred too when it fits (DECISIONS.md 180, replaces the left start of 120).
 class TypedAlign(private val edit: EditText) {
     private var centred = true
     private var gravityNow = -1
@@ -26,9 +26,9 @@ class TypedAlign(private val edit: EditText) {
         }
     }
 
-    // The field opens: an existing address starts at the left, an empty field is centred. Call before its text is set.
-    fun reset(hasAddress: Boolean) {
-        centred = !hasAddress
+    // The field opens: its text is centred while it fits. Call before its text is set.
+    fun reset() {
+        centred = true
         refresh()
     }
 
