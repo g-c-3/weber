@@ -89,8 +89,8 @@ class SettingsActivity : Activity() {
         }
         column.addView(browsing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(Ui.sectionLabel(this, "Tabs"))
-        val widthRow = sizeRow("Tab width", "How wide the tabs of the top bar tab header are: XS, S, M or L. S is the default. On a landscape screen the tabs are wider still. Works while the top bar tab header is on.", Prefs.TAB_WIDTH)
-        val heightRow = sizeRow("Tab height", "How tall the tabs of the top bar tab header are: XS, S, M or L. S is the default. A taller header leaves less of the page. Works while the top bar tab header is on.", Prefs.TAB_HEIGHT)
+        val widthRow = sizeRow("Tab header width", "How wide the tabs of the top bar tab header are: XS, S, M or L. S is the default. On a landscape screen the tabs are wider still. Works while the top bar tab header is on.", Prefs.TAB_WIDTH)
+        val heightRow = sizeRow("Tab header height", "How tall the tabs of the top bar tab header are: XS, S, M or L. S is the default. A taller header leaves less of the page. Works while the top bar tab header is on.", Prefs.TAB_HEIGHT)
         // The two size rows only work while the top bar tab header is on.
         fun gateSizes(on: Boolean) {
             for (r in listOf(widthRow, heightRow)) {
@@ -99,9 +99,9 @@ class SettingsActivity : Activity() {
             }
         }
         column.addView(Ui.card(this).apply {
-            addView(switchRow("Top bar tab header", "Shows your open tabs in a header above the address bar. Swipe it sideways and tap a tab to switch. After 3 seconds without a pick it glides back to the open tab. It takes some of the page height. Off by default.", Prefs.TOP_TABS) { gateSizes(it) })
-            addView(Ui.divider(this@SettingsActivity))
             addView(maxTabsRow())
+            addView(Ui.divider(this@SettingsActivity))
+            addView(switchRow("Top bar tab header", "Shows your open tabs in a header above the address bar. Swipe it sideways and tap a tab to switch. After 3 seconds without a pick it glides back to the open tab. It takes some of the page height. Off by default.", Prefs.TOP_TABS) { gateSizes(it) })
             addView(Ui.divider(this@SettingsActivity))
             addView(widthRow)
             addView(Ui.divider(this@SettingsActivity))
@@ -126,8 +126,10 @@ class SettingsActivity : Activity() {
         column.addView(Ui.card(this).apply {
             addView(themeChoiceRow())
             addView(Ui.divider(this@SettingsActivity))
-            addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The icon changes when you close Ardour, and the launcher may take a moment; it may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
+            addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The icon changes at once. Android may close Ardour while it does; your tabs are there when you open it again. The launcher may take a moment, and may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
                 IconToast.show(this@SettingsActivity, it)
+                // Once the notice has shown its change, the launcher entry is switched (DECISIONS.md 183).
+                window.decorView.postDelayed({ AppIcon.applyPending(this@SettingsActivity) }, 900)
             })
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(bottomRow(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -183,8 +185,10 @@ class SettingsActivity : Activity() {
     }
 
     private fun rowButton(text: String, onTap: () -> Unit): View = Ui.secondaryButton(this, text).apply {
-        textSize = 14f
-        minHeight = Ui.dp(this@SettingsActivity, 50)
+        textSize = 13f
+        gravity = Gravity.CENTER
+        // As high as the segments of "When leaving Shield Mode" (36 dp).
+        minHeight = Ui.dp(this@SettingsActivity, 36)
         setPadding(Ui.dp(this@SettingsActivity, 6), 0, Ui.dp(this@SettingsActivity, 6), 0)
         setOnClickListener { onTap() }
     }
@@ -197,7 +201,7 @@ class SettingsActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             addView(TextView(ctx).apply {
                 text = "Diagnostics"
-                textSize = 14f
+                textSize = 13f
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 setTextColor(Ui.INK)
                 includeFontPadding = false
@@ -211,7 +215,7 @@ class SettingsActivity : Activity() {
             }, LinearLayout.LayoutParams(Ui.dp(ctx, 26), Ui.dp(ctx, 30)).apply { marginStart = -Ui.dp(ctx, 3) })
         }
         return FrameLayout(ctx).apply {
-            minimumHeight = Ui.dp(ctx, 50)
+            minimumHeight = Ui.dp(ctx, 36)
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(Ui.CARD)
                 cornerRadius = Ui.dp(ctx, 28).toFloat()
@@ -435,6 +439,11 @@ class SettingsActivity : Activity() {
     private fun sizeRow(label: String, info: String, key: String): View {
         val ctx = this
         val start = Prefs.getInt(ctx, key, 1).coerceIn(0, 3)
+        val titleWidth = TextView(ctx).run {
+            textSize = 16f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            paint.measureText("Tab header height").toInt() + Ui.dp(ctx, 30)
+        }
         val value = TextView(ctx).apply {
             text = TabSizes.labels[start]
             textSize = 14f
@@ -452,7 +461,8 @@ class SettingsActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 4))
             tag = slider
-            addView(titleLine(label, info))
+            // Both rows give their title the width of the longer one, so the sliders start and end at the same places.
+            addView(titleLine(label, info), LinearLayout.LayoutParams(titleWidth, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(slider, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 4) })
             addView(value)
         }

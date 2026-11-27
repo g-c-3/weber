@@ -17,7 +17,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 // Notice shown when "Dark app icon" is flipped (DECISIONS.md 159): a small icon tile whose colour changes from the current
-// icon's background to the other one's, beside the line that the home-screen icon follows after a restart or the next update.
+// icon's background to the other one's, beside the line that the home-screen icon changes now (DECISIONS.md 183).
 // Slides up with a spring, holds, slides away.
 object IconToast {
     private const val HOLD_MS = 3800L
@@ -29,7 +29,7 @@ object IconToast {
         val to = activity.getColor(if (toDark) R.color.ic_launcher_background else R.color.ic_launcher_light_background)
         val tile = TileView(activity, from)
         val label = TextView(activity).apply {
-            text = "The icon changes when you close Ardour."
+            text = "The icon changes now. Ardour may close for a moment."
             setTextColor(Ui.INK)
             setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.textPx(activity, 13.5f))
             maxWidth = Ui.dp(activity, 230)

@@ -10,8 +10,9 @@ import android.content.pm.PackageManager
 object AppIcon {
     private val namespace = MainActivity::class.java.name.substringBeforeLast('.')
 
-    // The launcher entry is switched when the app is closed, not while it runs: with the entry that started the running
-    // task disabled, Android ended the app on the screen (DECISIONS.md 166).
+    // The launcher entry is switched at once when the Settings switch is flipped (DECISIONS.md 183), and otherwise when the app
+    // is closed. With the entry that started the running task disabled, Android may end the app on the screen (DECISIONS.md 166);
+    // its tabs are saved and come back at the next start.
     fun applyPending(context: Context) {
         val wanted = Prefs.get(context, Prefs.ICON_DARK, true)
         if (wanted == Prefs.get(context, Prefs.ICON_APPLIED, true)) return
