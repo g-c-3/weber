@@ -80,6 +80,8 @@ object HelpContent {
             listOf(
                 "No telemetry, analytics, crash reports, accounts or cloud sync in Ardour's own code. Open tabs are written to the app's private storage only for the restart after an icon change, and removed as soon as they are back.",
                 "Besides the pages you visit, Ardour connects only for the update check (on your tap), filter list updates and search suggestions (as you type).",
+                "A site's upload button opens your phone's file picker; the page gets only the files you choose.",
+                "A page that fails to load gets Ardour's own page, with a short reason and a way to try again.",
                 "The web engine is Google's Android System WebView; its own traffic is outside Ardour's control.",
             ),
         ),

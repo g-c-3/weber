@@ -43,6 +43,10 @@ class MainActivity : Activity() {
     private lateinit var startView: View
     private lateinit var searchBlock: StartSearch
     private lateinit var errorView: LinearLayout
+    private lateinit var errorArt: ErrorArt
+    private lateinit var errorDetail: TextView
+    private var errorShownAt = 0L
+    private var pendingFile: ((Int, Intent?) -> Unit)? = null
     private lateinit var errorTitle: TextView
     private lateinit var errorBody: TextView
     private lateinit var errorHost: TextView
@@ -142,6 +146,21 @@ class MainActivity : Activity() {
 
         override fun onError(url: String?, kind: PageError) = showError(url, kind)
 
+        // The system file picker for a page's upload button (DECISIONS.md 187).
+        @Suppress("DEPRECATION")
+        override fun onChooseFile(picker: Intent, done: (Int, Intent?) -> Unit): Boolean {
+            // An earlier request still open is answered as cancelled, so its page does not wait for ever.
+            pendingFile?.invoke(RESULT_CANCELED, null)
+            pendingFile = done
+            return try {
+                startActivityForResult(picker, REQUEST_FILE)
+                true
+            } catch (e: android.content.ActivityNotFoundException) {
+                pendingFile = null
+                false
+            }
+        }
+
         override fun onNavigate(url: String) = beginNavigation(url)
 
         override fun onFind(active: Int, total: Int) {
@@ -194,7 +213,8 @@ class MainActivity : Activity() {
                 beats = 0
                 progress.postDelayed(heartbeat, 2000L)
             }
-            if (loading) errorView.visibility = View.GONE
+            // The engine can start a load of its own error page right after the error: that must not hide the error screen.
+            if (loading && SystemClock.uptimeMillis() - errorShownAt > 1500L) errorView.visibility = View.GONE
             if (loading && finding) closeFind()
             if (!loading) pageArea.finish()
             if (!loading) refreshStrip()
@@ -296,6 +316,16 @@ class MainActivity : Activity() {
     }
 
     // singleTask: a link from another app arrives here while Ardour is already open.
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_FILE) {
+            val done = pendingFile
+            pendingFile = null
+            done?.invoke(resultCode, data)
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         // Opened again from the icon while Settings was the open screen: Settings comes back (DECISIONS.md 186).
         if (intent.action == Intent.ACTION_MAIN && Screens.settingsOpen) startActivity(Intent(this, SettingsActivity::class.java))
@@ -754,20 +784,8 @@ class MainActivity : Activity() {
         isClickable = true
         val pad = Ui.dp(context, 32)
         setPadding(pad, pad, pad, Ui.dp(context, 64))
-        addView(TextView(context).apply {
-            text = "!"
-            textSize = 32f
-            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setTextColor(Ui.EMBER)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Ui.CARD)
-                setStroke(Ui.dp(context, 3), Ui.EMBER)
-            }
-            elevation = Ui.dp(context, 6).toFloat()
-            outlineSpotShadowColor = 0x80E8451D.toInt()
-        }, LinearLayout.LayoutParams(Ui.dp(context, 72), Ui.dp(context, 72)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        errorArt = ErrorArt(context)
+        addView(errorArt, LinearLayout.LayoutParams(Ui.dp(context, 150), Ui.dp(context, 150)).apply { gravity = Gravity.CENTER_HORIZONTAL })
         errorTitle = Ui.title(context, "").apply {
             textSize = 24f
             gravity = Gravity.CENTER
@@ -781,9 +799,16 @@ class MainActivity : Activity() {
         addView(errorBody)
         errorHost = Ui.body(context, "").apply {
             gravity = Gravity.CENTER
-            setPadding(0, Ui.dp(context, 12), 0, Ui.dp(context, 28))
+            setPadding(0, Ui.dp(context, 12), 0, Ui.dp(context, 6))
         }
         addView(errorHost)
+        errorDetail = Ui.body(context, "").apply {
+            gravity = Gravity.CENTER
+            textSize = 12f
+            alpha = 0.7f
+            setPadding(0, 0, 0, Ui.dp(context, 24))
+        }
+        addView(errorDetail)
         errorRetry = Ui.pillButton(context, "Try again").apply {
             setOnClickListener { failedUrl?.let { EngineAdapter.load(it); beginNavigation(it) } }
         }
@@ -830,13 +855,17 @@ class MainActivity : Activity() {
         // A lookup or connection failure with no working network is "offline", whatever the engine says.
         val kind = if ((found == PageError.NOT_FOUND || found == PageError.UNREACHABLE) && !isOnline()) PageError.OFFLINE else found
         val (title, body) = when (kind) {
-            PageError.OFFLINE -> "No internet connection" to "Check your connection, then try again."
-            PageError.NOT_FOUND -> "This site can't be found" to "Check the address for typing mistakes."
-            PageError.UNREACHABLE -> "Can't reach this page" to "The site may be down, or your connection may be weak."
-            PageError.SECURITY -> "This connection isn't secure" to "Ardour stopped the page because its security certificate can't be trusted."
+            PageError.OFFLINE -> "You're offline" to "Ardour can't reach the internet. Check your connection, then try again."
+            PageError.NOT_FOUND -> "We couldn't find that site" to "Check the address for typing mistakes, or search for it instead."
+            PageError.UNREACHABLE -> "That page isn't answering" to "The site may be down, or your connection may be weak."
+            PageError.SECURITY -> "This connection isn't safe" to "Ardour stopped the page because its security certificate can't be trusted."
             PageError.NOT_SECURE -> "Ardour won't open this page" to "The address uses an unencrypted connection (http)."
-            PageError.OTHER -> "This page didn't load" to "Something went wrong while loading it."
+            PageError.OTHER -> "This page didn't load" to "The site sent back something Ardour couldn't use. Try again in a moment."
         }
+        errorArt.kind = kind
+        errorDetail.text = if (kind == PageError.OTHER || kind == PageError.UNREACHABLE) EngineAdapter.lastErrorDetail else ""
+        errorDetail.visibility = if (errorDetail.text.isEmpty()) View.GONE else View.VISIBLE
+        errorShownAt = SystemClock.uptimeMillis()
         errorTitle.text = title
         errorBody.text = body
         errorHost.text = url?.let { UrlInput.display(it) } ?: ""
@@ -1597,6 +1626,7 @@ class MainActivity : Activity() {
     }
 
     private companion object {
+        private const val REQUEST_FILE = 41
         const val ROW_HEIGHT = 34
         const val WEBVIEW_PAGE = "https://play.google.com/store/apps/details?id=com.google.android.webview"
     }

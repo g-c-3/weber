@@ -25,6 +25,7 @@ import android.os.Message
 import android.os.Looper
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -63,6 +64,10 @@ interface PageListener {
 
     // A tap asked for a new window while the tab limit is reached.
     fun onTabLimit() {}
+
+    // A page's upload button: `picker` is the system file picker's intent; the screen starts it and gives the result code and
+    // data back through `done`. False when the screen cannot (DECISIONS.md 187).
+    fun onChooseFile(picker: android.content.Intent, done: (Int, android.content.Intent?) -> Unit): Boolean = false
 }
 
 private var nextId = 1
@@ -108,6 +113,8 @@ object EngineAdapter {
     private var engineLost: () -> Unit = {}
     // The most tabs open at once; the Settings value, read by the activity (DECISIONS.md 181).
     var maxTabs = 12
+    // The engine's own words for the last page error (such as net::ERR_INVALID_RESPONSE), shown small on the error screen.
+    var lastErrorDetail = ""
     private var defaultAgent: String? = null
     private var defaultMetadata: UserAgentMetadata? = null
     private var bypassCache = false
@@ -620,6 +627,23 @@ object EngineAdapter {
                 listener.onProgress(newProgress)
             }
 
+            // An upload button: the system file picker opens (createIntent), and what it returns, which is untrusted, is cut down to
+            // content addresses before the page gets it (DECISIONS.md 187).
+            override fun onShowFileChooser(view: WebView, filePathCallback: ValueCallback<Array<Uri>>, fileChooserParams: WebChromeClient.FileChooserParams): Boolean {
+                if (view !== webView) return false
+                val picker = try {
+                    fileChooserParams.createIntent()
+                } catch (e: Exception) {
+                    return false
+                }
+                val started = listener.onChooseFile(picker) { code, data ->
+                    val chosen = WebChromeClient.FileChooserParams.parseResult(code, data)?.filter { it.scheme == "content" }
+                    filePathCallback.onReceiveValue(chosen?.takeIf { it.isNotEmpty() }?.toTypedArray())
+                }
+                Trace.log("UPLOAD", "chooser started=$started mode=${fileChooserParams.mode}")
+                return started
+            }
+
             // A new window asked for after a tap opens as a tab in front, next to the active one; one a script asks for
             // without a tap is refused (DECISIONS.md 161).
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
@@ -748,6 +772,7 @@ object EngineAdapter {
                     error.errorCode == ERROR_FAILED_SSL_HANDSHAKE -> PageError.SECURITY
                     else -> PageError.OTHER
                 }
+                lastErrorDetail = text.removePrefix("net::")
                 listener.onError(request.url.toString(), kind)
             }
 
