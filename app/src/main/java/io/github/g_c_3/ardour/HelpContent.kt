@@ -69,7 +69,7 @@ object HelpContent {
         HelpSection(
             "Settings and updates",
             listOf(
-                "Theme follows the phone or stays light or dark. Dark app icon switches the launcher icon at once; Android may close Ardour while it does, and your tabs are there when you open it again.",
+                "Theme follows the phone or stays light or dark. Dark app icon switches the launcher icon at once, without closing Ardour.",
                 "Update Check asks GitHub for a newer release only when you tap it. The download is checked against its published checksum, and Android asks you to confirm the install.",
                 "Default App makes Ardour the browser that opens links from other apps.",
                 "Diagnostics holds a page load trace and a crash log. They stay on your phone and are written to Downloads only when you tap Save.",

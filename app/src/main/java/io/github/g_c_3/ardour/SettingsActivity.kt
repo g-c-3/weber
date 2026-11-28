@@ -126,7 +126,7 @@ class SettingsActivity : Activity() {
         column.addView(Ui.card(this).apply {
             addView(themeChoiceRow())
             addView(Ui.divider(this@SettingsActivity))
-            addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The icon changes at once. Android may close Ardour while it does; your tabs are there when you open it again. The launcher may take a moment, and may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
+            addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The icon changes at once. The launcher may take a moment, and may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
                 IconToast.show(this@SettingsActivity, it)
                 // Once the notice has shown its change, the launcher entry is switched (DECISIONS.md 183).
                 window.decorView.postDelayed({ AppIcon.applyPending(this@SettingsActivity) }, 900)

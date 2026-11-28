@@ -34,6 +34,14 @@
         <activity
             android:name=".HelpActivity"
             android:exported="false" />
+        <!-- Opened by the launcher entries; starts MainActivity and ends, so the running browser does not belong to an entry that is
+             switched off (DECISIONS.md 184). -->
+        <activity
+            android:name=".LaunchActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density|fontScale"
@@ -56,7 +64,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:label="Ardour"
-            android:targetActivity=".MainActivity">
+            android:targetActivity=".LaunchActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -68,7 +76,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher_light"
             android:label="Ardour"
-            android:targetActivity=".MainActivity">
+            android:targetActivity=".LaunchActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

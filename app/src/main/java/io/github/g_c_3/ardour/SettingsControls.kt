@@ -55,24 +55,26 @@ class StepSlider(
 
     override fun onDraw(canvas: Canvas) {
         val y = if (compact) height / 2f else d(20)
-        track.strokeWidth = d(4)
+        // The compact slider is thin and small: a fine line and a small thumb.
+        val t = if (compact) 0.6f else 1f
+        track.strokeWidth = d(4) * t
         track.color = Ui.LINE
         canvas.drawLine(x(0f), y, x((labels.size - 1).toFloat()), y, track)
         track.color = Ui.EMBER
         canvas.drawLine(x(0f), y, x(pos), y, track)
         for (i in labels.indices) {
             dot.color = if (i <= pos + 0.01f) Ui.EMBER else Ui.LINE
-            canvas.drawCircle(x(i.toFloat()), y, d(5), dot)
+            canvas.drawCircle(x(i.toFloat()), y, d(5) * t, dot)
             val near = (1f - abs(pos - i)).coerceIn(0f, 1f)
             text.color = if (near > 0.5f) Ui.EMBER else Ui.MUTED
             if (!compact) canvas.drawText(labels[i], x(i.toFloat()), y + d(28), text)
         }
         glow.color = (0x40 shl 24) or (Ui.EMBER and 0x00FFFFFF)
-        canvas.drawCircle(x(pos), y, d(15), glow)
+        canvas.drawCircle(x(pos), y, d(15) * t, glow)
         dot.color = Ui.EMBER
-        canvas.drawCircle(x(pos), y, d(10), dot)
+        canvas.drawCircle(x(pos), y, d(10) * t, dot)
         dot.color = 0xFFFFFFFF.toInt()
-        canvas.drawCircle(x(pos), y, d(4), dot)
+        canvas.drawCircle(x(pos), y, d(4) * t, dot)
     }
 
     @SuppressLint("ClickableViewAccessibility")
