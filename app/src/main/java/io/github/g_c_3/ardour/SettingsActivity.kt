@@ -126,7 +126,17 @@ class SettingsActivity : Activity() {
         column.addView(Ui.card(this).apply {
             addView(themeChoiceRow())
             addView(Ui.divider(this@SettingsActivity))
-            addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. The icon changes at once. The launcher may take a moment, and may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true) {
+            addView(switchRow("Dark app icon", "On: the dark icon. Off: the light (white) icon. You are asked first, and Ardour closes once to change it; your open tabs come back when you open it again. The launcher may take a moment, and may drop an icon you placed on the home screen: add it again from the app list.", Prefs.ICON_DARK, true, gate = { _, proceed ->
+                // Android closes Ardour when its icon changes: the person is asked first, the tabs are saved on Proceed (DECISIONS.md 185).
+                infoSheet.show(
+                    "Change the app icon?",
+                    "To change its icon, Android has to close Ardour once. Your open tabs are saved first. Open Ardour again from its new icon and they are back, with their pages loading again. Shield tabs are not saved.",
+                    "Proceed",
+                ) {
+                    TabStore.save(this@SettingsActivity)
+                    proceed()
+                }
+            }) {
                 IconToast.show(this@SettingsActivity, it)
                 // Once the notice has shown its change, the launcher entry is switched (DECISIONS.md 183).
                 window.decorView.postDelayed({ AppIcon.applyPending(this@SettingsActivity) }, 900)
@@ -469,7 +479,8 @@ class SettingsActivity : Activity() {
     }
 
     // One option: title and info button on the left, a switch on the right; a tap anywhere else on the row flips it.
-    private fun switchRow(label: String, note: String, key: String, default: Boolean = false, onChange: ((Boolean) -> Unit)? = null): View {
+    // `gate`, when given, decides whether the switch flips: it gets the new value and a function that does the flip.
+    private fun switchRow(label: String, note: String, key: String, default: Boolean = false, gate: ((Boolean, () -> Unit) -> Unit)? = null, onChange: ((Boolean) -> Unit)? = null): View {
         val ctx = this
         val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -481,11 +492,12 @@ class SettingsActivity : Activity() {
         val switch = ToggleSwitch(ctx, Prefs.get(ctx, key, default))
         row.addView(titleLine(label, note), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(switch, LinearLayout.LayoutParams(Ui.dp(ctx, 40), Ui.dp(ctx, 22)).apply { marginStart = Ui.dp(ctx, 12) })
-        row.setOnClickListener {
+        val flip: () -> Unit = {
             switch.on = !switch.on
             Prefs.set(ctx, key, switch.on)
             onChange?.invoke(switch.on)
         }
+        row.setOnClickListener { if (gate != null) gate(!switch.on, flip) else flip() }
         return row
     }
 

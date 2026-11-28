@@ -523,6 +523,13 @@ object EngineAdapter {
         tabList.add(to, tabList.removeAt(from))
     }
 
+    // Tabs put back on a fresh start (DECISIONS.md 185): they wake when selected, the open one when the screen is built.
+    fun restoreTabs(tabs: List<Tab>, active: Int) {
+        if (tabList.isNotEmpty() || tabs.isEmpty()) return
+        tabList.addAll(tabs)
+        activeTab = tabList[active.coerceIn(0, tabList.lastIndex)]
+    }
+
     fun newTab(): Int {
         tabList.add(Tab())
         return tabList.lastIndex

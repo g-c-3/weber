@@ -29,7 +29,7 @@ object IconToast {
         val to = activity.getColor(if (toDark) R.color.ic_launcher_background else R.color.ic_launcher_light_background)
         val tile = TileView(activity, from)
         val label = TextView(activity).apply {
-            text = "The icon changes now."
+            text = "The icon changes now. Ardour closes once."
             setTextColor(Ui.INK)
             setTextSize(TypedValue.COMPLEX_UNIT_PX, Ui.textPx(activity, 13.5f))
             maxWidth = Ui.dp(activity, 230)

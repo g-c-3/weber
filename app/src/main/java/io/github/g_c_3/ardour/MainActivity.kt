@@ -212,6 +212,9 @@ class MainActivity : Activity() {
         builtDark = Ui.dark
         CrashLog.install(this)
         SearchEngines.load(this)
+        // Tabs kept for one restart after an icon change come back before the screen is built (DECISIONS.md 185).
+        if (savedInstanceState == null) TabStore.restore(this)
+        TabStore.flush = { saveTabState() }
         val gateMessage = buildScreen()
         if (gateMessage == null) restoreTabState()
         if (gateMessage == null && savedInstanceState == null) handleLink(intent)
@@ -1581,6 +1584,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         if (isFinishing && EngineAdapter.privateActive && Prefs.get(this, Prefs.PRIVATE_CLOSE)) EngineAdapter.deletePrivateAdditions()
         saveTabState()
+        TabStore.flush = null
         EngineAdapter.destroy(keepTabs = !isFinishing)
         if (isFinishing) AppIcon.applyPending(this)
         super.onDestroy()

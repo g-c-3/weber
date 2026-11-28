@@ -69,7 +69,7 @@ object HelpContent {
         HelpSection(
             "Settings and updates",
             listOf(
-                "Theme follows the phone or stays light or dark. Dark app icon switches the launcher icon at once, without closing Ardour.",
+                "Theme follows the phone or stays light or dark. Dark app icon asks first, then changes the launcher icon. Android closes Ardour once while it does; your open tabs are saved and come back, with their pages loading again, when you open it from the new icon. Shield tabs are not saved.",
                 "Update Check asks GitHub for a newer release only when you tap it. The download is checked against its published checksum, and Android asks you to confirm the install.",
                 "Default App makes Ardour the browser that opens links from other apps.",
                 "Diagnostics holds a page load trace and a crash log. They stay on your phone and are written to Downloads only when you tap Save.",
@@ -78,7 +78,7 @@ object HelpContent {
         HelpSection(
             "Privacy",
             listOf(
-                "No telemetry, analytics, crash reports, accounts or cloud sync in Ardour's own code.",
+                "No telemetry, analytics, crash reports, accounts or cloud sync in Ardour's own code. Open tabs are written to the app's private storage only for the restart after an icon change, and removed as soon as they are back.",
                 "Besides the pages you visit, Ardour connects only for the update check (on your tap), filter list updates and search suggestions (as you type).",
                 "The web engine is Google's Android System WebView; its own traffic is outside Ardour's control.",
             ),
