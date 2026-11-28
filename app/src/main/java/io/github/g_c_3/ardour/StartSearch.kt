@@ -85,6 +85,8 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
         onClear = { box.input.setText("") },
         onGo = { submitTyped(box.input.text.toString()) },
     )
+    // The row of the voice language, the microphone and the engine buttons.
+    private lateinit var chipRow: LinearLayout
     private val language = StartChip(activity, false)
     private val mic = MicButton(activity)
     private val engine = StartChip(activity, true)
@@ -114,6 +116,7 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
         addView(box, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.sdp(activity, 50)))
         box.onFocus = { focused ->
             showBar(focused)
+            fadeChips(focused)
             onBoxFocus?.invoke(focused)
         }
         box.input.addTextChangedListener(object : TextWatcher {
@@ -129,6 +132,7 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
             gravity = Gravity.CENTER
             clipChildren = false
         }
+        chipRow = row
         language.label = voiceLanguage.short
         language.contentDescription = "Voice language"
         mic.contentDescription = "Voice search"
@@ -159,6 +163,21 @@ class StartSearch(private val activity: Activity, private val onSubmit: (String)
     private fun closeSuggestions() {
         suggest.stop()
         suggestList.hideList()
+    }
+
+    // On a phone held sideways the keyboard covers the voice language, the microphone and the engine buttons: they fade away
+    // while the box is in use and come back after it (DECISIONS.md 186).
+    private fun fadeChips(focused: Boolean) {
+        val config = activity.resources.configuration
+        val short = config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE && config.smallestScreenWidthDp < 600
+        if (!::chipRow.isInitialized) return
+        chipRow.animate().cancel()
+        if (focused && short) {
+            chipRow.animate().alpha(0f).setDuration(180).withEndAction { chipRow.visibility = View.GONE }.start()
+        } else {
+            chipRow.visibility = View.VISIBLE
+            chipRow.animate().alpha(1f).setDuration(240).start()
+        }
     }
 
     private fun showBar(show: Boolean) {

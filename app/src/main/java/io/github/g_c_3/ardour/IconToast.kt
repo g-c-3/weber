@@ -22,7 +22,8 @@ import android.widget.TextView
 object IconToast {
     private const val HOLD_MS = 3800L
 
-    fun show(activity: Activity, toDark: Boolean) {
+    // Returns a function that changes the line of the notice (the result of the switch is told there).
+    fun show(activity: Activity, toDark: Boolean): (String) -> Unit {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
         content.findViewWithTag<View>("icon-toast")?.let { content.removeView(it) }
         val from = activity.getColor(if (toDark) R.color.ic_launcher_light_background else R.color.ic_launcher_background)
@@ -56,7 +57,7 @@ object IconToast {
             tile.color = to
             pill.alpha = 1f
             pill.postDelayed({ content.removeView(pill) }, HOLD_MS)
-            return
+            return { label.text = it }
         }
         pill.translationY = Ui.dp(activity, 80).toFloat()
         pill.animate().alpha(1f).translationY(0f).setDuration(460).setInterpolator(SpringInterpolator()).start()
@@ -77,6 +78,7 @@ object IconToast {
             pill.animate().alpha(0f).translationY(Ui.dp(activity, 40).toFloat()).setDuration(260)
                 .withEndAction { content.removeView(pill) }.start()
         }, HOLD_MS)
+        return { label.text = it }
     }
 
     // A rounded square in the given colour with the icon's mark on it.

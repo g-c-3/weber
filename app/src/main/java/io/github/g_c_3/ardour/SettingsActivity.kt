@@ -30,8 +30,15 @@ class SettingsActivity : Activity() {
     private var backCallback: Any? = null
     private var searchField: SearchField? = null
 
+    // Leaving Settings by Back or the header clears the flag; the system ending it (the icon of Ardour opened again) does not.
+    override fun finish() {
+        Screens.settingsOpen = false
+        super.finish()
+    }
+
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
+        Screens.settingsOpen = true
         Ui.applyTheme(this)
         setTheme(if (Ui.dark) R.style.Theme_Ardour_Dark else R.style.Theme_Ardour)
         super.onCreate(savedInstanceState)
@@ -137,9 +144,10 @@ class SettingsActivity : Activity() {
                     proceed()
                 }
             }) {
-                IconToast.show(this@SettingsActivity, it)
-                // Once the notice has shown its change, the launcher entry is switched (DECISIONS.md 183).
-                window.decorView.postDelayed({ AppIcon.applyPending(this@SettingsActivity) }, 900)
+                // The notice shows, the launcher entry is switched and read back, and the notice tells the result (DECISIONS.md 186).
+                val say = IconToast.show(this@SettingsActivity, it)
+                val done = AppIcon.applyPending(this@SettingsActivity)
+                say(if (done) "The icon is changed. Ardour closes once; your launcher may take a moment to show it." else "The phone did not accept the change. Try again.")
             })
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         column.addView(bottomRow(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {

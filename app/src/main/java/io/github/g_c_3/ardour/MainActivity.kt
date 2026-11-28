@@ -212,6 +212,7 @@ class MainActivity : Activity() {
         builtDark = Ui.dark
         CrashLog.install(this)
         SearchEngines.load(this)
+        Screens.settingsOpen = false
         // Tabs kept for one restart after an icon change come back before the screen is built (DECISIONS.md 185).
         if (savedInstanceState == null) TabStore.restore(this)
         TabStore.flush = { saveTabState() }
@@ -296,6 +297,8 @@ class MainActivity : Activity() {
 
     // singleTask: a link from another app arrives here while Ardour is already open.
     override fun onNewIntent(intent: Intent) {
+        // Opened again from the icon while Settings was the open screen: Settings comes back (DECISIONS.md 186).
+        if (intent.action == Intent.ACTION_MAIN && Screens.settingsOpen) startActivity(Intent(this, SettingsActivity::class.java))
         super.onNewIntent(intent)
         setIntent(intent)
         if (::pageArea.isInitialized) handleLink(intent)
@@ -716,7 +719,7 @@ class MainActivity : Activity() {
         clipChildren = false
         searchBlock = StartSearch(this@MainActivity) { submit(it) }.also {
             it.onEngineChanged = { address.refreshHint() }
-            it.onBoxFocus = { focused -> fadeField(address, !focused) }
+            it.onBoxFocus = { focused -> fadeField(address, !focused, -1f) }
         }
         addView(searchBlock, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             marginStart = px(24)
@@ -1447,13 +1450,16 @@ class MainActivity : Activity() {
 
     // On the start page only one of the two search fields shows while the other is in use: the top address bar and the box
     // in the middle do the same thing (DECISIONS.md 175). The faded one keeps its place, so nothing moves.
-    private fun fadeField(v: View, show: Boolean) {
+    private fun fadeField(v: View, show: Boolean, lift: Float = 1f) {
         v.animate().cancel()
+        val shift = Ui.dp(this, 5) * lift
         if (show) {
             v.visibility = View.VISIBLE
-            v.animate().alpha(1f).setDuration(240).start()
+            if (v.alpha == 0f) v.translationY = shift
+            v.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
         } else {
-            v.animate().alpha(0f).setDuration(200).withEndAction { v.visibility = View.INVISIBLE }.start()
+            v.animate().alpha(0f).translationY(shift).setDuration(220).setInterpolator(android.view.animation.AccelerateDecelerateInterpolator())
+                .withEndAction { v.visibility = View.INVISIBLE }.start()
         }
     }
 
